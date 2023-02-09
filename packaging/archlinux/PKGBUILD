@@ -1,0 +1,199 @@
+# Maintainer: Manuel Bentele <development@manuel-bentele.de>
+
+pkgbase=ultimate
+pkgname=(
+  ultimate-common
+  ultimate-{automizer,gemcutter,kojak,taipan,reqcheck}
+)
+pkgver=0.2.3
+pkgrel=1
+pkgdesc="The Ultimate program analysis framework"
+arch=('x86_64')
+groups=('ultimate')
+url="https://ultimate.informatik.uni-freiburg.de"
+license=(
+  'LGPL3'
+  'GPL3'
+)
+
+_ultimate_framework_deps=(
+  "archlinux-java-run"
+  "java-runtime=11"
+  "python"
+  "ltl2ba"
+)
+
+_ultimate_solver_deps=(
+  "cvc4"
+  "mathsat-5"
+  "z3"
+)
+
+_ultimate_opt_deps=(
+  "ultimate-automizer: analysis toolchain for sequential and concurrent programs"
+  "ultimate-gemcutter: analysis toolchain for concurrent programs"
+  "ultimate-kojak: analysis toolchain for sequential and concurrent programs"
+  "ultimate-taipan: analysis toolchain for sequential and concurrent programs"
+  "ultimate-reqcheck: analysis toolchain for formalized requirements"
+)
+
+makedepends=(
+  "maven"
+  "archlinux-java-run"
+  "java-environment=11"
+  "${_ultimate_solver_deps[@]}"
+)
+
+source=(
+  "${pkgbase}::git+https://github.com/ultimate-pa/ultimate.git"
+  "ultimate.desktop"
+  "ultimate.sh"
+)
+
+sha512sums=('SKIP'
+            '66e32a165f1ec20256240854158303c19f61d6f52abaf316fc60f1ce702a2889a534643015d88bd439809589e382b473a09785f174d94a5ae5bb445c4d72cfe9'
+            'f32acf85a9082717b297386d8a0c101b5b0d3c3ba3a9a98ccb5688e8c978eb0e8a06393080a62db216171697515b9ae21dcca82daa6d9668e65667cf19c937b3')
+
+pkgver() {
+  cd "${srcdir}/${pkgbase}"
+
+  git describe --tags | sed "s/^v//g" | sed "s/-/./g"
+}
+
+prepare() {
+  cd "${srcdir}/${pkgbase}"
+
+  ./releaseScripts/default/check_solvers.sh
+}
+
+build() {
+  cd "${srcdir}/${pkgbase}/releaseScripts/default"
+
+  JAVA_HOME="$(archlinux-java-run --min 11 --max 11 --feature jdk --java-home)" ./makeFresh.sh
+}
+
+package_ultimate-common() {
+  optdepends=(
+    "${_ultimate_opt_deps[@]}"
+  )
+
+  cd "${srcdir}/${pkgbase}/releaseScripts/default/adds"
+  install -m 644 -v -D "LICENSE"            -t "${pkgdir}/usr/share/licenses/${pkgbase}"
+  install -m 644 -v -D "LICENSE.GPL"        -t "${pkgdir}/usr/share/licenses/${pkgbase}"
+  install -m 644 -v -D "LICENSE.GPL.LESSER" -t "${pkgdir}/usr/share/licenses/${pkgbase}"
+
+  cd "${srcdir}/${pkgbase}/trunk/source/Website/WebContent/img"
+  install -m 644 -v -D "logo_medium.png"       "${pkgdir}/usr/share/pixmaps/${pkgbase}.png"
+}
+
+_install-tool() {
+  _toolsrc="${1}"
+  _tooldst="${2}"
+
+  cd "${_toolsrc}"
+  find . -type f \( ! -iname "*LICENSE*" \
+                    ! -iname "cvc4" \
+                    ! -iname "cvc4nyu" \
+                    ! -iname "mathsat" \
+                    ! -iname "z3" \
+                    ! -iname "ltl2ba" \) \
+         -exec install -m 644 -v -D "{}" "${_tooldst}/{}" \;
+
+  if [ -f "${_tooldst}/Ultimate"                 ]; then chmod 755 "${_tooldst}/Ultimate"; fi
+  if [ -f "${_tooldst}/Ultimate.py"              ]; then chmod 755 "${_tooldst}/Ultimate.py"; fi
+  if [ -f "${_tooldst}/run_complete_analysis.py" ]; then chmod 755 "${_tooldst}/run_complete_analysis.py"; fi
+}
+
+_install-execute-launcher() {
+  _toolname="${1}"
+  _tooldesc="${2}"
+  _toolfile="${3}"
+
+  install -m 755 -v -D "${srcdir}/${pkgbase}.sh"      "${_toolfile}"
+  sed -i "s/^TOOL=/TOOL=\"${_toolname}\"/g"           "${_toolfile}"
+}
+
+_install-desktop-launcher() {
+  _toolbiny="${1}"
+  _tooldesc="${2}"
+  _toolfile="${3}"
+
+  install -m 644 -v -D "${srcdir}/${pkgbase}.desktop" "${_toolfile}"
+  sed -i "s/^Name=/Name=${_tooldesc}/g"               "${_toolfile}"
+  sed -i "s/^Exec=/Exec=${_toolbiny}/g"               "${_toolfile}"
+}
+
+package_ultimate-automizer() {
+  pkgtool="automizer"
+  pkgdesc="Ultimate Automizer"
+  depends=(
+    "ultimate-common=${pkgver}-${pkgrel}"
+    "${_ultimate_framework_deps[@]}"
+    "${_ultimate_solver_deps[@]}"
+  )
+
+  _install-tool "${srcdir}/${pkgbase}/releaseScripts/default/UAutomizer-linux" "${pkgdir}/opt/${pkgbase}/${pkgtool}"
+
+  _install-execute-launcher "${pkgtool}" "${pkgdesc}" "${pkgdir}/usr/bin/${pkgname}"
+  _install-desktop-launcher "${pkgname}" "${pkgdesc}" "${pkgdir}/usr/share/applications/${pkgname}.desktop"
+}
+
+package_ultimate-gemcutter() {
+  pkgtool="gemcutter"
+  pkgdesc="Ultimate GemCutter"
+  depends=(
+    "ultimate-common=${pkgver}-${pkgrel}"
+    "${_ultimate_framework_deps[@]}"
+    "${_ultimate_solver_deps[@]}"
+  )
+
+  _install-tool "${srcdir}/${pkgbase}/releaseScripts/default/UGemCutter-linux" "${pkgdir}/opt/${pkgbase}/${pkgtool}"
+
+  _install-execute-launcher "${pkgtool}" "${pkgdesc}" "${pkgdir}/usr/bin/${pkgname}"
+  _install-desktop-launcher "${pkgname}" "${pkgdesc}" "${pkgdir}/usr/share/applications/${pkgname}.desktop"
+}
+
+package_ultimate-kojak() {
+  pkgtool="kojak"
+  pkgdesc="Ultimate Kojak"
+  depends=(
+    "ultimate-common=${pkgver}-${pkgrel}"
+    "${_ultimate_framework_deps[@]}"
+    "${_ultimate_solver_deps[@]}"
+  )
+
+  _install-tool "${srcdir}/${pkgbase}/releaseScripts/default/UKojak-linux" "${pkgdir}/opt/${pkgbase}/${pkgtool}"
+
+  _install-execute-launcher "${pkgtool}" "${pkgdesc}" "${pkgdir}/usr/bin/${pkgname}"
+  _install-desktop-launcher "${pkgname}" "${pkgdesc}" "${pkgdir}/usr/share/applications/${pkgname}.desktop"
+}
+
+package_ultimate-taipan() {
+  pkgtool="taipan"
+  pkgdesc="Ultimate Taipan"
+  depends=(
+    "ultimate-common=${pkgver}-${pkgrel}"
+    "${_ultimate_framework_deps[@]}"
+    "${_ultimate_solver_deps[@]}"
+  )
+
+  _install-tool "${srcdir}/${pkgbase}/releaseScripts/default/UTaipan-linux" "${pkgdir}/opt/${pkgbase}/${pkgtool}"
+
+  _install-execute-launcher "${pkgtool}" "${pkgdesc}" "${pkgdir}/usr/bin/${pkgname}"
+  _install-desktop-launcher "${pkgname}" "${pkgdesc}" "${pkgdir}/usr/share/applications/${pkgname}.desktop"
+}
+
+package_ultimate-reqcheck() {
+  pkgtool="reqcheck"
+  pkgdesc="Ultimate ReqCheck"
+  depends=(
+    "ultimate-common=${pkgver}-${pkgrel}"
+    "${_ultimate_framework_deps[@]}"
+    "${_ultimate_solver_deps[@]}"
+  )
+
+  _install-tool "${srcdir}/${pkgbase}/releaseScripts/default/UReqCheck-linux" "${pkgdir}/opt/${pkgbase}/${pkgtool}"
+
+  _install-execute-launcher "${pkgtool}" "${pkgdesc}" "${pkgdir}/usr/bin/${pkgname}"
+  _install-desktop-launcher "${pkgname}" "${pkgdesc}" "${pkgdir}/usr/share/applications/${pkgname}.desktop"
+}

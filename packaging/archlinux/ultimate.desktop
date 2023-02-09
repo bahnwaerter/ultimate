@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=
+Icon=ultimate.png
+Exec=
+Terminal=true
+Categories=Development;IDE;
+StartupNotify=false
