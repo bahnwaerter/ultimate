@@ -8,6 +8,8 @@
 **/.idea/*
 hs_err_pid*
 
+/packaging/docker/*.env
+
 /releaseScripts/default/DeltaDebugger-linux/*
 /releaseScripts/default/DeltaDebugger-win32/*
 /releaseScripts/default/UAutomizer-linux/*
