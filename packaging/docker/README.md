@@ -52,3 +52,30 @@ The Ultimate Debug UI application then uses this connection to render its graphi
 ## Configure Ultimate Webbackend
 
 The specific Ultimate `PRODUCT` called `ultimate-webbackend` requires an extensive and valid configuration for the Web service to start.
+It is recommended to deploy the Ultimate WebBackend using `docker-compose` while the standard configuration for this service should be adjusted.
+The service can be configured by customizing the following environment variables in the `ultimate-webbackend.env` environment configuration file.
+```
+# backend settings
+ULTIMATE_BACKEND_HOST=localhost
+ULTIMATE_BACKEND_PORT=8080
+ULTIMATE_BACKEND_ROUTE=/api
+ULTIMATE_BACKEND_START_TIMEOUT=30
+
+# frontend settings
+ULTIMATE_FRONTEND_SERVE=False
+ULTIMATE_FRONTEND_PATH=/some/path
+ULTIMATE_FRONTEND_ROUTE=/website
+
+# log settings
+ULTIMATE_LOG_PATH=/dev/stdout
+ULTIMATE_LOG_LEVEL=INFO
+
+# general settings
+ULTIMATE_DIR_TMP=/tmp/ultimate
+ULTIMATE_TIMEOUT=90
+```
+A description of each variable and its valid values is documented in the configuration file template `web.config.properties.tpl`.
+If the Ultimate Webbackend service is configured properly one can build and start the service with the following `docker-compose` call.
+```shell
+docker compose up --build
+```
