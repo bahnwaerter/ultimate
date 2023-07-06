@@ -43,6 +43,7 @@ import de.uni_freiburg.informatik.ultimate.core.model.preferences.IPreferenceIni
 import de.uni_freiburg.informatik.ultimate.core.model.services.ILogger;
 import de.uni_freiburg.informatik.ultimate.core.model.services.IUltimateServiceProvider;
 import de.uni_freiburg.informatik.ultimate.witnessparser.preferences.WitnessParserPreferences;
+import de.uni_freiburg.informatik.ultimate.witnessparser.yaml.YamlWitnessParserTest;
 import edu.uci.ics.jung.io.GraphIOException;
 
 /**
@@ -65,6 +66,7 @@ public class WitnessParser implements ISource {
 
 	@Override
 	public void init() {
+		new YAMLWitnessParser();
 		// no init necessary
 	}
 

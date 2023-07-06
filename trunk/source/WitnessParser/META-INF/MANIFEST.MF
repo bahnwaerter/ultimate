@@ -8,6 +8,7 @@ Bundle-ClassPath: .,
  eo-yaml-7.0.8.jar
 Require-Bundle: de.uni_freiburg.informatik.ultimate.core,
  edu.uci.ics.jung,
+ org.junit,
  de.uni_freiburg.informatik.ultimate.lib.core,
  de.uni_freiburg.informatik.ultimate.lib.ultimatemodel
 Bundle-ActivationPolicy: lazy
