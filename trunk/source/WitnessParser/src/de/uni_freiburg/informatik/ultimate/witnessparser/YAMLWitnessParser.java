@@ -15,10 +15,11 @@ import de.uni_freiburg.informatik.ultimate.witnessparser.yaml.LoopInvariant;
 
 public class YAMLWitnessParser {
 	
+	//how to take file as an expression.. use contains to find invariants or something else?
 	public YAMLWitnessParser() throws FileNotFoundException {
 		Yaml.createYamlInput(new File("/home/katie/witness.yml"));
 		Yaml.createYamlInput("-bla\n- blub");
-		// TODO Auto-generated constructor stub
+		// Auto-generated constructor stub
 	}
 
 	if (home/katie/witness.yml.contains("location invariant")) { //wrong if statement for this -- want to write: if YML file has this...
@@ -48,11 +49,7 @@ public class YAMLWitnessParser {
 		
 		new Location(mName, mLine, mColumn, mFileName, mUuid);
 	}
-	// Overall Todo list:
-	// Read in the file
-	// Decide which kind of invariant it is
-	// Apply the correct class to the file and read it in to ultimate
 	
 	
- } 
+  
 }
