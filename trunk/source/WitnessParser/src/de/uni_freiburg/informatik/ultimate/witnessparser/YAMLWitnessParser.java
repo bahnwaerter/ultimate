@@ -2,6 +2,7 @@ package de.uni_freiburg.informatik.ultimate.witnessparser;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.InputStream;
 
 import com.amihaiemil.eoyaml.Yaml;
 
@@ -21,11 +22,13 @@ public class YAMLWitnessParser {
 		// TODO Auto-generated constructor stub
 	}
 	
-	// Create new string for YAML files 
-	private static final String[] FILE_TYPES = new String[] { "yamlfile" } ;
-	
-	// Unsure about this part - how to know if YAML contains location / loop invariant ??? 
-	// Update - reading about parsing to figure this out...
+	/*InputStream inputStream = this.getClass()
+			.getClassLoader()
+			.getResourceAsStream("/home/katie/witness.yml");
+	Map<String, Object> attributes = yaml.load(inputStream);
+	System.out.println(attributes);
+	*/
+
 	if (yamlfile.contains("location invariant")) {
 		String requirement;
 		String format;
