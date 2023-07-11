@@ -7,12 +7,13 @@ import de.uni_freiburg.informatik.ultimate.witnessparser.YAMLWitnessParser;
 
 public class YamlWitnessParserTest {
 
+	private YAMLWitnessParser witnessParser;
+	
+	private final String testInputYaml = "";
+	
 	@Before
 	public void setUp() {
-	}
-
-	public void testname() throws Exception {
-		new YAMLWitnessParser();
+		witnessParser = YAMLWitnessParser.fromString(testInputYaml);
 	}
 	
 	@Test

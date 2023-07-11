@@ -3,47 +3,46 @@ package de.uni_freiburg.informatik.ultimate.witnessparser;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 
 import com.amihaiemil.eoyaml.Node;
 import com.amihaiemil.eoyaml.Yaml;
 import com.amihaiemil.eoyaml.YamlInput;
-import com.amihaiemil.eoyaml.YamlMapping;
 import com.amihaiemil.eoyaml.YamlNode;
+import com.amihaiemil.eoyaml.YamlSequence;
+import com.amihaiemil.eoyaml.exceptions.YamlReadingException;
 
-import de.uni_freiburg.informatik.ultimate.core.model.models.ModelType;
-import de.uni_freiburg.informatik.ultimate.core.model.services.ILogger;
-import de.uni_freiburg.informatik.ultimate.core.model.services.IUltimateServiceProvider;
 import de.uni_freiburg.informatik.ultimate.witnessparser.yaml.Location;
 import de.uni_freiburg.informatik.ultimate.witnessparser.yaml.LocationInvariant;
 import de.uni_freiburg.informatik.ultimate.witnessparser.yaml.LoopInvariant;
 
 public class YAMLWitnessParser {
-	private YamlMapping mWitnessContentMapping;
-	// how to take file as an expression.. use contains to find invariants or something else?
-	public YAMLWitnessParser() throws FileNotFoundException {
-		
-		//Yaml.createYamlInput("-bla\n- blub"); // Current placeholder in case of test
-		
-		// initializes witnessContent, which is a file holding all of the YAML file 
-		YamlInput witnessContent = Yaml.createYamlInput(new File("/home/katie/sv-witnesses/trex04.invariant_witness.yml"));
+	
+	public YAMLWitnessParser(final YamlInput witnessInput) {
 		try {
-			mWitnessContentMapping = witnessContent.readYamlMapping();
-		} catch (IOException e) { //use try/catch in order to ensure that it is read
+			final YamlSequence witnessEntries = witnessInput.readYamlStream().asSequence();
+			parseWitnessEntries(witnessEntries);
+		} catch (YamlReadingException | ClassCastException | IOException e) {
 			e.printStackTrace();
 		}
-		
-	}
-	
-	public void parseWitnessEntries() {
-		//this function parses all entries of the YAML file and saves one as a variable mSequence
-		mWitnessContentMapping.witnessContent();  
-		//mWitnessContentMapping.yamlSequence(null) // placeholder only used in case needed for testing
-		String mSequence = mWitnessContentMapping.yamlSequence(0); //can't use integers
-
 	}
 
-	public void parseWitnessEntry(YamlNode entry) {
+	public static YAMLWitnessParser fromString(final String input) {
+		final YamlInput witnessInput = Yaml.createYamlInput(input);
+		return new YAMLWitnessParser(witnessInput);
+	}
+
+	public static YAMLWitnessParser fromFile(final File input) throws FileNotFoundException {
+		final YamlInput witnessInput = Yaml.createYamlInput(input);
+		return new YAMLWitnessParser(witnessInput);
+	}
+
+	public void parseWitnessEntries(final YamlSequence witnessEntries) {
+		for (final YamlNode witnessEntry : witnessEntries) {
+			parseWitnessEntry(witnessEntry);
+		}
+	}
+
+	private void parseWitnessEntry(final YamlNode entry) {
 		
 		assert(entry.type() == Node.MAPPING);
 
@@ -77,5 +76,4 @@ public class YAMLWitnessParser {
 			new Location(mName, mLine, mColumn, mFileName, mUuid);
 		}
 	}
-
 }
