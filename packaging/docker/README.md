@@ -15,6 +15,7 @@ where `PRODUCT` is a placeholder for one of the products
   - `ultimate-deltadebugger`
   - `ultimate-eliminator`
   - `ultimate-webbackend`
+  - `ultimate-websitestatic`
 
 shipped with the Ultimate program analysis framework.
 

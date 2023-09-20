@@ -10,3 +10,14 @@ services:
     ports:
       - "8080:8080"
     restart: "unless-stopped"
+
+  ultimate-websitestatic:
+    build:
+      dockerfile: "Dockerfile"
+      target: "ultimate-websitestatic"
+    image: "ultimate-websitestatic"
+    env_file:
+      - "ultimate-websitestatic.env"
+    ports:
+      - "80:80"
+    restart: "unless-stopped"

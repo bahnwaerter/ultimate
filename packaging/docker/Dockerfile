@@ -242,3 +242,54 @@ HEALTHCHECK --interval=1m --timeout=10s --start-period=20s \
 CMD dockerize -template "web.config.properties.tpl:web.config.properties" \
               -template "WebBackend.ini.tpl:WebBackend.ini" \
               WebBackend
+
+#------------------------------------------------------------------------------
+# 3nd build stage: package Ultimate static website
+#------------------------------------------------------------------------------
+FROM ultimate-common AS ultimate-websitestatic
+
+ARG REPO_DIR_BUILD
+ARG REPO_DIR_TOOLS
+ARG DIR_BUILD
+ARG DIR_ULTIMATE
+ARG DIR_OUTPUT
+ARG DIR_TOOLS
+
+ARG REPO_DIR_WEBSITE_CONFIG="releaseScripts/website-config"
+ARG REPO_DIR_WEBSITE_CONTENT="trunk/source/WebsiteStatic"
+ARG DIR_WEBSITE_CONFIG="${DIR_ULTIMATE}/${REPO_DIR_WEBSITE_CONFIG}"
+ARG DIR_WEBSITE_CONTENT="${DIR_ULTIMATE}/${REPO_DIR_WEBSITE_CONTENT}"
+ARG DIR_WEBSERVER_CONFIG="${DIR_ULTIMATE}/${REPO_DIR_WEBSERVER_CONFIG}"
+
+ENV ULTIMATE_FRONTEND_HOST="localhost"
+ENV ULTIMATE_FRONTEND_PORT=80
+ENV ULTIMATE_FRONTEND_ROOT_DIR="${DIR_ULTIMATE}"
+
+# install 'dockerize' and 'nginx' for automatic configuration file creation and serving static website
+ENV DOCKERIZE_VERSION="v0.7.0"
+RUN apt-get update && \
+    apt-get install -y "wget" \
+                       "curl" \
+                       "nginx" && \
+    wget -q -O - "https://github.com/jwilder/dockerize/releases/download/${DOCKERIZE_VERSION}/dockerize-linux-amd64-${DOCKERIZE_VERSION}.tar.gz" | tar xzf - -C "/usr/local/bin" && \
+    apt-get autoremove -yqq --purge "wget" && \
+    rm -rf /var/lib/apt/lists/*
+
+# install Ultimate static website
+COPY --from=build "${DIR_WEBSITE_CONTENT}" "${DIR_ULTIMATE}"
+COPY --from=build "${DIR_WEBSITE_CONFIG}/frontend/config.js" "${DIR_ULTIMATE}/config/config.js"
+ADD "nginx.tpl" "${DIR_ULTIMATE}/nginx.tpl"
+
+# configure URL for Ultimate Webbackend product
+RUN sed -i "s/^\(.*\)web_bridge_url:.'.*'$/\1web_bridge_url: 'http:\/\/${ULTIMATE_BACKEND_HOST}:${ULTIMATE_BACKEND_PORT}${ULTIMATE_BACKEND_ROUTE}'/g" "${DIR_ULTIMATE}/config/config.js"
+
+# expose communication port of the static website
+EXPOSE "${ULTIMATE_FRONTEND_PORT}"
+
+# define health check to supervise the Ultimate static website availability 
+HEALTHCHECK --interval=1m --timeout=10s --start-period=20s \
+    CMD curl -f "http://${ULTIMATE_FRONTEND_HOST}:${ULTIMATE_FRONTEND_PORT}" || exit 1
+
+# default entry point to automatically configure and start the nginx server for static website
+CMD dockerize -template "nginx.tpl:/etc/nginx/conf.d/00-ultimate-websitestatic" \
+              nginx
