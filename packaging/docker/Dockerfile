@@ -6,6 +6,11 @@
 #------------------------------------------------------------------------------
 # common build arguments for multi-staged Docker build
 #------------------------------------------------------------------------------
+ARG BUILD_SRC="local"  # or "remote"
+
+ARG REPO_URL="https://github.com/ultimate-pa/ultimate.git"
+ARG REPO_BRANCH="dev"
+
 ARG REPO_MAVEN_ROOT="trunk/source/BA_MavenParentUltimate"
 ARG REPO_DIR_BUILD="trunk/source/BA_SiteRepository/target/products"
 ARG REPO_DIR_TOOLS="releaseScripts/default/adds"
@@ -15,12 +20,9 @@ ARG DIR_OUTPUT="${DIR_ULTIMATE}/${REPO_DIR_BUILD}"
 ARG DIR_TOOLS="${DIR_ULTIMATE}/${REPO_DIR_TOOLS}"
 
 #------------------------------------------------------------------------------
-# 1st build stage: compile and materialize Ultimate
+# 1st build stage: install preliminaries used for building
 #------------------------------------------------------------------------------
-FROM debian:bullseye AS build
-
-ARG REPO_URL="https://github.com/ultimate-pa/ultimate.git"
-ARG REPO_BRANCH="dev"
+FROM debian:bullseye AS build-preliminaries
 
 ARG REPO_MAVEN_ROOT
 ARG REPO_DIR_BUILD
@@ -35,12 +37,43 @@ RUN apt-get update && \
                        "openjdk-11-jdk" && \
     rm -rf /var/lib/apt/lists/*
 
+# create Ultimate build directory
+RUN mkdir -p "${DIR_BUILD}"
+WORKDIR "${DIR_ULTIMATE}"
+
+#------------------------------------------------------------------------------
+# 1st build stage: add source code from local Ultimate respository
+#------------------------------------------------------------------------------
+FROM build-preliminaries AS build-src-local
+
+ARG DIR_BUILD
+ARG DIR_ULTIMATE
+
+# add files from local Git repository
+ONBUILD ADD . "${DIR_ULTIMATE}"
+
+#------------------------------------------------------------------------------
+# 1st build stage: add source code from remote Ultimate respository
+#------------------------------------------------------------------------------
+FROM build-preliminaries AS build-src-remote
+
+ARG REPO_URL
+ARG REPO_BRANCH
+
+ARG DIR_BUILD
+ARG DIR_ULTIMATE
+
 # clone fresh Ultimate Git repository
-RUN mkdir -p "${DIR_BUILD}" && \
-    git clone --depth=1 --branch="${REPO_BRANCH}" "${REPO_URL}" "${DIR_ULTIMATE}"
+ONBUILD RUN git clone --depth=1 --branch="${REPO_BRANCH}" "${REPO_URL}" "${DIR_ULTIMATE}"
+
+#------------------------------------------------------------------------------
+# 1st build stage: compile and materialize Ultimate
+#------------------------------------------------------------------------------
+FROM build-src-${BUILD_SRC} AS build
+
+ARG REPO_MAVEN_ROOT
 
 # build all Ultimate products
-WORKDIR "${DIR_ULTIMATE}"
 RUN mvn -f "${REPO_MAVEN_ROOT}" clean package -P materialize
 
 #------------------------------------------------------------------------------

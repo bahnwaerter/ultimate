@@ -4,7 +4,7 @@
 An Ultimate `PRODUCT` can be built with the following Docker call
 
 ```shell
-docker build -t <PRODUCT> --target <PRODUCT> .
+docker build -f Dockerfile -t <PRODUCT> --target <PRODUCT> ../../
 ```
 
 where `PRODUCT` is a placeholder for one of the products

@@ -2,6 +2,7 @@ version: "2"
 services:
   ultimate-webbackend:
     build:
+      context: ../../
       dockerfile: "Dockerfile"
       target: "ultimate-webbackend"
     image: "ultimate-webbackend"
@@ -13,6 +14,7 @@ services:
 
   ultimate-websitestatic:
     build:
+      context: ../../
       dockerfile: "Dockerfile"
       target: "ultimate-websitestatic"
     image: "ultimate-websitestatic"
