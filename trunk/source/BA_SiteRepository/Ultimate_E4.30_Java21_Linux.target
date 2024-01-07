@@ -456,15 +456,10 @@
 		<plugin id="bcpkix.source"/>
 		<plugin id="org.eclipse.equinox.p2.jarprocessor"/>
 		<plugin id="org.eclipse.equinox.p2.jarprocessor.source"/>
-		<plugin id="slf4j.api.source" version="1.7.36"/>
-		<plugin id="slf4j.api" version="1.7.36"/>
-		<plugin id="slf4j.simple" version="1.7.36"/>
 		<plugin id="slf4j.simple" version="1.7.36"/>
 		<plugin id="slf4j.simple.source" version="1.7.36"/>
-		<plugin id="slf4j.simple.source" version="1.7.36"/>
-		<plugin id="slf4j.nop" version="1.7.36"/>
 		<plugin id="slf4j.nop" version="1.7.36"/>
 		<plugin id="slf4j.nop.source" version="1.7.36"/>
-		<plugin id="slf4j.nop.source" version="1.7.36"/>
+		<plugin id="jakarta.xml.bind-api.source" version="2.3.3"/>
 	</includeBundles>
 </target>
