@@ -11,7 +11,6 @@ Require-Bundle: de.uni_freiburg.informatik.ultimate.lib.util,
  de.uni_freiburg.informatik.ultimate.core,
  org.eclipse.jetty.server,
  org.eclipse.jetty.servlet-api,
- org.eclipse.jetty.util,
  javax.servlet-api,
  com.google.gson
 Export-Package: de.uni_freiburg.informatik.ultimate.web.backend

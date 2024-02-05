@@ -9,7 +9,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
-import org.eclipse.jetty.util.log.Log;
+//import org.eclipse.jetty.util.log.Log;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
@@ -57,16 +57,16 @@ public class UserSettingsWhitelist {
 		final Path file = Paths.get(filePath);
 		if (Files.notExists(file)) {
 			mWhitelist = Collections.emptyMap();
-			Log.getRootLogger().warn(String.format(
-					"Could not load user settings whitelist from %s because the file or path does not exist", file));
+			//Log.getRootLogger().warn(String.format(
+					//"Could not load user settings whitelist from %s because the file or path does not exist", file));
 		} else {
 			try (final JsonReader jsonReader = new JsonReader(new FileReader(file.toFile()))) {
 				mWhitelist = new Gson().fromJson(jsonReader, new TypeToken<Map<String, Set<String>>>() {
 				}.getType());
-				Log.getRootLogger().info("Loaded user settings whitelist");
+				//Log.getRootLogger().info("Loaded user settings whitelist");
 			} catch (IOException | JsonSyntaxException e) {
-				Log.getRootLogger().warn(
-						String.format("Could not load user settings whitelist from %s: %s", filePath, e.getMessage()));
+				//Log.getRootLogger().warn(
+					//	String.format("Could not load user settings whitelist from %s: %s", filePath, e.getMessage()));
 				mWhitelist = Collections.emptyMap();
 			}
 		}

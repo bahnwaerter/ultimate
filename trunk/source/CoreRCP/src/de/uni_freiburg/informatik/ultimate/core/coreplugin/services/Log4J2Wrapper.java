@@ -33,11 +33,9 @@ import java.util.Objects;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.config.Configuration;
-import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.spi.ExtendedLogger;
 import org.apache.logging.log4j.spi.ExtendedLoggerWrapper;
+import org.apache.logging.log4j.spi.LoggerContext;
 
 import de.uni_freiburg.informatik.ultimate.core.model.services.ILogger;
 
@@ -105,9 +103,9 @@ public class Log4J2Wrapper implements ILogger {
 	@Override
 	public void setLevel(final LogLevel level) {
 		final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
-		final Configuration config = ctx.getConfiguration();
-		final LoggerConfig loggerConfig = config.getLoggerConfig(mLogger.getName());
-		loggerConfig.setLevel(translateLevel(level));
+		//final Configuration config = ctx.getConfiguration();
+		//final LoggerConfig loggerConfig = config.getLoggerConfig(mLogger.getName());
+		//loggerConfig.setLevel(translateLevel(level));
 	}
 
 	@Override

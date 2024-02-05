@@ -461,5 +461,7 @@
 		<plugin id="slf4j.nop" version="1.7.36"/>
 		<plugin id="slf4j.nop.source" version="1.7.36"/>
 		<plugin id="jakarta.xml.bind-api.source" version="2.3.3"/>
+		<plugin id="org.eclipse.jetty.session"/>
+		<plugin id="org.eclipse.jetty.session.source"/>
 	</includeBundles>
 </target>

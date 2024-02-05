@@ -26,6 +26,7 @@
  */
 package de.uni_freiburg.informatik.ultimate.plugins.output.jungvisualization.actions;
 
+import java.awt.Graphics;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -81,12 +82,12 @@ public class CommandExportAsSVG extends AbstractHandler {
 		final SVGGraphics2D g = new SVGGraphics2D(doc);
 		final VisualizationViewer<?, ?> vv = editorInput.getViewer();
 		vv.setDoubleBuffered(false);
-		vv.paint(g);
+		//vv.paint(g);
 		vv.setDoubleBuffered(true);
 
 		try {
 			final FileWriter fileWriter = new FileWriter(filename);
-			g.stream(fileWriter);
+			//g.stream(fileWriter);
 		} catch (final IOException ioEx) {
 			ioEx.printStackTrace();
 		}

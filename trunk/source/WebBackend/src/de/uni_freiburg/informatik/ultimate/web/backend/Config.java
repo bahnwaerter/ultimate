@@ -10,8 +10,8 @@ import java.nio.file.Path;
 import java.util.Properties;
 import java.util.function.Function;
 
-import org.eclipse.jetty.util.log.Log;
-import org.eclipse.jetty.util.log.Logger;
+//import org.eclipse.jetty.util.log.Log;
+//import org.eclipse.jetty.util.log.Logger;
 
 /**
  * @formatter:off
@@ -75,8 +75,8 @@ public class Config {
 		try {
 			return FileSystems.getDefault().getPath(path).normalize().toAbsolutePath().normalize();
 		} catch (final InvalidPathException | IOError | SecurityException ex) {
-			final Logger logger = Log.getRootLogger();
-			logger.warn(String.format("Could not convert %s to absolute path: %s", path, ex.getMessage()));
+			//final Logger logger = Log.getRootLogger();
+			//logger.warn(String.format("Could not convert %s to absolute path: %s", path, ex.getMessage()));
 		}
 		return null;
 	}
@@ -86,19 +86,19 @@ public class Config {
 	 */
 	private static void loadSettingsFile() {
 		final String settingsFilePath = loadString("SETTINGS_FILE", SETTINGS_FILE);
-		final Logger logger = Log.getRootLogger();
+		//final Logger logger = Log.getRootLogger();
 		final Path absolutePath = tryGetAbsolutePath(settingsFilePath);
 		if (absolutePath == null) {
-			logger.warn(String.format("Could not load settings file from '%s', using defaults", settingsFilePath));
+			//logger.warn(String.format("Could not load settings file from '%s', using defaults", settingsFilePath));
 			return;
 		}
 
 		try (final FileInputStream fileInputStream = new FileInputStream(absolutePath.toFile())) {
 			APP_SETTINGS.load(fileInputStream);
-			logger.info(String.format("Loaded settings file from %s", settingsFilePath));
+			//logger.info(String.format("Loaded settings file from %s", settingsFilePath));
 		} catch (final IOException e) {
-			logger.warn(String.format("Could not load settings file from '%s', using defaults", settingsFilePath));
-			logger.warn(e.getMessage());
+			//logger.warn(String.format("Could not load settings file from '%s', using defaults", settingsFilePath));
+			//logger.warn(e.getMessage());
 		}
 	}
 
