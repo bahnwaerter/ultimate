@@ -21,6 +21,7 @@
 			<unit id="org.eclipse.cdt.sdk.feature.group" version="11.4.0.202311271618"/>
 			<unit id="org.eclipse.equinox.sdk.feature.group" version="3.23.1000.v20231114-0937"/>
 			<unit id="org.eclipse.jdt.feature.group" version="3.19.300.v20231201-0110"/>
+			<unit id="org.eclipse.sdk.feature.group" version="4.30.0.v20231201-0512"/>
 		</location>
 		<location includeAllPlatforms="false" includeConfigurePhase="true" includeMode="planner" includeSource="true" type="InstallableUnit">
 			<repository location="https://download.eclipse.org/tools/orbit/simrel/orbit-aggregation/2023-12"/>
