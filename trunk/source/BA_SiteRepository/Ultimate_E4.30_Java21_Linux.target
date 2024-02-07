@@ -464,5 +464,7 @@
 		<plugin id="jakarta.xml.bind-api.source" version="2.3.3"/>
 		<plugin id="org.eclipse.jetty.session"/>
 		<plugin id="org.eclipse.jetty.session.source"/>
+		<plugin id="org.eclipse.core.filesystem.linux.x86_64"/>
+		<plugin id="org.eclipse.equinox.security.linux.source"/>
 	</includeBundles>
 </target>
