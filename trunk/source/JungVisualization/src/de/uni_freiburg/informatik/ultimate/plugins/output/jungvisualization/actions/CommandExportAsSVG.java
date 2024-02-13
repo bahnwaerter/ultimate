@@ -26,15 +26,12 @@
  */
 package de.uni_freiburg.informatik.ultimate.plugins.output.jungvisualization.actions;
 
-import java.awt.Graphics;
 import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-
 import javax.swing.JFileChooser;
 
 import org.apache.batik.anim.dom.SVGDOMImplementation;
 import org.apache.batik.svggen.SVGGraphics2D;
+import org.apache.batik.svggen.SVGGraphics2DIOException;
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
@@ -69,6 +66,7 @@ public class CommandExportAsSVG extends AbstractHandler {
 		final String svgFilePath = new RcpPreferenceProvider(Activator.PLUGIN_ID)
 				.getString(JungPreferenceValues.LABEL_PATH);
 
+		// TODO: The file chooser does not receive any inputs, maybe because of the missing parent?
 		final JFileChooser chooser = new JFileChooser();
 		chooser.setSelectedFile(new File(svgFilePath + "/default.svg"));
 		chooser.showSaveDialog(null);
@@ -82,14 +80,12 @@ public class CommandExportAsSVG extends AbstractHandler {
 		final SVGGraphics2D g = new SVGGraphics2D(doc);
 		final VisualizationViewer<?, ?> vv = editorInput.getViewer();
 		vv.setDoubleBuffered(false);
-		//vv.paint(g);
+		vv.paint(g.create());
 		vv.setDoubleBuffered(true);
-
 		try {
-			final FileWriter fileWriter = new FileWriter(filename);
-			//g.stream(fileWriter);
-		} catch (final IOException ioEx) {
-			ioEx.printStackTrace();
+			g.stream(filename);
+		} catch (SVGGraphics2DIOException e) {
+			e.printStackTrace();
 		}
 	}
 }
