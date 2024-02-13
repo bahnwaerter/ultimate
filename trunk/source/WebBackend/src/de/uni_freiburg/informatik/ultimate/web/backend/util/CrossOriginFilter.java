@@ -37,7 +37,7 @@ import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-//import org.eclipse.jetty.util.StringUtil;
+import org.eclipse.jetty.util.StringUtil;
 //import org.eclipse.jetty.util.log.Log;
 //import org.eclipse.jetty.util.log.Logger;
 
@@ -173,7 +173,7 @@ public class CrossOriginFilter implements Filter {
 		if (allowedMethodsConfig == null) {
 			mAllowedMethods.addAll(DEFAULT_ALLOWED_METHODS);
 		} else {
-			//mAllowedMethods.addAll(Arrays.asList(StringUtil.csvSplit(allowedMethodsConfig)));
+			mAllowedMethods.addAll(Arrays.asList(StringUtil.csvSplit(allowedMethodsConfig)));
 		}
 
 		final String allowedHeadersConfig = config.getInitParameter(ALLOWED_HEADERS_PARAM);
@@ -182,7 +182,7 @@ public class CrossOriginFilter implements Filter {
 		} else if ("*".equals(allowedHeadersConfig)) {
 			mAnyHeadersAllowed = true;
 		} else {
-			//mAllowedHeaders.addAll(Arrays.asList(StringUtil.csvSplit(allowedHeadersConfig)));
+			mAllowedHeaders.addAll(Arrays.asList(StringUtil.csvSplit(allowedHeadersConfig)));
 		}
 
 		String preflightMaxAgeConfig = config.getInitParameter(PREFLIGHT_MAX_AGE_PARAM);
@@ -206,7 +206,7 @@ public class CrossOriginFilter implements Filter {
 		if (exposedHeadersConfig == null) {
 			exposedHeadersConfig = "";
 		}
-		//mExposedHeaders.addAll(Arrays.asList(StringUtil.csvSplit(exposedHeadersConfig)));
+		mExposedHeaders.addAll(Arrays.asList(StringUtil.csvSplit(exposedHeadersConfig)));
 
 		String chainPreflightConfig = config.getInitParameter(OLD_CHAIN_PREFLIGHT_PARAM);
 		if (chainPreflightConfig != null) {
@@ -235,7 +235,7 @@ public class CrossOriginFilter implements Filter {
 		if (allowedOriginsConfig == null) {
 			allowedOriginsConfig = defaultOrigin;
 		}
-		final String[] allowedOrigins = {}; // = StringUtil.csvSplit(allowedOriginsConfig);
+		final String[] allowedOrigins = StringUtil.csvSplit(allowedOriginsConfig);
 		for (final String allowedOrigin : allowedOrigins) {
 			if (allowedOrigin.length() > 0) {
 				if (ANY_ORIGIN.equals(allowedOrigin)) {
@@ -341,9 +341,8 @@ public class CrossOriginFilter implements Filter {
 	}
 
 	private static String parseAllowedWildcardOriginToRegex(final String allowedOrigin) {
-		//final String regex = StringUtil.replace(allowedOrigin, ".", "\\.");
-		//return StringUtil.replace(regex, "*", ".*");
-		return null;
+		final String regex = StringUtil.replace(allowedOrigin, ".", "\\.");
+		return StringUtil.replace(regex, "*", ".*");
 		// we want to be greedy here to match multiple subdomains, thus we
 		// use .*
 	}
@@ -432,7 +431,7 @@ public class CrossOriginFilter implements Filter {
 		}
 
 		final List<String> requestedHeaders = new ArrayList<>();
-		final String[] headers = {}; //StringUtil.csvSplit(accessControlRequestHeaders);
+		final String[] headers = StringUtil.csvSplit(accessControlRequestHeaders);
 		for (final String header : headers) {
 			final String h = header.trim();
 			if (h.length() > 0) {
