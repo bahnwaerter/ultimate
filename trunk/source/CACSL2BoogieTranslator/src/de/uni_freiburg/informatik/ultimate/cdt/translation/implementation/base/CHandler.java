@@ -1094,8 +1094,7 @@ public class CHandler {
 			checkForACSL(main, resultBuilder, child, null, true);
 			resultBuilder.addStatements(CTranslationUtil.createHavocsForAuxVars(auxVars));
 			final Result r = main.dispatch(child);
-			if (r instanceof ExpressionResult) {
-				final ExpressionResult res = (ExpressionResult) r;
+			if (r instanceof final ExpressionResult res) {
 				resultBuilder.addDeclarations(res.getDeclarations());
 				// TODO Frank: We somehow should not copy the overapproximations here
 				resultBuilder.addStatements(res.getStatements());
@@ -1180,9 +1179,7 @@ public class CHandler {
 		final String declName;
 		final CType cType;
 		ResultWithSideEffects sideEffects = null;
-		if (node instanceof IASTArrayDeclarator) {
-			final IASTArrayDeclarator arrDecl = (IASTArrayDeclarator) node;
-
+		if (node instanceof final IASTArrayDeclarator arrDecl) {
 			// the innermost type is the value type..
 			CType arrayType = resType.getCType();
 
@@ -1252,10 +1249,9 @@ public class CHandler {
 			cType = arrayType;
 			declName = getNonFunctionDeclaratorName(node);
 			sideEffects = allResults;
-		} else if (node instanceof IASTStandardFunctionDeclarator) {
+		} else if (node instanceof final IASTStandardFunctionDeclarator funcDecl) {
 			// functions as well as function pointers can have
 			// IASTStandardFunctionDeclarator
-			final IASTStandardFunctionDeclarator funcDecl = (IASTStandardFunctionDeclarator) node;
 			final IASTParameterDeclaration[] paramDecls = funcDecl.getParameters();
 			CDeclaration[] paramsParsed = new CDeclaration[paramDecls.length];
 			for (int i = 0; i < paramDecls.length; i++) {
@@ -1294,9 +1290,7 @@ public class CHandler {
 						"Cannot extract function type from binding " + binding.getClass());
 			}
 			declName = mSymbolTable.applyMultiparseRenaming(node.getContainingFilename(), node.getName().toString());
-		} else if (node instanceof ICASTKnRFunctionDeclarator) {
-			final ICASTKnRFunctionDeclarator funcDecl = (ICASTKnRFunctionDeclarator) node;
-
+		} else if (node instanceof final ICASTKnRFunctionDeclarator funcDecl) {
 			assert funcDecl.getParameterDeclarations().length == funcDecl
 					.getParameterNames().length : "implicit int declarations are forbidden from C99 on, this is one, right?";
 
@@ -1663,8 +1657,7 @@ public class CHandler {
 		final Result thenResult = main.dispatch(node.getThenClause());
 		final List<Statement> thenStmt = new ArrayList<>();
 		thenStmt.addAll(havocs);
-		if (thenResult instanceof ExpressionResult) {
-			final ExpressionResult re = (ExpressionResult) thenResult;
+		if (thenResult instanceof final ExpressionResult re) {
 			decl.addAll(re.getDeclarations());
 			thenStmt.addAll(re.getStatements());
 		} else if (thenResult != null) {
@@ -1684,8 +1677,7 @@ public class CHandler {
 		elseStmt.addAll(havocs);
 		if (node.getElseClause() != null) {
 			final Result elseResult = main.dispatch(node.getElseClause());
-			if (elseResult instanceof ExpressionResult) {
-				final ExpressionResult re = (ExpressionResult) elseResult;
+			if (elseResult instanceof final ExpressionResult re) {
 				decl.addAll(re.getDeclarations());
 				elseStmt.addAll(re.getStatements());
 			} else if (elseResult != null) {
@@ -1855,8 +1847,7 @@ public class CHandler {
 			final Result r = main.dispatch(i);
 			if (r instanceof InitializerResult) {
 				result.addChild((InitializerResult) r);
-			} else if (r instanceof ExpressionResult) {
-				ExpressionResult rex = (ExpressionResult) r;
+			} else if (r instanceof ExpressionResult rex) {
 				rex = mExprResultTransformer.transformDecaySwitch(rex, loc, node);
 				result.addChild(new InitializerResultBuilder().setRootExpressionResult(rex).build());
 			} else {
@@ -1877,8 +1868,7 @@ public class CHandler {
 		final String label = node.getName().toString();
 		stmt.add(new Label(loc, label));
 		final Result r = main.dispatch(node.getNestedStatement());
-		if (r instanceof ExpressionResult) {
-			final ExpressionResult res = (ExpressionResult) r;
+		if (r instanceof final ExpressionResult res) {
 			decl.addAll(res.getDeclarations());
 			stmt.addAll(res.getStatements());
 			overappr.addAll(res.getOverapprs());
@@ -2148,12 +2138,12 @@ public class CHandler {
 			return declSpecifierResult;
 		}
 
-		if (!(declSpecifierResult instanceof TypesResult)) {
+		if (!(declSpecifierResult instanceof final TypesResult typeResult)) {
 			final String msg = "Unknown result type: " + declSpecifierResult.getClass();
 			throw new UnsupportedSyntaxException(loc, msg);
 		}
 
-		final TypesResult typeResult = (TypesResult) declSpecifierResult;
+		
 		// Skip will be overwritten in
 		// case of a global or a local
 		// initialized variable
@@ -2322,8 +2312,7 @@ public class CHandler {
 			} else {
 				final Result r = main.dispatch(child);
 
-				if (r instanceof ExpressionResult) {
-					final ExpressionResult res = (ExpressionResult) r;
+				if (r instanceof final ExpressionResult res) {
 					resultBuilder.addDeclarations(res.getDeclarations());
 					resultBuilder.addAuxVars(res.getAuxVars());
 					resultBuilder.addOverapprox(res.getOverapprs());
@@ -2379,8 +2368,7 @@ public class CHandler {
 		for (final Statement st : statements) {
 			if (st instanceof BreakStatement) {
 				result.add(new GotoStatement(loc, new String[] { label }));
-			} else if (st instanceof IfStatement) {
-				final IfStatement ifSt = (IfStatement) st;
+			} else if (st instanceof final IfStatement ifSt) {
 				final Statement[] newThen =
 						replaceBreaksWithGotos(loc, Arrays.asList(ifSt.getThenPart()), label).toArray(Statement[]::new);
 				final Statement[] newElse =
@@ -2714,7 +2702,7 @@ public class CHandler {
 
 			Expression rhsWithBitfieldTreatment;
 			if (hlv.getBitfieldInformation() != null) {
-				final int bitfieldWidth = hlv.getBitfieldInformation().getNumberOfBits();
+				final int bitfieldWidth = hlv.getBitfieldInformation().numberOfBits();
 				rhsWithBitfieldTreatment = mExpressionTranslation.eraseBits(loc,
 						rightHandSideValueWithConversionsApplied.getValue(),
 						(CPrimitive) CEnum.replaceEnumWithInt(hlv.getCType().getUnderlyingType()), bitfieldWidth);
@@ -2756,7 +2744,7 @@ public class CHandler {
 
 		Expression rhsWithBitfieldTreatment;
 		if (lValue.getBitfieldInformation() != null) {
-			final int bitfieldWidth = lValue.getBitfieldInformation().getNumberOfBits();
+			final int bitfieldWidth = lValue.getBitfieldInformation().numberOfBits();
 			rhsWithBitfieldTreatment = mExpressionTranslation.eraseBits(loc,
 					rightHandSideValueWithConversionsApplied.getValue(),
 					(CPrimitive) CEnum.replaceEnumWithInt(lValue.getCType().getUnderlyingType()), bitfieldWidth);
@@ -3331,8 +3319,7 @@ public class CHandler {
 						mContract.add(acslNode);
 					} else if (acslNode instanceof CodeAnnot) {
 						final Result acslResult = main.dispatch(acslNode, next);
-						if (acslResult instanceof ExpressionResult) {
-							final ExpressionResult re = (ExpressionResult) acslResult;
+						if (acslResult instanceof final ExpressionResult re) {
 							resultBuilder.addStatements(re.getStatements());
 							resultBuilder.addDeclarations(re.getDeclarations());
 						} else {
@@ -3404,10 +3391,8 @@ public class CHandler {
 		decl.addAll(acslResultBuilder.getDeclarations());
 		final Result childRes = main.dispatch(child);
 
-		if (childRes instanceof DeclarationResult) {
+		if (childRes instanceof final DeclarationResult rd) {
 			// we have to add a global variable
-			final DeclarationResult rd = (DeclarationResult) childRes;
-
 			for (final CDeclaration cd : rd.getDeclarations()) {
 
 				if (cd.getType().isIncomplete() && !cd.isOnHeap()) {
@@ -3456,8 +3441,7 @@ public class CHandler {
 			// heapVars and hence in the non-prerun mode the input
 			// will be a HeapLValue instead of a LocalLValue.
 			final Expression expr = er.getLrValue().getValue();
-			if (expr instanceof IdentifierExpression) {
-				final IdentifierExpression idExpr = (IdentifierExpression) expr;
+			if (expr instanceof final IdentifierExpression idExpr) {
 				moveIdOnHeap(loc, idExpr, hook);
 			} else {
 				moveArrayAndStructIdsOnHeap(loc, er.getLrValue().getUnderlyingType(), expr, er.getAuxVars(), hook);
@@ -3519,15 +3503,13 @@ public class CHandler {
 		final ExpressionResultBuilder resultBuilder = new ExpressionResultBuilder();
 
 		Result iterator = null;
-		if (node instanceof IASTForStatement) {
-			final IASTForStatement forStmt = (IASTForStatement) node;
+		if (node instanceof final IASTForStatement forStmt) {
 			// add initialization for this for loop
 			final IASTStatement cInitStmt = forStmt.getInitializerStatement();
 			if (cInitStmt != null) {
 				beginScope();
 				final Result initializer = main.dispatch(cInitStmt);
-				if (initializer instanceof ExpressionResult) {
-					final ExpressionResult rExp = (ExpressionResult) initializer;
+				if (initializer instanceof final ExpressionResult rExp) {
 					resultBuilder.addAllExceptLrValueAndHavocAux(rExp);
 				} else if (initializer instanceof SkipResult) {
 					// this is an empty statement in the C Code. We will skip it
@@ -3560,8 +3542,7 @@ public class CHandler {
 				condResult.getAuxVars());
 
 		List<Statement> bodyBlock = new ArrayList<>();
-		if (bodyResult instanceof ExpressionResult) {
-			final ExpressionResult re = (ExpressionResult) bodyResult;
+		if (bodyResult instanceof final ExpressionResult re) {
 			resultBuilder.addDeclarations(re.getDeclarations());
 			resultBuilder.addOverapprox(re.getOverapprs());
 			bodyBlock.addAll(re.getStatements());
@@ -3592,8 +3573,7 @@ public class CHandler {
 					resultBuilder.addDeclarations(el.getDeclarations());
 					bodyBlock.addAll(CTranslationUtil.createHavocsForAuxVars(el.getAuxVars()));
 				}
-			} else if (iterator instanceof ExpressionResult) {
-				final ExpressionResult iteratorRE = (ExpressionResult) iterator;
+			} else if (iterator instanceof final ExpressionResult iteratorRE) {
 				bodyBlock.addAll(iteratorRE.getStatements());
 				resultBuilder.addDeclarations(iteratorRE.getDeclarations());
 				resultBuilder.addOverapprox(iteratorRE.getOverapprs());
@@ -3643,8 +3623,7 @@ public class CHandler {
 					// where ids of function parameters differ from is in ACSL
 					// expression
 					final Result retranslateRes = main.dispatch(mContract.get(i), node);
-					if (retranslateRes instanceof ContractResult) {
-						final ContractResult resContr = (ContractResult) retranslateRes;
+					if (retranslateRes instanceof final ContractResult resContr) {
 						assert resContr.getSpecs().length == 1;
 						for (final Specification cSpec : resContr.getSpecs()) {
 							specList.add((LoopInvariantSpecification) cSpec);

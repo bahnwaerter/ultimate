@@ -33,19 +33,5 @@ package de.uni_freiburg.informatik.ultimate.cdt.translation.implementation.resul
  * @author Matthias Heizmann (heizmann@informatik.uni-freiburg.de)
  *
  */
-public class BitfieldInformation {
-
-	private final int mNumberOfBits;
-
-	public BitfieldInformation(final int numberOfBits) {
-		super();
-		mNumberOfBits = numberOfBits;
-	}
-
-	public int getNumberOfBits() {
-		return mNumberOfBits;
-	}
-	
-	
-
+public record BitfieldInformation(int numberOfBits) {
 }

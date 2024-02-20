@@ -155,17 +155,11 @@ public class BitvectorFactory {
 			final BigInteger extension, final Expression operandExpression) {
 		if (operandExpression instanceof BitvecLiteral) {
 			final BitvectorConstant bc = toConstant((BitvecLiteral) operandExpression);
-			final BitvectorConstant extendedBc;
-			switch (extendOperation) {
-			case sign_extend:
-				extendedBc = BitvectorConstant.sign_extend(bc, extension);
-				break;
-			case zero_extend:
-				extendedBc = BitvectorConstant.zero_extend(bc, extension);
-				break;
-			default:
-				throw new AssertionError("unknown value " + extendOperation);
-			}
+			final BitvectorConstant extendedBc = switch (extendOperation) {
+			case sign_extend -> BitvectorConstant.sign_extend(bc, extension);
+			case zero_extend -> BitvectorConstant.zero_extend(bc, extension);
+			default -> throw new AssertionError("unknown value " + extendOperation);
+			};
 			return ExpressionFactory.createBitvecLiteral(loc, extendedBc.getValue().toString(),
 					extendedBc.getIndex().intValueExact());
 		}
@@ -239,8 +233,7 @@ public class BitvectorFactory {
 		// if this operator is associative, we move literals to the left and check if
 		// the right operand has the same
 		// operator s.t. we can combine the literals to one.
-		if (right == null && args[1] instanceof FunctionApplication) {
-			final FunctionApplication rightFunApp = (FunctionApplication) args[1];
+		if (right == null && args[1] instanceof final FunctionApplication rightFunApp) {
 			final String rightFunId = rightFunApp.getIdentifier();
 			final BvOp rightSbo = getSupportedBitvectorOperation(
 					BitvectorFactory.getBitvectorSmtFunctionNameFromCFunctionName(rightFunId));
@@ -455,8 +448,7 @@ public class BitvectorFactory {
 
 	private static int isBitvectorSort(final IBoogieType type) {
 		final int result;
-		if (type instanceof BoogiePrimitiveType) {
-			final BoogiePrimitiveType bpType = (BoogiePrimitiveType) type;
+		if (type instanceof final BoogiePrimitiveType bpType) {
 			if (bpType.getTypeCode() > 0) {
 				// is bitvector
 				result = bpType.getTypeCode();
