@@ -1,23 +1,23 @@
-/* 
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
- * 
+/*
+ * Copyright 1997-2024 Optimatika
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in
  * all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE. 
+ * SOFTWARE.
  */
 package org.ojalgo.series.primitive;
 
@@ -27,9 +27,9 @@ public final class ExplicitTimeSeries extends PrimitiveTimeSeries {
 
     private final long[] myTimes;
 
-    public ExplicitTimeSeries(final long[] someTimes, final PrimitiveSeries aValueSeries) {
+    public ExplicitTimeSeries(final long[] someTimes, final PrimitiveSeries valueSeries) {
 
-        super(aValueSeries);
+        super(valueSeries);
 
         myTimes = someTimes;
     }
@@ -40,7 +40,7 @@ public final class ExplicitTimeSeries extends PrimitiveTimeSeries {
     }
 
     @Override
-    public final ExplicitTimeSeries add(final PrimitiveSeries addend) {
+    public ExplicitTimeSeries add(final PrimitiveSeries addend) {
         return new ExplicitTimeSeries(this.keys(), super.add(addend));
     }
 
@@ -50,12 +50,12 @@ public final class ExplicitTimeSeries extends PrimitiveTimeSeries {
     }
 
     @Override
-    public final ExplicitTimeSeries differences() {
+    public ExplicitTimeSeries differences() {
         return new ExplicitTimeSeries(this.keys(), super.differences());
     }
 
     @Override
-    public final ExplicitTimeSeries differences(final int period) {
+    public ExplicitTimeSeries differences(final int period) {
         return new ExplicitTimeSeries(this.keys(), super.differences(period));
     }
 
@@ -65,7 +65,7 @@ public final class ExplicitTimeSeries extends PrimitiveTimeSeries {
     }
 
     @Override
-    public final ExplicitTimeSeries divide(final PrimitiveSeries divisor) {
+    public ExplicitTimeSeries divide(final PrimitiveSeries divisor) {
         return new ExplicitTimeSeries(this.keys(), super.divide(divisor));
     }
 
@@ -75,7 +75,7 @@ public final class ExplicitTimeSeries extends PrimitiveTimeSeries {
     }
 
     @Override
-    public final CalendarDate first() {
+    public CalendarDate first() {
         return new CalendarDate(myTimes[0]);
     }
 
@@ -85,17 +85,17 @@ public final class ExplicitTimeSeries extends PrimitiveTimeSeries {
         return (myTimes[tmpIndexOfLast] - myTimes[0]) / tmpIndexOfLast;
     }
 
-    public final long key(final int index) {
+    public long key(final int index) {
         return myTimes[index];
     }
 
     @Override
-    public final long[] keys() {
+    public long[] keys() {
         return myTimes;
     }
 
     @Override
-    public final CalendarDate last() {
+    public CalendarDate last() {
         return new CalendarDate(myTimes[myTimes.length - 1]);
     }
 
@@ -105,7 +105,7 @@ public final class ExplicitTimeSeries extends PrimitiveTimeSeries {
     }
 
     @Override
-    public final ExplicitTimeSeries multiply(final double aFactor) {
+    public ExplicitTimeSeries multiply(final double aFactor) {
         return new ExplicitTimeSeries(this.keys(), super.multiply(aFactor));
     }
 
@@ -115,22 +115,22 @@ public final class ExplicitTimeSeries extends PrimitiveTimeSeries {
     }
 
     @Override
-    public final ExplicitTimeSeries quotients() {
+    public ExplicitTimeSeries quotients() {
         return new ExplicitTimeSeries(this.keys(), super.quotients());
     }
 
     @Override
-    public final ExplicitTimeSeries quotients(final int period) {
+    public ExplicitTimeSeries quotients(final int period) {
         return new ExplicitTimeSeries(this.keys(), super.quotients(period));
     }
 
     @Override
-    public final ExplicitTimeSeries runningProduct(final double initialValue) {
+    public ExplicitTimeSeries runningProduct(final double initialValue) {
         return new ExplicitTimeSeries(this.keys(), super.runningProduct(initialValue));
     }
 
     @Override
-    public final ExplicitTimeSeries runningSum(final double initialValue) {
+    public ExplicitTimeSeries runningSum(final double initialValue) {
         return new ExplicitTimeSeries(this.keys(), super.runningSum(initialValue));
     }
 

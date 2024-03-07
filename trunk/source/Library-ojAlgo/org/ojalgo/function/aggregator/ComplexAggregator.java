@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,30 +21,75 @@
  */
 package org.ojalgo.function.aggregator;
 
-import static org.ojalgo.function.ComplexFunction.*;
-
-import org.ojalgo.ProgrammingError;
-import org.ojalgo.constant.PrimitiveMath;
-import org.ojalgo.function.ComplexFunction;
+import org.ojalgo.function.constant.ComplexMath;
+import org.ojalgo.function.constant.PrimitiveMath;
 import org.ojalgo.scalar.ComplexNumber;
+import org.ojalgo.scalar.PrimitiveScalar;
 import org.ojalgo.scalar.Scalar;
-import org.ojalgo.type.TypeUtils;
 
-public abstract class ComplexAggregator {
+public final class ComplexAggregator extends AggregatorSet<ComplexNumber> {
 
-    public static final ThreadLocal<AggregatorFunction<ComplexNumber>> CARDINALITY = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
+    static abstract class ComplexAggregatorFunction implements AggregatorFunction<ComplexNumber> {
+
+        public final double doubleValue() {
+            return this.get().doubleValue();
+        }
+
+        public final void invoke(final double anArg) {
+            this.invoke(ComplexNumber.valueOf(anArg));
+        }
+
+        public final void invoke(final float anArg) {
+            this.invoke(ComplexNumber.valueOf(anArg));
+        }
+
+        public final Scalar<ComplexNumber> toScalar() {
+            return this.get();
+        }
+
+    }
+
+    private static final ThreadLocal<AggregatorFunction<ComplexNumber>> AVERAGE = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
 
         @Override
         protected AggregatorFunction<ComplexNumber> initialValue() {
-            return new AggregatorFunction<ComplexNumber>() {
+            return new ComplexAggregatorFunction() {
+
+                private int myCount = 0;
+                private ComplexNumber myNumber = ComplexNumber.ZERO;
+
+                public ComplexNumber get() {
+                    return myNumber.divide(myCount);
+                }
+
+                public int intValue() {
+                    return this.get().intValue();
+                }
+
+                public void invoke(final ComplexNumber anArg) {
+                    myCount++;
+                    myNumber = myNumber.add(anArg);
+                }
+
+                public AggregatorFunction<ComplexNumber> reset() {
+                    myCount = 0;
+                    myNumber = ComplexNumber.ZERO;
+                    return this;
+                }
+
+            };
+        }
+    };
+
+    private static final ThreadLocal<AggregatorFunction<ComplexNumber>> CARDINALITY = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
+
+        @Override
+        protected AggregatorFunction<ComplexNumber> initialValue() {
+            return new ComplexAggregatorFunction() {
 
                 private int myCount = 0;
 
-                public double doubleValue() {
-                    return this.getNumber().doubleValue();
-                }
-
-                public ComplexNumber getNumber() {
+                public ComplexNumber get() {
                     return ComplexNumber.valueOf(myCount);
                 }
 
@@ -53,21 +98,9 @@ public abstract class ComplexAggregator {
                 }
 
                 public void invoke(final ComplexNumber anArg) {
-                    if (!TypeUtils.isZero(anArg.norm())) {
+                    if (!PrimitiveScalar.isSmall(PrimitiveMath.ONE, anArg.norm())) {
                         myCount++;
                     }
-                }
-
-                public void invoke(final double anArg) {
-                    this.invoke(ComplexNumber.valueOf(anArg));
-                }
-
-                public void merge(final ComplexNumber result) {
-                    myCount += result.intValue();
-                }
-
-                public ComplexNumber merge(final ComplexNumber result1, final ComplexNumber result2) {
-                    return ADD.invoke(result1, result2);
                 }
 
                 public AggregatorFunction<ComplexNumber> reset() {
@@ -75,48 +108,28 @@ public abstract class ComplexAggregator {
                     return this;
                 }
 
-                public Scalar<ComplexNumber> toScalar() {
-                    return this.getNumber();
-                }
-
             };
         }
     };
 
-    public static final ThreadLocal<AggregatorFunction<ComplexNumber>> LARGEST = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
+    private static final ThreadLocal<AggregatorFunction<ComplexNumber>> LARGEST = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
 
         @Override
         protected AggregatorFunction<ComplexNumber> initialValue() {
-            return new AggregatorFunction<ComplexNumber>() {
+            return new ComplexAggregatorFunction() {
 
                 private ComplexNumber myNumber = ComplexNumber.ZERO;
 
-                public double doubleValue() {
-                    return this.getNumber().doubleValue();
-                }
-
-                public ComplexNumber getNumber() {
+                public ComplexNumber get() {
                     return myNumber;
                 }
 
                 public int intValue() {
-                    return this.getNumber().intValue();
+                    return this.get().intValue();
                 }
 
                 public void invoke(final ComplexNumber anArg) {
-                    myNumber = ComplexFunction.MAX.invoke(myNumber, ABS.invoke(anArg));
-                }
-
-                public void invoke(final double anArg) {
-                    this.invoke(ComplexNumber.valueOf(anArg));
-                }
-
-                public void merge(final ComplexNumber result) {
-                    this.invoke(result);
-                }
-
-                public ComplexNumber merge(final ComplexNumber result1, final ComplexNumber result2) {
-                    return ComplexFunction.MAX.invoke(result1, result2);
+                    myNumber = ComplexMath.MAX.invoke(myNumber, ComplexMath.ABS.invoke(anArg));
                 }
 
                 public AggregatorFunction<ComplexNumber> reset() {
@@ -124,46 +137,28 @@ public abstract class ComplexAggregator {
                     return this;
                 }
 
-                public Scalar<ComplexNumber> toScalar() {
-                    return this.getNumber();
-                }
             };
         }
     };
-    public static final ThreadLocal<AggregatorFunction<ComplexNumber>> MAX = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
+
+    private static final ThreadLocal<AggregatorFunction<ComplexNumber>> MAX = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
 
         @Override
         protected AggregatorFunction<ComplexNumber> initialValue() {
-            return new AggregatorFunction<ComplexNumber>() {
+            return new ComplexAggregatorFunction() {
 
                 private ComplexNumber myNumber = ComplexNumber.ZERO;
 
-                public double doubleValue() {
-                    return this.getNumber().doubleValue();
-                }
-
-                public ComplexNumber getNumber() {
+                public ComplexNumber get() {
                     return myNumber;
                 }
 
                 public int intValue() {
-                    return this.getNumber().intValue();
+                    return this.get().intValue();
                 }
 
                 public void invoke(final ComplexNumber anArg) {
-                    myNumber = ComplexFunction.MAX.invoke(myNumber, anArg);
-                }
-
-                public void invoke(final double anArg) {
-                    this.invoke(ComplexNumber.valueOf(anArg));
-                }
-
-                public void merge(final ComplexNumber result) {
-                    this.invoke(result);
-                }
-
-                public ComplexNumber merge(final ComplexNumber result1, final ComplexNumber result2) {
-                    return ComplexFunction.MAX.invoke(result1, result2);
+                    myNumber = ComplexMath.MAX.invoke(myNumber, anArg);
                 }
 
                 public AggregatorFunction<ComplexNumber> reset() {
@@ -171,51 +166,31 @@ public abstract class ComplexAggregator {
                     return this;
                 }
 
-                public Scalar<ComplexNumber> toScalar() {
-                    return this.getNumber();
-                }
             };
         }
     };
 
-    public static final ThreadLocal<AggregatorFunction<ComplexNumber>> MIN = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
+    private static final ThreadLocal<AggregatorFunction<ComplexNumber>> MIN = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
 
         @Override
         protected AggregatorFunction<ComplexNumber> initialValue() {
-            return new AggregatorFunction<ComplexNumber>() {
+            return new ComplexAggregatorFunction() {
 
                 private ComplexNumber myNumber = ComplexNumber.INFINITY;
 
-                public double doubleValue() {
-                    return this.getNumber().doubleValue();
-                }
-
-                public ComplexNumber getNumber() {
+                public ComplexNumber get() {
                     if (ComplexNumber.isInfinite(myNumber)) {
                         return ComplexNumber.ZERO;
-                    } else {
-                        return myNumber;
                     }
+                    return myNumber;
                 }
 
                 public int intValue() {
-                    return this.getNumber().intValue();
+                    return this.get().intValue();
                 }
 
                 public void invoke(final ComplexNumber anArg) {
-                    myNumber = ComplexFunction.MIN.invoke(myNumber, anArg);
-                }
-
-                public void invoke(final double anArg) {
-                    this.invoke(ComplexNumber.valueOf(anArg));
-                }
-
-                public void merge(final ComplexNumber result) {
-                    this.invoke(result);
-                }
-
-                public ComplexNumber merge(final ComplexNumber result1, final ComplexNumber result2) {
-                    return ComplexFunction.MIN.invoke(result1, result2);
+                    myNumber = ComplexMath.MIN.invoke(myNumber, anArg);
                 }
 
                 public AggregatorFunction<ComplexNumber> reset() {
@@ -223,47 +198,28 @@ public abstract class ComplexAggregator {
                     return this;
                 }
 
-                public Scalar<ComplexNumber> toScalar() {
-                    return this.getNumber();
-                }
             };
         }
     };
 
-    public static final ThreadLocal<AggregatorFunction<ComplexNumber>> NORM1 = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
+    private static final ThreadLocal<AggregatorFunction<ComplexNumber>> NORM1 = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
 
         @Override
         protected AggregatorFunction<ComplexNumber> initialValue() {
-            return new AggregatorFunction<ComplexNumber>() {
+            return new ComplexAggregatorFunction() {
 
                 private ComplexNumber myNumber = ComplexNumber.ZERO;
 
-                public double doubleValue() {
-                    return this.getNumber().doubleValue();
-                }
-
-                public ComplexNumber getNumber() {
+                public ComplexNumber get() {
                     return myNumber;
                 }
 
                 public int intValue() {
-                    return this.getNumber().intValue();
+                    return this.get().intValue();
                 }
 
                 public void invoke(final ComplexNumber anArg) {
                     myNumber = myNumber.add(anArg.norm());
-                }
-
-                public void invoke(final double anArg) {
-                    this.invoke(ComplexNumber.valueOf(anArg));
-                }
-
-                public void merge(final ComplexNumber result) {
-                    this.invoke(result);
-                }
-
-                public ComplexNumber merge(final ComplexNumber result1, final ComplexNumber result2) {
-                    return ADD.invoke(result1, result2);
                 }
 
                 public AggregatorFunction<ComplexNumber> reset() {
@@ -271,31 +227,24 @@ public abstract class ComplexAggregator {
                     return this;
                 }
 
-                public Scalar<ComplexNumber> toScalar() {
-                    return this.getNumber();
-                }
             };
         }
     };
 
-    public static final ThreadLocal<AggregatorFunction<ComplexNumber>> NORM2 = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
+    private static final ThreadLocal<AggregatorFunction<ComplexNumber>> NORM2 = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
 
         @Override
         protected AggregatorFunction<ComplexNumber> initialValue() {
-            return new AggregatorFunction<ComplexNumber>() {
+            return new ComplexAggregatorFunction() {
 
                 private ComplexNumber myNumber = ComplexNumber.ZERO;
 
-                public double doubleValue() {
-                    return this.getNumber().doubleValue();
-                }
-
-                public ComplexNumber getNumber() {
-                    return ComplexNumber.valueOf(Math.sqrt(myNumber.norm()));
+                public ComplexNumber get() {
+                    return ComplexNumber.valueOf(PrimitiveMath.SQRT.invoke(myNumber.norm()));
                 }
 
                 public int intValue() {
-                    return this.getNumber().intValue();
+                    return this.get().intValue();
                 }
 
                 public void invoke(final ComplexNumber anArg) {
@@ -303,165 +252,98 @@ public abstract class ComplexAggregator {
                     myNumber = myNumber.add(tmpMod * tmpMod);
                 }
 
-                public void invoke(final double anArg) {
-                    this.invoke(ComplexNumber.valueOf(anArg));
-                }
-
-                public void merge(final ComplexNumber result) {
-                    this.invoke(result);
-                }
-
-                public ComplexNumber merge(final ComplexNumber result1, final ComplexNumber result2) {
-                    return HYPOT.invoke(result1, result2);
-                }
-
                 public AggregatorFunction<ComplexNumber> reset() {
                     myNumber = ComplexNumber.ZERO;
                     return this;
                 }
 
-                public Scalar<ComplexNumber> toScalar() {
-                    return this.getNumber();
-                }
             };
         }
     };
 
-    public static final ThreadLocal<AggregatorFunction<ComplexNumber>> PRODUCT = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
+    private static final ThreadLocal<AggregatorFunction<ComplexNumber>> PRODUCT = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
 
         @Override
         protected AggregatorFunction<ComplexNumber> initialValue() {
-            return new AggregatorFunction<ComplexNumber>() {
+            return new ComplexAggregatorFunction() {
 
                 private ComplexNumber myNumber = ComplexNumber.ONE;
 
-                public double doubleValue() {
-                    return this.getNumber().doubleValue();
-                }
-
-                public ComplexNumber getNumber() {
+                public ComplexNumber get() {
                     return myNumber;
                 }
 
                 public int intValue() {
-                    return this.getNumber().intValue();
+                    return this.get().intValue();
                 }
 
                 public void invoke(final ComplexNumber anArg) {
                     myNumber = myNumber.multiply(anArg);
                 }
 
-                public void invoke(final double anArg) {
-                    this.invoke(ComplexNumber.valueOf(anArg));
-                }
-
-                public void merge(final ComplexNumber result) {
-                    this.invoke(result);
-                }
-
-                public ComplexNumber merge(final ComplexNumber result1, final ComplexNumber result2) {
-                    return MULTIPLY.invoke(result1, result2);
-                }
-
                 public AggregatorFunction<ComplexNumber> reset() {
                     myNumber = ComplexNumber.ONE;
                     return this;
                 }
 
-                public Scalar<ComplexNumber> toScalar() {
-                    return this.getNumber();
-                }
             };
         }
     };
 
-    public static final ThreadLocal<AggregatorFunction<ComplexNumber>> PRODUCT2 = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
+    private static final ThreadLocal<AggregatorFunction<ComplexNumber>> PRODUCT2 = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
 
         @Override
         protected AggregatorFunction<ComplexNumber> initialValue() {
-            return new AggregatorFunction<ComplexNumber>() {
+            return new ComplexAggregatorFunction() {
 
                 private ComplexNumber myNumber = ComplexNumber.ONE;
 
-                public double doubleValue() {
-                    return this.getNumber().doubleValue();
-                }
-
-                public ComplexNumber getNumber() {
+                public ComplexNumber get() {
                     return myNumber;
                 }
 
                 public int intValue() {
-                    return this.getNumber().intValue();
+                    return this.get().intValue();
                 }
 
                 public void invoke(final ComplexNumber anArg) {
                     myNumber = myNumber.multiply(anArg.multiply(anArg));
                 }
 
-                public void invoke(final double anArg) {
-                    this.invoke(ComplexNumber.valueOf(anArg));
-                }
-
-                public void merge(final ComplexNumber result) {
-                    myNumber = myNumber.multiply(result);
-                }
-
-                public ComplexNumber merge(final ComplexNumber result1, final ComplexNumber result2) {
-                    return MULTIPLY.invoke(result1, result2);
-                }
-
                 public AggregatorFunction<ComplexNumber> reset() {
                     myNumber = ComplexNumber.ONE;
                     return this;
                 }
 
-                public Scalar<ComplexNumber> toScalar() {
-                    return this.getNumber();
-                }
             };
         }
     };
-    public static final ThreadLocal<AggregatorFunction<ComplexNumber>> SMALLEST = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
+
+    private static final ComplexAggregator SET = new ComplexAggregator();
+
+    private static final ThreadLocal<AggregatorFunction<ComplexNumber>> SMALLEST = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
 
         @Override
         protected AggregatorFunction<ComplexNumber> initialValue() {
-            return new AggregatorFunction<ComplexNumber>() {
+            return new ComplexAggregatorFunction() {
 
                 private ComplexNumber myNumber = ComplexNumber.INFINITY;
 
-                public double doubleValue() {
-                    return this.getNumber().doubleValue();
-                }
-
-                public ComplexNumber getNumber() {
+                public ComplexNumber get() {
                     if (ComplexNumber.isInfinite(myNumber)) {
                         return ComplexNumber.ZERO;
-                    } else {
-                        return myNumber;
                     }
+                    return myNumber;
                 }
 
                 public int intValue() {
-                    return this.getNumber().intValue();
+                    return this.get().intValue();
                 }
 
                 public void invoke(final ComplexNumber anArg) {
                     if (!ComplexNumber.isSmall(PrimitiveMath.ONE, anArg)) {
-                        myNumber = ComplexFunction.MIN.invoke(myNumber, ABS.invoke(anArg));
+                        myNumber = ComplexMath.MIN.invoke(myNumber, ComplexMath.ABS.invoke(anArg));
                     }
-                }
-
-                public void invoke(final double anArg) {
-                    this.invoke(ComplexNumber.valueOf(anArg));
-                }
-
-                public void merge(final ComplexNumber result) {
-                    this.invoke(result);
-                }
-
-                public ComplexNumber merge(final ComplexNumber result1, final ComplexNumber result2) {
-                    return ComplexFunction.MIN.invoke(result1, result2);
                 }
 
                 public AggregatorFunction<ComplexNumber> reset() {
@@ -469,185 +351,134 @@ public abstract class ComplexAggregator {
                     return this;
                 }
 
-                public Scalar<ComplexNumber> toScalar() {
-                    return this.getNumber();
-                }
             };
         }
     };
 
-    public static final ThreadLocal<AggregatorFunction<ComplexNumber>> SUM = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
+    private static final ThreadLocal<AggregatorFunction<ComplexNumber>> SUM = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
 
         @Override
         protected AggregatorFunction<ComplexNumber> initialValue() {
-            return new AggregatorFunction<ComplexNumber>() {
+            return new ComplexAggregatorFunction() {
 
                 private ComplexNumber myNumber = ComplexNumber.ZERO;
 
-                public double doubleValue() {
-                    return this.getNumber().doubleValue();
-                }
-
-                public ComplexNumber getNumber() {
+                public ComplexNumber get() {
                     return myNumber;
                 }
 
                 public int intValue() {
-                    return this.getNumber().intValue();
+                    return this.get().intValue();
                 }
 
                 public void invoke(final ComplexNumber anArg) {
                     myNumber = myNumber.add(anArg);
                 }
 
-                public void invoke(final double anArg) {
-                    this.invoke(ComplexNumber.valueOf(anArg));
-                }
-
-                public void merge(final ComplexNumber result) {
-                    this.invoke(result);
-                }
-
-                public ComplexNumber merge(final ComplexNumber result1, final ComplexNumber result2) {
-                    return ADD.invoke(result1, result2);
-                }
-
                 public AggregatorFunction<ComplexNumber> reset() {
                     myNumber = ComplexNumber.ZERO;
                     return this;
                 }
 
-                public Scalar<ComplexNumber> toScalar() {
-                    return this.getNumber();
-                }
             };
         }
     };
 
-    public static final ThreadLocal<AggregatorFunction<ComplexNumber>> SUM2 = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
+    private static final ThreadLocal<AggregatorFunction<ComplexNumber>> SUM2 = new ThreadLocal<AggregatorFunction<ComplexNumber>>() {
 
         @Override
         protected AggregatorFunction<ComplexNumber> initialValue() {
-            return new AggregatorFunction<ComplexNumber>() {
+            return new ComplexAggregatorFunction() {
 
                 private ComplexNumber myNumber = ComplexNumber.ZERO;
 
-                public double doubleValue() {
-                    return this.getNumber().doubleValue();
-                }
-
-                public ComplexNumber getNumber() {
+                public ComplexNumber get() {
                     return myNumber;
                 }
 
                 public int intValue() {
-                    return this.getNumber().intValue();
+                    return this.get().intValue();
                 }
 
                 public void invoke(final ComplexNumber anArg) {
                     myNumber = myNumber.add(anArg.multiply(anArg));
                 }
 
-                public void invoke(final double anArg) {
-                    this.invoke(ComplexNumber.valueOf(anArg));
-                }
-
-                public void merge(final ComplexNumber result) {
-                    myNumber = myNumber.add(result);
-                }
-
-                public ComplexNumber merge(final ComplexNumber result1, final ComplexNumber result2) {
-                    return ADD.invoke(result1, result2);
-                }
-
                 public AggregatorFunction<ComplexNumber> reset() {
                     myNumber = ComplexNumber.ZERO;
                     return this;
                 }
 
-                public Scalar<ComplexNumber> toScalar() {
-                    return this.getNumber();
-                }
             };
         }
     };
 
-    private static final AggregatorSet<ComplexNumber> SET = new AggregatorSet<ComplexNumber>() {
-
-        @Override
-        public AggregatorFunction<ComplexNumber> cardinality() {
-            return CARDINALITY.get().reset();
-        }
-
-        @Override
-        public AggregatorFunction<ComplexNumber> largest() {
-            return LARGEST.get().reset();
-        }
-
-        @Override
-        public AggregatorFunction<ComplexNumber> maximum() {
-            return MAX.get().reset();
-        }
-
-        @Override
-        public AggregatorFunction<ComplexNumber> minimum() {
-            return MIN.get().reset();
-        }
-
-        @Override
-        public AggregatorFunction<ComplexNumber> norm1() {
-            return NORM1.get().reset();
-        }
-
-        @Override
-        public AggregatorFunction<ComplexNumber> norm2() {
-            return NORM2.get().reset();
-        }
-
-        @Override
-        public AggregatorFunction<ComplexNumber> product() {
-            return PRODUCT.get().reset();
-        }
-
-        @Override
-        public AggregatorFunction<ComplexNumber> product2() {
-            return PRODUCT2.get().reset();
-        }
-
-        @Override
-        public AggregatorFunction<ComplexNumber> smallest() {
-            return SMALLEST.get().reset();
-        }
-
-        @Override
-        public AggregatorFunction<ComplexNumber> sum() {
-            return SUM.get().reset();
-        }
-
-        @Override
-        public AggregatorFunction<ComplexNumber> sum2() {
-            return SUM2.get().reset();
-        }
-
-    };
-
-    /**
-     * @deprecated v38 Use {@link #getSet()} instead
-     */
-    @Deprecated
-    public static AggregatorSet<ComplexNumber> getCollection() {
-        return ComplexAggregator.getSet();
-    }
-
-    public static AggregatorSet<ComplexNumber> getSet() {
+    public static ComplexAggregator getSet() {
         return SET;
     }
 
     private ComplexAggregator() {
-
         super();
+    }
 
-        ProgrammingError.throwForIllegalInvocation();
+    @Override
+    public AggregatorFunction<ComplexNumber> average() {
+        return AVERAGE.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<ComplexNumber> cardinality() {
+        return CARDINALITY.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<ComplexNumber> largest() {
+        return LARGEST.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<ComplexNumber> maximum() {
+        return MAX.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<ComplexNumber> minimum() {
+        return MIN.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<ComplexNumber> norm1() {
+        return NORM1.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<ComplexNumber> norm2() {
+        return NORM2.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<ComplexNumber> product() {
+        return PRODUCT.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<ComplexNumber> product2() {
+        return PRODUCT2.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<ComplexNumber> smallest() {
+        return SMALLEST.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<ComplexNumber> sum() {
+        return SUM.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<ComplexNumber> sum2() {
+        return SUM2.get().reset();
     }
 
 }

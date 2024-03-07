@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,181 +21,69 @@
  */
 package org.ojalgo.matrix.transformation;
 
-import java.math.BigDecimal;
-
-import org.ojalgo.access.Access1D;
-import org.ojalgo.constant.BigMath;
-import org.ojalgo.constant.PrimitiveMath;
-import org.ojalgo.function.BigFunction;
+import org.ojalgo.function.constant.PrimitiveMath;
+import org.ojalgo.matrix.store.PhysicalStore;
 import org.ojalgo.scalar.ComplexNumber;
+import org.ojalgo.scalar.Scalar;
+import org.ojalgo.structure.Access1D;
 
-public interface Householder<N extends Number> extends Access1D<N> {
+public interface Householder<N extends Comparable<N>> extends Access1D<N> {
 
-    public static final class Big extends Object implements Householder<BigDecimal> {
+    public static final class Generic<N extends Scalar<N>> implements Householder<N> {
 
-        public BigDecimal beta;
+        public N beta;
         public int first;
-        public final BigDecimal[] vector;
+        public final N[] vector;
 
-        public Big(final Householder<BigDecimal> aTransf) {
+        private final Scalar.Factory<N> myFactory;
 
-            this((int) aTransf.count());
+        public Generic(final Scalar.Factory<N> factory, final Householder<N> aTransf) {
+
+            this(factory, (int) aTransf.count());
 
             this.copy(aTransf);
         }
 
-        public Big(final int aDim) {
+        public Generic(final Scalar.Factory<N> factory, final int dim) {
 
             super();
 
-            vector = new BigDecimal[aDim];
-            beta = BigMath.ZERO;
+            vector = factory.newArrayInstance(dim);
+            beta = factory.zero().get();
             first = 0;
+
+            myFactory = factory;
         }
 
-        @SuppressWarnings("unused")
-        private Big() {
-            this(0);
-        }
+        public Householder.Generic<N> copy(final Householder<N> source) {
 
-        public final Householder.Big copy(final Householder<BigDecimal> aSource) {
+            first = source.first();
 
-            first = aSource.first();
-
-            final BigDecimal[] tmpVector = vector;
-            BigDecimal tmpVal, tmpVal2 = BigMath.ZERO;
-            final int tmpSize = (int) aSource.count();
-            for (int i = aSource.first(); i < tmpSize; i++) {
-                tmpVal = aSource.get(i);
-                tmpVal2 = BigFunction.ADD.invoke(tmpVal2, BigFunction.MULTIPLY.invoke(tmpVal, tmpVal));
-                tmpVector[i] = tmpVal;
-            }
-
-            beta = BigFunction.DIVIDE.invoke(BigMath.TWO, tmpVal2);
-
-            return this;
-        }
-
-        public final Householder.Big copy(final Householder<BigDecimal> aSource, final BigDecimal precalculatedBeta) {
-
-            first = aSource.first();
-
-            final BigDecimal[] tmpVector = vector;
-
-            final int tmpSize = (int) aSource.count();
-            for (int i = aSource.first(); i < tmpSize; i++) {
-                tmpVector[i] = aSource.get(i);
-            }
-
-            beta = precalculatedBeta;
-
-            return this;
-        }
-
-        public long count() {
-            return vector.length;
-        }
-
-        public double doubleValue(final long anInd) {
-            return vector[(int) anInd].doubleValue();
-        }
-
-        public int first() {
-            return first;
-        }
-
-        public BigDecimal get(final int index) {
-            return vector[index];
-        }
-
-        public BigDecimal get(final long index) {
-            return vector[(int) index];
-        }
-
-        public int size() {
-            return vector.length;
-        }
-
-        @Override
-        public String toString() {
-
-            final StringBuilder retVal = new StringBuilder("{");
-
-            final int tmpFirst = first;
-            final int tmpLength = vector.length;
-            for (int i = 0; i < tmpFirst; i++) {
-                retVal.append(BigMath.ZERO);
-                retVal.append(", ");
-            }
-            for (int i = first; i < tmpLength; i++) {
-                retVal.append(vector[i]);
-                if ((i + 1) < tmpLength) {
-                    retVal.append(", ");
-                }
-            }
-            retVal.append("}");
-
-            return retVal.toString();
-        }
-
-    }
-
-    public static final class Complex extends Object implements Householder<ComplexNumber> {
-
-        public ComplexNumber beta;
-        public int first;
-        public final ComplexNumber[] vector;
-
-        public Complex(final Householder<ComplexNumber> aTransf) {
-
-            this((int) aTransf.count());
-
-            this.copy(aTransf);
-        }
-
-        public Complex(final int aDim) {
-
-            super();
-
-            vector = new ComplexNumber[aDim];
-            beta = ComplexNumber.ZERO;
-            first = 0;
-        }
-
-        @SuppressWarnings("unused")
-        private Complex() {
-            this(0);
-        }
-
-        public final Householder.Complex copy(final Householder<ComplexNumber> aSource) {
-
-            first = aSource.first();
-
-            final ComplexNumber[] tmpVector = vector;
-            ComplexNumber tmpNmbr;
+            final N[] tmpVector = vector;
+            N tmpNmbr;
             double tmpVal, tmpVal2 = PrimitiveMath.ZERO;
-            final int tmpSize = (int) aSource.count();
-            for (int i = aSource.first(); i < tmpSize; i++) {
-                tmpNmbr = aSource.get(i);
+            final int tmpSize = (int) source.count();
+            for (int i = source.first(); i < tmpSize; i++) {
+                tmpNmbr = source.get(i);
                 tmpVal = tmpNmbr.norm();
                 tmpVal2 += tmpVal * tmpVal;
                 tmpVector[i] = tmpNmbr;
             }
 
-            beta = ComplexNumber.valueOf(PrimitiveMath.TWO / tmpVal2);
+            beta = myFactory.cast(PrimitiveMath.TWO / tmpVal2);
 
             return this;
         }
 
-        public final Householder.Complex copy(final Householder<ComplexNumber> aSource, final ComplexNumber precalculatedBeta) {
+        public Householder.Generic<N> copy(final Householder<N> source, final N precalculatedBeta) {
 
-            first = aSource.first();
+            first = source.first();
 
-            final ComplexNumber[] tmpVector = vector;
+            final N[] tmpVector = vector;
 
-            final int tmpSize = (int) aSource.count();
-            for (int i = aSource.first(); i < tmpSize; i++) {
-                tmpVector[i] = aSource.get(i);
+            final int tmpSize = (int) source.count();
+            for (int i = source.first(); i < tmpSize; i++) {
+                tmpVector[i] = source.get(i);
             }
 
             beta = precalculatedBeta;
@@ -203,28 +91,24 @@ public interface Householder<N extends Number> extends Access1D<N> {
             return this;
         }
 
+        @Override
         public long count() {
             return vector.length;
         }
 
-        public double doubleValue(final long anInd) {
-            return vector[(int) anInd].doubleValue();
+        @Override
+        public double doubleValue(final int anInd) {
+            return vector[anInd].doubleValue();
         }
 
+        @Override
         public int first() {
             return first;
         }
 
-        public ComplexNumber get(final int index) {
-            return vector[index];
-        }
-
-        public ComplexNumber get(final long index) {
-            return vector[(int) index];
-        }
-
-        public int size() {
-            return vector.length;
+        @Override
+        public N get(final long index) {
+            return vector[Math.toIntExact(index)];
         }
 
         @Override
@@ -240,7 +124,7 @@ public interface Householder<N extends Number> extends Access1D<N> {
             }
             for (int i = first; i < tmpLength; i++) {
                 retVal.append(vector[i]);
-                if ((i + 1) < tmpLength) {
+                if (i + 1 < tmpLength) {
                     retVal.append(", ");
                 }
             }
@@ -251,20 +135,115 @@ public interface Householder<N extends Number> extends Access1D<N> {
 
     }
 
-    public static final class Primitive extends Object implements Householder<Double> {
+    public static final class Primitive32 implements Householder<Double> {
 
-        public double beta;
+        public float beta;
         public int first;
-        public final double[] vector;
+        public final float[] vector;
 
-        public Primitive(final Householder<Double> aTransf) {
+        public Primitive32(final Householder<Double> aTransf) {
 
             this((int) aTransf.count());
 
             this.copy(aTransf);
         }
 
-        public Primitive(final int aDim) {
+        public Primitive32(final int aDim) {
+
+            super();
+
+            vector = new float[aDim];
+            beta = (float) PrimitiveMath.ZERO;
+            first = 0;
+        }
+
+        public Householder.Primitive32 copy(final Householder<Double> source) {
+
+            first = source.first();
+
+            final float[] tmpVector = vector;
+            float tmpVal, tmpVal2 = (float) PrimitiveMath.ZERO;
+            final int tmpSize = (int) source.count();
+            for (int i = source.first(); i < tmpSize; i++) {
+                tmpVal = source.floatValue(i);
+                tmpVal2 += tmpVal * tmpVal;
+                tmpVector[i] = tmpVal;
+            }
+
+            beta = (float) PrimitiveMath.TWO / tmpVal2;
+
+            return this;
+        }
+
+        public Householder.Primitive32 copy(final Householder<Double> source, final float precalculatedBeta) {
+
+            first = source.first();
+
+            final float[] tmpVector = vector;
+
+            final int tmpSize = (int) source.count();
+            for (int i = source.first(); i < tmpSize; i++) {
+                tmpVector[i] = source.floatValue(i);
+            }
+
+            beta = precalculatedBeta;
+
+            return this;
+        }
+
+        @Override
+        public long count() {
+            return vector.length;
+        }
+
+        @Override
+        public double doubleValue(final int anInd) {
+            return vector[anInd];
+        }
+
+        @Override
+        public int first() {
+            return first;
+        }
+
+        @Override
+        public Double get(final long index) {
+            return Double.valueOf(vector[Math.toIntExact(index)]);
+        }
+
+        @Override
+        public String toString() {
+
+            final StringBuilder retVal = new StringBuilder("{ ");
+
+            final int tmpLastIndex = vector.length - 1;
+            for (int i = 0; i < tmpLastIndex; i++) {
+                retVal.append(this.get(i));
+                retVal.append(", ");
+            }
+            retVal.append(this.get(tmpLastIndex));
+
+            retVal.append(" }");
+
+            return retVal.toString();
+        }
+
+    }
+
+    public static final class Primitive64 implements Householder<Double> {
+
+        public double beta;
+        public int first;
+        public final double[] vector;
+
+        public Primitive64(final Householder<Double> aTransf) {
+
+            this((int) aTransf.count());
+
+            this.copy(aTransf);
+        }
+
+        public Primitive64(final int aDim) {
 
             super();
 
@@ -273,20 +252,15 @@ public interface Householder<N extends Number> extends Access1D<N> {
             first = 0;
         }
 
-        @SuppressWarnings("unused")
-        private Primitive() {
-            this(0);
-        }
+        public Householder.Primitive64 copy(final Householder<Double> source) {
 
-        public final Householder.Primitive copy(final Householder<Double> aSource) {
-
-            first = aSource.first();
+            first = source.first();
 
             final double[] tmpVector = vector;
             double tmpVal, tmpVal2 = PrimitiveMath.ZERO;
-            final int tmpSize = (int) aSource.count();
-            for (int i = aSource.first(); i < tmpSize; i++) {
-                tmpVal = aSource.doubleValue(i);
+            final int tmpSize = (int) source.count();
+            for (int i = source.first(); i < tmpSize; i++) {
+                tmpVal = source.doubleValue(i);
                 tmpVal2 += tmpVal * tmpVal;
                 tmpVector[i] = tmpVal;
             }
@@ -296,15 +270,15 @@ public interface Householder<N extends Number> extends Access1D<N> {
             return this;
         }
 
-        public final Householder.Primitive copy(final Householder<Double> aSource, final double precalculatedBeta) {
+        public Householder.Primitive64 copy(final Householder<Double> source, final double precalculatedBeta) {
 
-            first = aSource.first();
+            first = source.first();
 
             final double[] tmpVector = vector;
 
-            final int tmpSize = (int) aSource.count();
-            for (int i = aSource.first(); i < tmpSize; i++) {
-                tmpVector[i] = aSource.doubleValue(i);
+            final int tmpSize = (int) source.count();
+            for (int i = source.first(); i < tmpSize; i++) {
+                tmpVector[i] = source.doubleValue(i);
             }
 
             beta = precalculatedBeta;
@@ -312,28 +286,24 @@ public interface Householder<N extends Number> extends Access1D<N> {
             return this;
         }
 
+        @Override
         public long count() {
             return vector.length;
         }
 
-        public double doubleValue(final long anInd) {
-            return vector[(int) anInd];
+        @Override
+        public double doubleValue(final int anInd) {
+            return vector[anInd];
         }
 
+        @Override
         public int first() {
             return first;
         }
 
-        public Double get(final int index) {
-            return vector[index];
-        }
-
+        @Override
         public Double get(final long index) {
-            return vector[(int) index];
-        }
-
-        public int size() {
-            return vector.length;
+            return vector[Math.toIntExact(index)];
         }
 
         @Override
@@ -361,5 +331,9 @@ public interface Householder<N extends Number> extends Access1D<N> {
      * treated as if they are, zero.
      */
     int first();
+
+    default void transform(final PhysicalStore<N> matrix) {
+        matrix.transformLeft(this, 0);
+    }
 
 }

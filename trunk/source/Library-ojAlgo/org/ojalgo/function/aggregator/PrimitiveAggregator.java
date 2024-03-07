@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,20 +21,72 @@
  */
 package org.ojalgo.function.aggregator;
 
-import static org.ojalgo.constant.PrimitiveMath.*;
+import static org.ojalgo.function.constant.PrimitiveMath.*;
 
-import org.ojalgo.ProgrammingError;
+import org.ojalgo.function.constant.PrimitiveMath;
 import org.ojalgo.scalar.PrimitiveScalar;
 import org.ojalgo.scalar.Scalar;
-import org.ojalgo.type.TypeUtils;
+import org.ojalgo.type.context.NumberContext;
 
-public abstract class PrimitiveAggregator {
+public final class PrimitiveAggregator extends AggregatorSet<Double> {
 
-    public static final ThreadLocal<AggregatorFunction<Double>> CARDINALITY = new ThreadLocal<AggregatorFunction<Double>>() {
+    static abstract class PrimitiveAggregatorFunction implements AggregatorFunction<Double> {
+
+        public final Double get() {
+            return Double.valueOf(this.doubleValue());
+        }
+
+        public final void invoke(final Double arg) {
+            this.invoke(arg.doubleValue());
+        }
+
+        public final void invoke(final float arg) {
+            this.invoke((double) arg);
+        }
+
+        public final Scalar<Double> toScalar() {
+            return PrimitiveScalar.of(this.doubleValue());
+        }
+
+    }
+
+    private static final ThreadLocal<AggregatorFunction<Double>> AVERAGE = new ThreadLocal<AggregatorFunction<Double>>() {
 
         @Override
         protected AggregatorFunction<Double> initialValue() {
-            return new AggregatorFunction<Double>() {
+            return new PrimitiveAggregatorFunction() {
+
+                private int myCount = 0;
+                private double myValue = ZERO;
+
+                public double doubleValue() {
+                    return myValue / myCount;
+                }
+
+                public int intValue() {
+                    return (int) this.doubleValue();
+                }
+
+                public void invoke(final double anArg) {
+                    myCount++;
+                    myValue += anArg;
+                }
+
+                public AggregatorFunction<Double> reset() {
+                    myCount = 0;
+                    myValue = ZERO;
+                    return this;
+                }
+
+            };
+        }
+    };
+
+    private static final ThreadLocal<AggregatorFunction<Double>> CARDINALITY = new ThreadLocal<AggregatorFunction<Double>>() {
+
+        @Override
+        protected AggregatorFunction<Double> initialValue() {
+            return new PrimitiveAggregatorFunction() {
 
                 private int myCount = 0;
 
@@ -42,30 +94,14 @@ public abstract class PrimitiveAggregator {
                     return myCount;
                 }
 
-                public Double getNumber() {
-                    return Double.valueOf(this.doubleValue());
-                }
-
                 public int intValue() {
                     return myCount;
                 }
 
                 public void invoke(final double anArg) {
-                    if (!TypeUtils.isZero(anArg)) {
+                    if (!PrimitiveScalar.isSmall(PrimitiveMath.ONE, anArg)) {
                         myCount++;
                     }
-                }
-
-                public void invoke(final Double anArg) {
-                    this.invoke(anArg.doubleValue());
-                }
-
-                public void merge(final Double result) {
-                    myCount += result.intValue();
-                }
-
-                public Double merge(final Double result1, final Double result2) {
-                    return (double) (result1.intValue() + result2.intValue());
                 }
 
                 public AggregatorFunction<Double> reset() {
@@ -73,18 +109,15 @@ public abstract class PrimitiveAggregator {
                     return this;
                 }
 
-                public Scalar<Double> toScalar() {
-                    return PrimitiveScalar.of(this.doubleValue());
-                }
             };
         }
     };
 
-    public static final ThreadLocal<AggregatorFunction<Double>> LARGEST = new ThreadLocal<AggregatorFunction<Double>>() {
+    private static final ThreadLocal<AggregatorFunction<Double>> LARGEST = new ThreadLocal<AggregatorFunction<Double>>() {
 
         @Override
         protected AggregatorFunction<Double> initialValue() {
-            return new AggregatorFunction<Double>() {
+            return new PrimitiveAggregatorFunction() {
 
                 private double myValue = ZERO;
 
@@ -92,28 +125,12 @@ public abstract class PrimitiveAggregator {
                     return myValue;
                 }
 
-                public Double getNumber() {
-                    return Double.valueOf(this.doubleValue());
-                }
-
                 public int intValue() {
                     return (int) this.doubleValue();
                 }
 
                 public void invoke(final double anArg) {
-                    myValue = Math.max(myValue, Math.abs(anArg));
-                }
-
-                public void invoke(final Double anArg) {
-                    this.invoke(anArg.doubleValue());
-                }
-
-                public void merge(final Double result) {
-                    this.invoke(result.doubleValue());
-                }
-
-                public Double merge(final Double result1, final Double result2) {
-                    return Math.max(result1, result2);
+                    myValue = PrimitiveMath.MAX.invoke(myValue, PrimitiveMath.ABS.invoke(anArg));
                 }
 
                 public AggregatorFunction<Double> reset() {
@@ -121,79 +138,52 @@ public abstract class PrimitiveAggregator {
                     return this;
                 }
 
-                public Scalar<Double> toScalar() {
-                    return PrimitiveScalar.of(this.doubleValue());
-                }
             };
         }
     };
 
-    public static final ThreadLocal<AggregatorFunction<Double>> MAX = new ThreadLocal<AggregatorFunction<Double>>() {
+    private static final ThreadLocal<AggregatorFunction<Double>> MAX = new ThreadLocal<AggregatorFunction<Double>>() {
 
         @Override
         protected AggregatorFunction<Double> initialValue() {
-            return new AggregatorFunction<Double>() {
+            return new PrimitiveAggregatorFunction() {
 
-                private double myValue = ZERO;
+                private double myValue = NEGATIVE_INFINITY;
 
                 public double doubleValue() {
                     return myValue;
                 }
 
-                public Double getNumber() {
-                    return Double.valueOf(this.doubleValue());
-                }
-
                 public int intValue() {
                     return (int) this.doubleValue();
                 }
 
                 public void invoke(final double anArg) {
-                    myValue = Math.max(myValue, anArg);
-                }
-
-                public void invoke(final Double anArg) {
-                    this.invoke(anArg.doubleValue());
-                }
-
-                public void merge(final Double result) {
-                    this.invoke(result.doubleValue());
-                }
-
-                public Double merge(final Double result1, final Double result2) {
-                    return Math.max(result1, result2);
+                    myValue = PrimitiveMath.MAX.invoke(myValue, anArg);
                 }
 
                 public AggregatorFunction<Double> reset() {
-                    myValue = ZERO;
+                    myValue = NEGATIVE_INFINITY;
                     return this;
                 }
 
-                public Scalar<Double> toScalar() {
-                    return PrimitiveScalar.of(this.doubleValue());
-                }
             };
         }
     };
 
-    public static final ThreadLocal<AggregatorFunction<Double>> MIN = new ThreadLocal<AggregatorFunction<Double>>() {
+    private static final ThreadLocal<AggregatorFunction<Double>> MIN = new ThreadLocal<AggregatorFunction<Double>>() {
 
         @Override
         protected AggregatorFunction<Double> initialValue() {
-            return new AggregatorFunction<Double>() {
+            return new PrimitiveAggregatorFunction() {
 
                 private double myValue = POSITIVE_INFINITY;
 
                 public double doubleValue() {
                     if (Double.isInfinite(myValue)) {
                         return ZERO;
-                    } else {
-                        return myValue;
                     }
-                }
-
-                public Double getNumber() {
-                    return Double.valueOf(this.doubleValue());
+                    return myValue;
                 }
 
                 public int intValue() {
@@ -201,19 +191,7 @@ public abstract class PrimitiveAggregator {
                 }
 
                 public void invoke(final double anArg) {
-                    myValue = Math.min(myValue, anArg);
-                }
-
-                public void invoke(final Double anArg) {
-                    this.invoke(anArg.doubleValue());
-                }
-
-                public void merge(final Double result) {
-                    this.invoke(result.doubleValue());
-                }
-
-                public Double merge(final Double result1, final Double result2) {
-                    return Math.min(result1, result2);
+                    myValue = PrimitiveMath.MIN.invoke(myValue, anArg);
                 }
 
                 public AggregatorFunction<Double> reset() {
@@ -221,18 +199,15 @@ public abstract class PrimitiveAggregator {
                     return this;
                 }
 
-                public Scalar<Double> toScalar() {
-                    return PrimitiveScalar.of(this.doubleValue());
-                }
             };
         }
     };
 
-    public static final ThreadLocal<AggregatorFunction<Double>> NORM1 = new ThreadLocal<AggregatorFunction<Double>>() {
+    private static final ThreadLocal<AggregatorFunction<Double>> NORM1 = new ThreadLocal<AggregatorFunction<Double>>() {
 
         @Override
         protected AggregatorFunction<Double> initialValue() {
-            return new AggregatorFunction<Double>() {
+            return new PrimitiveAggregatorFunction() {
 
                 private double myValue = ZERO;
 
@@ -240,28 +215,12 @@ public abstract class PrimitiveAggregator {
                     return myValue;
                 }
 
-                public Double getNumber() {
-                    return Double.valueOf(this.doubleValue());
-                }
-
                 public int intValue() {
                     return (int) this.doubleValue();
                 }
 
                 public void invoke(final double anArg) {
-                    myValue += Math.abs(anArg);
-                }
-
-                public void invoke(final Double anArg) {
-                    this.invoke(anArg.doubleValue());
-                }
-
-                public void merge(final Double result) {
-                    this.invoke(result.doubleValue());
-                }
-
-                public Double merge(final Double result1, final Double result2) {
-                    return Math.abs(result1) + Math.abs(result2);
+                    myValue += PrimitiveMath.ABS.invoke(anArg);
                 }
 
                 public AggregatorFunction<Double> reset() {
@@ -269,28 +228,20 @@ public abstract class PrimitiveAggregator {
                     return this;
                 }
 
-                public Scalar<Double> toScalar() {
-                    return PrimitiveScalar.of(this.doubleValue());
-                }
             };
         }
     };
 
-    public static final ThreadLocal<AggregatorFunction<Double>> NORM2 = new ThreadLocal<AggregatorFunction<Double>>() {
+    private static final ThreadLocal<AggregatorFunction<Double>> NORM2 = new ThreadLocal<AggregatorFunction<Double>>() {
 
         @Override
         protected AggregatorFunction<Double> initialValue() {
-            return new AggregatorFunction<Double>() {
+            return new PrimitiveAggregatorFunction() {
 
                 private double myValue = ZERO;
 
                 public double doubleValue() {
-                    //return myValue; // more than 100x slower
-                    return Math.sqrt(myValue);
-                }
-
-                public Double getNumber() {
-                    return Double.valueOf(this.doubleValue());
+                    return PrimitiveMath.SQRT.invoke(myValue);
                 }
 
                 public int intValue() {
@@ -299,19 +250,6 @@ public abstract class PrimitiveAggregator {
 
                 public void invoke(final double anArg) {
                     myValue += anArg * anArg;
-                    //myValue = Math.hypot(myValue, anArg); // more than 100x slower
-                }
-
-                public void invoke(final Double anArg) {
-                    this.invoke(anArg.doubleValue());
-                }
-
-                public void merge(final Double result) {
-                    this.invoke(result.doubleValue());
-                }
-
-                public Double merge(final Double result1, final Double result2) {
-                    return Math.hypot(result1, result2);
                 }
 
                 public AggregatorFunction<Double> reset() {
@@ -319,27 +257,20 @@ public abstract class PrimitiveAggregator {
                     return this;
                 }
 
-                public Scalar<Double> toScalar() {
-                    return PrimitiveScalar.of(this.doubleValue());
-                }
             };
         }
     };
 
-    public static final ThreadLocal<AggregatorFunction<Double>> PRODUCT = new ThreadLocal<AggregatorFunction<Double>>() {
+    private static final ThreadLocal<AggregatorFunction<Double>> PRODUCT = new ThreadLocal<AggregatorFunction<Double>>() {
 
         @Override
         protected AggregatorFunction<Double> initialValue() {
-            return new AggregatorFunction<Double>() {
+            return new PrimitiveAggregatorFunction() {
 
                 private double myValue = ONE;
 
                 public double doubleValue() {
                     return myValue;
-                }
-
-                public Double getNumber() {
-                    return Double.valueOf(this.doubleValue());
                 }
 
                 public int intValue() {
@@ -350,44 +281,25 @@ public abstract class PrimitiveAggregator {
                     myValue *= anArg;
                 }
 
-                public void invoke(final Double anArg) {
-                    this.invoke(anArg.doubleValue());
-                }
-
-                public void merge(final Double result) {
-                    this.invoke(result.doubleValue());
-                }
-
-                public Double merge(final Double result1, final Double result2) {
-                    return result1 * result2;
-                }
-
                 public AggregatorFunction<Double> reset() {
                     myValue = ONE;
                     return this;
                 }
 
-                public Scalar<Double> toScalar() {
-                    return PrimitiveScalar.of(this.doubleValue());
-                }
             };
         }
     };
 
-    public static final ThreadLocal<AggregatorFunction<Double>> PRODUCT2 = new ThreadLocal<AggregatorFunction<Double>>() {
+    private static final ThreadLocal<AggregatorFunction<Double>> PRODUCT2 = new ThreadLocal<AggregatorFunction<Double>>() {
 
         @Override
         protected AggregatorFunction<Double> initialValue() {
-            return new AggregatorFunction<Double>() {
+            return new PrimitiveAggregatorFunction() {
 
                 private double myValue = ONE;
 
                 public double doubleValue() {
                     return myValue;
-                }
-
-                public Double getNumber() {
-                    return Double.valueOf(this.doubleValue());
                 }
 
                 public int intValue() {
@@ -398,48 +310,30 @@ public abstract class PrimitiveAggregator {
                     myValue *= anArg * anArg;
                 }
 
-                public void invoke(final Double anArg) {
-                    this.invoke(anArg.doubleValue());
-                }
-
-                public void merge(final Double result) {
-                    myValue *= result;
-                }
-
-                public Double merge(final Double result1, final Double result2) {
-                    return result1 * result2;
-                }
-
                 public AggregatorFunction<Double> reset() {
                     myValue = ONE;
                     return this;
                 }
 
-                public Scalar<Double> toScalar() {
-                    return PrimitiveScalar.of(this.doubleValue());
-                }
             };
         }
     };
 
-    public static final ThreadLocal<AggregatorFunction<Double>> SMALLEST = new ThreadLocal<AggregatorFunction<Double>>() {
+    private static final PrimitiveAggregator SET = new PrimitiveAggregator();
+
+    private static final ThreadLocal<AggregatorFunction<Double>> SMALLEST = new ThreadLocal<AggregatorFunction<Double>>() {
 
         @Override
         protected AggregatorFunction<Double> initialValue() {
-            return new AggregatorFunction<Double>() {
+            return new PrimitiveAggregatorFunction() {
 
                 private double myValue = POSITIVE_INFINITY;
 
                 public double doubleValue() {
                     if (Double.isInfinite(myValue)) {
                         return ZERO;
-                    } else {
-                        return myValue;
                     }
-                }
-
-                public Double getNumber() {
-                    return Double.valueOf(this.doubleValue());
+                    return myValue;
                 }
 
                 public int intValue() {
@@ -447,22 +341,10 @@ public abstract class PrimitiveAggregator {
                 }
 
                 public void invoke(final double anArg) {
-                    final double tmpArg = Math.abs(anArg);
-                    if (tmpArg != ZERO) {
-                        myValue = Math.min(myValue, tmpArg);
+                    final double tmpArg = PrimitiveMath.ABS.invoke(anArg);
+                    if (NumberContext.compare(tmpArg, ZERO) != 0) {
+                        myValue = PrimitiveMath.MIN.invoke(myValue, tmpArg);
                     }
-                }
-
-                public void invoke(final Double anArg) {
-                    this.invoke(anArg.doubleValue());
-                }
-
-                public void merge(final Double result) {
-                    this.invoke(result.doubleValue());
-                }
-
-                public Double merge(final Double result1, final Double result2) {
-                    return Math.min(result1, result2);
                 }
 
                 public AggregatorFunction<Double> reset() {
@@ -470,27 +352,20 @@ public abstract class PrimitiveAggregator {
                     return this;
                 }
 
-                public Scalar<Double> toScalar() {
-                    return PrimitiveScalar.of(this.doubleValue());
-                }
             };
         }
     };
 
-    public static final ThreadLocal<AggregatorFunction<Double>> SUM = new ThreadLocal<AggregatorFunction<Double>>() {
+    private static final ThreadLocal<AggregatorFunction<Double>> SUM = new ThreadLocal<AggregatorFunction<Double>>() {
 
         @Override
         protected AggregatorFunction<Double> initialValue() {
-            return new AggregatorFunction<Double>() {
+            return new PrimitiveAggregatorFunction() {
 
                 private double myValue = ZERO;
 
                 public double doubleValue() {
                     return myValue;
-                }
-
-                public Double getNumber() {
-                    return Double.valueOf(this.doubleValue());
                 }
 
                 public int intValue() {
@@ -501,44 +376,25 @@ public abstract class PrimitiveAggregator {
                     myValue += anArg;
                 }
 
-                public void invoke(final Double anArg) {
-                    this.invoke(anArg.doubleValue());
-                }
-
-                public void merge(final Double result) {
-                    this.invoke(result.doubleValue());
-                }
-
-                public Double merge(final Double result1, final Double result2) {
-                    return result1 + result2;
-                }
-
                 public AggregatorFunction<Double> reset() {
                     myValue = ZERO;
                     return this;
                 }
 
-                public Scalar<Double> toScalar() {
-                    return PrimitiveScalar.of(this.doubleValue());
-                }
             };
         }
     };
 
-    public static final ThreadLocal<AggregatorFunction<Double>> SUM2 = new ThreadLocal<AggregatorFunction<Double>>() {
+    private static final ThreadLocal<AggregatorFunction<Double>> SUM2 = new ThreadLocal<AggregatorFunction<Double>>() {
 
         @Override
         protected AggregatorFunction<Double> initialValue() {
-            return new AggregatorFunction<Double>() {
+            return new PrimitiveAggregatorFunction() {
 
                 private double myValue = ZERO;
 
                 public double doubleValue() {
                     return myValue;
-                }
-
-                public Double getNumber() {
-                    return Double.valueOf(this.doubleValue());
                 }
 
                 public int intValue() {
@@ -549,106 +405,81 @@ public abstract class PrimitiveAggregator {
                     myValue += anArg * anArg;
                 }
 
-                public void invoke(final Double anArg) {
-                    this.invoke(anArg.doubleValue());
-                }
-
-                public void merge(final Double result) {
-                    myValue += result;
-                }
-
-                public Double merge(final Double result1, final Double result2) {
-                    return result1 + result2;
-                }
-
                 public AggregatorFunction<Double> reset() {
                     myValue = ZERO;
                     return this;
                 }
 
-                public Scalar<Double> toScalar() {
-                    return PrimitiveScalar.of(this.doubleValue());
-                }
             };
         }
     };
 
-    private static final AggregatorSet<Double> SET = new AggregatorSet<Double>() {
-
-        @Override
-        public AggregatorFunction<Double> cardinality() {
-            return CARDINALITY.get().reset();
-        }
-
-        @Override
-        public AggregatorFunction<Double> largest() {
-            return LARGEST.get().reset();
-        }
-
-        @Override
-        public AggregatorFunction<Double> maximum() {
-            return MAX.get().reset();
-        }
-
-        @Override
-        public AggregatorFunction<Double> minimum() {
-            return MIN.get().reset();
-        }
-
-        @Override
-        public AggregatorFunction<Double> norm1() {
-            return NORM1.get().reset();
-        }
-
-        @Override
-        public AggregatorFunction<Double> norm2() {
-            return NORM2.get().reset();
-        }
-
-        @Override
-        public AggregatorFunction<Double> product() {
-            return PRODUCT.get().reset();
-        }
-
-        @Override
-        public AggregatorFunction<Double> product2() {
-            return PRODUCT2.get().reset();
-        }
-
-        @Override
-        public AggregatorFunction<Double> smallest() {
-            return SMALLEST.get().reset();
-        }
-
-        @Override
-        public AggregatorFunction<Double> sum() {
-            return SUM.get().reset();
-        }
-
-        @Override
-        public AggregatorFunction<Double> sum2() {
-            return SUM2.get().reset();
-        }
-
-    };
-
-    /**
-     * @deprecated v38 Use {@link #getSet()} instead
-     */
-    @Deprecated
-    public static AggregatorSet<Double> getCollection() {
-        return PrimitiveAggregator.getSet();
-    }
-
-    public static AggregatorSet<Double> getSet() {
+    public static PrimitiveAggregator getSet() {
         return SET;
     }
 
     private PrimitiveAggregator() {
-
         super();
+    }
 
-        ProgrammingError.throwForIllegalInvocation();
+    @Override
+    public AggregatorFunction<Double> average() {
+        return AVERAGE.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<Double> cardinality() {
+        return CARDINALITY.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<Double> largest() {
+        return LARGEST.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<Double> maximum() {
+        return MAX.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<Double> minimum() {
+        return MIN.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<Double> norm1() {
+        return NORM1.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<Double> norm2() {
+        return NORM2.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<Double> product() {
+        return PRODUCT.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<Double> product2() {
+        return PRODUCT2.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<Double> smallest() {
+        return SMALLEST.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<Double> sum() {
+        return SUM.get().reset();
+    }
+
+    @Override
+    public AggregatorFunction<Double> sum2() {
+        return SUM2.get().reset();
     }
 
 }

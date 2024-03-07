@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,19 +22,22 @@
 package org.ojalgo.type.context;
 
 import java.text.Format;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.util.Date;
 import java.util.Locale;
 
-import org.ojalgo.ProgrammingError;
+import org.ojalgo.type.CalendarDate;
 import org.ojalgo.type.CalendarDateUnit;
 import org.ojalgo.type.StandardType;
-import org.ojalgo.type.TypeUtils;
 import org.ojalgo.type.format.DatePart;
 import org.ojalgo.type.format.DateStyle;
 
 /**
- * DateContext
- * 
+ * This {@link TypeContext} deals with the old {@link java.util.Date}. There is another implementation that
+ * tries to deal with the newer date time API – {@link org.ojalgo.type.context.TemporalContext}.
+ *
  * @author apete
  */
 public final class DateContext extends FormatContext<Date> {
@@ -46,11 +49,15 @@ public final class DateContext extends FormatContext<Date> {
         return part != null ? part.getFormat(style, locale) : DEFAULT_PART.getFormat(style, locale);
     }
 
-    private DatePart myPart = DEFAULT_PART;
-    private DateStyle myStyle = DEFAULT_STYLE;
+    private final DatePart myPart;
+    private final DateStyle myStyle;
 
     public DateContext() {
+
         super(StandardType.SQL_DATETIME.getFormat());
+
+        myPart = DEFAULT_PART;
+        myStyle = DEFAULT_STYLE;
     }
 
     public DateContext(final DatePart part) {
@@ -65,11 +72,6 @@ public final class DateContext extends FormatContext<Date> {
         myStyle = style != null ? style : DEFAULT_STYLE;
     }
 
-    private DateContext(final Format format) {
-        super(format);
-        ProgrammingError.throwForIllegalInvocation();
-    }
-
     @Override
     public Date enforce(final Date object) {
 
@@ -77,15 +79,21 @@ public final class DateContext extends FormatContext<Date> {
 
         case DATE:
 
-            return TypeUtils.makeSqlDate(object.getTime());
+            LocalDate tmpDateOnly = new CalendarDate(object.getTime()).toLocalDate(ZoneOffset.UTC);
+
+            return new Date(tmpDateOnly.getYear() - 1900, tmpDateOnly.getMonthValue() - 1, tmpDateOnly.getDayOfMonth());
 
         case TIME:
 
-            return TypeUtils.makeSqlTime(object.getTime());
+            LocalTime tmpTimeOnly = new CalendarDate(object.getTime()).toLocalTime(ZoneOffset.UTC);
+
+            return new Date(0, 0, 1, tmpTimeOnly.getHour(), tmpTimeOnly.getMinute(), tmpTimeOnly.getSecond());
 
         default:
 
-            return TypeUtils.makeSqlTimestamp(object.getTime());
+            long tmpDateAndTime = new CalendarDate(object.getTime()).millis;
+
+            return new Date(tmpDateAndTime);
         }
     }
 
@@ -111,13 +119,13 @@ public final class DateContext extends FormatContext<Date> {
         }
     }
 
-    public TypeContext<Date> newFormat(final DatePart part, final DateStyle style, final Locale locale) {
+    public TypeContext<Date> withFormat(final DatePart part, final DateStyle style, final Locale locale) {
 
-        final DatePart tmpPart = part != null ? part : this.getPart();
-        final DateStyle tmpStyle = style != null ? style : this.getStyle();
-        final Locale tmpLocale = locale != null ? locale : Locale.getDefault();
+        DatePart tmpPart = part != null ? part : this.getPart();
+        DateStyle tmpStyle = style != null ? style : this.getStyle();
+        Locale tmpLocale = locale != null ? locale : Locale.getDefault();
 
-        return this.newFormat(DateContext.toFormat(tmpPart, tmpStyle, tmpLocale));
+        return this.withFormat(DateContext.toFormat(tmpPart, tmpStyle, tmpLocale));
     }
 
     @Override

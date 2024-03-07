@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,7 +21,6 @@
  */
 package org.ojalgo.matrix.store;
 
-import org.ojalgo.access.Access1D;
 import org.ojalgo.scalar.Scalar;
 
 /**
@@ -29,31 +28,32 @@ import org.ojalgo.scalar.Scalar;
  *
  * @author apete
  */
-final class ConjugatedStore<N extends Number> extends TransjugatedStore<N> {
+final class ConjugatedStore<N extends Comparable<N>> extends TransjugatedStore<N> {
 
-    ConjugatedStore(final MatrixStore<N> aBase) {
-        super(aBase);
+    ConjugatedStore(final MatrixStore<N> base) {
+        super(base);
     }
 
     @Override
     public MatrixStore<N> conjugate() {
-        return this.getBase();
-    }
-
-    public N get(final long aRow, final long aCol) {
-        return this.getBase().toScalar((int) aCol, (int) aRow).conjugate().getNumber();
+        return this.base();
     }
 
     @Override
-    public MatrixStore<N> multiply(final Access1D<N> right) {
+    public N get(final int aRow, final int aCol) {
+        return this.base().toScalar(aCol, aRow).conjugate().get();
+    }
+
+    @Override
+    public MatrixStore<N> multiply(final MatrixStore<N> right) {
 
         MatrixStore<N> retVal;
 
         if (right instanceof ConjugatedStore<?>) {
 
-            retVal = ((ConjugatedStore<N>) right).getOriginal().multiply(this.getBase());
+            retVal = ((ConjugatedStore<N>) right).getOriginal().multiply(this.base());
 
-            retVal = new ConjugatedStore<N>(retVal);
+            retVal = new ConjugatedStore<>(retVal);
 
         } else {
 
@@ -63,8 +63,9 @@ final class ConjugatedStore<N extends Number> extends TransjugatedStore<N> {
         return retVal;
     }
 
+    @Override
     public Scalar<N> toScalar(final long row, final long column) {
-        return this.getBase().toScalar(column, row).conjugate();
+        return this.base().toScalar(column, row).conjugate();
     }
 
 }

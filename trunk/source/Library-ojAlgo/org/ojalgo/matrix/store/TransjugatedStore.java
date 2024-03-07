@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,9 +23,9 @@ package org.ojalgo.matrix.store;
 
 import org.ojalgo.ProgrammingError;
 
-abstract class TransjugatedStore<N extends Number> extends LogicalStore<N> {
+abstract class TransjugatedStore<N extends Comparable<N>> extends LogicalStore<N> {
 
-    private TransjugatedStore(final int rows, final int columns, final MatrixStore<N> base) {
+    private TransjugatedStore(final MatrixStore<N> base, final int rows, final int columns) {
 
         super(base, rows, columns);
 
@@ -33,43 +33,36 @@ abstract class TransjugatedStore<N extends Number> extends LogicalStore<N> {
     }
 
     protected TransjugatedStore(final MatrixStore<N> base) {
-        super(base, (int) base.countColumns(), (int) base.countRows());
+        super(base, base.countColumns(), base.countRows());
     }
 
-    public final double doubleValue(final long aRow, final long aCol) {
-        return this.getBase().doubleValue(aCol, aRow);
+    @Override
+    public final double doubleValue(final int aRow, final int aCol) {
+        return this.base().doubleValue(aCol, aRow);
     }
 
+    @Override
     public final int firstInColumn(final int col) {
-        return this.getBase().firstInRow(col);
+        return this.base().firstInRow(col);
     }
 
+    @Override
     public final int firstInRow(final int row) {
-        return this.getBase().firstInColumn(row);
+        return this.base().firstInColumn(row);
     }
 
     public final MatrixStore<N> getOriginal() {
-        return this.getBase();
+        return this.base();
     }
 
     @Override
     public final int limitOfColumn(final int col) {
-        return this.getBase().limitOfRow(col);
+        return this.base().limitOfRow(col);
     }
 
     @Override
     public final int limitOfRow(final int row) {
-        return this.getBase().limitOfColumn(row);
-    }
-
-    @Override
-    public void supplyTo(final ElementsConsumer<N> consumer) {
-        this.supplyNonZerosTo(consumer);
-    }
-
-    @Override
-    protected void supplyNonZerosTo(final ElementsConsumer<N> consumer) {
-        consumer.fillMatching(this);
+        return this.base().limitOfColumn(row);
     }
 
 }

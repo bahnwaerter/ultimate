@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,28 +21,52 @@
  */
 package org.ojalgo.matrix.store;
 
-import org.ojalgo.access.Access1D;
+import org.ojalgo.function.VoidFunction;
+import org.ojalgo.function.aggregator.Aggregator;
 import org.ojalgo.scalar.Scalar;
+import org.ojalgo.structure.Access1D;
 
-final class TransposedStore<N extends Number> extends TransjugatedStore<N> {
+final class TransposedStore<N extends Comparable<N>> extends TransjugatedStore<N> {
 
-    TransposedStore(final MatrixStore<N> aBase) {
-        super(aBase);
+    TransposedStore(final MatrixStore<N> base) {
+        super(base);
     }
 
-    public N get(final long aRow, final long aCol) {
-        return this.getBase().get(aCol, aRow);
+    @Override
+    public N aggregateColumn(final long col, final Aggregator aggregator) {
+        return this.base().aggregateRow(col, aggregator);
     }
 
-    public MatrixStore<N> multiply(final Access1D<N> right) {
+    @Override
+    public N aggregateRow(final long row, final Aggregator aggregator) {
+        return this.base().aggregateColumn(row, aggregator);
+    }
+
+    @Override
+    public N get(final int aRow, final int aCol) {
+        return this.base().get(aCol, aRow);
+    }
+
+    @Override
+    public void loopColumn(final long col, final RowColumnCallback callback) {
+        this.base().loopRow(col, callback);
+    }
+
+    @Override
+    public void loopRow(final long row, final RowColumnCallback callback) {
+        this.base().loopColumn(row, callback);
+    }
+
+    @Override
+    public MatrixStore<N> multiply(final MatrixStore<N> right) {
 
         MatrixStore<N> retVal;
 
         if (right instanceof TransposedStore<?>) {
 
-            retVal = ((TransposedStore<N>) right).getOriginal().multiply(this.getBase());
+            retVal = ((TransposedStore<N>) right).getOriginal().multiply(this.base());
 
-            retVal = new TransposedStore<N>(retVal);
+            retVal = new TransposedStore<>(retVal);
 
         } else {
 
@@ -52,13 +76,39 @@ final class TransposedStore<N extends Number> extends TransjugatedStore<N> {
         return retVal;
     }
 
+    @Override
+    public Access1D<N> sliceColumn(final long col) {
+        return this.base().sliceRow(col);
+    }
+
+    @Override
+    public Access1D<N> sliceRow(final long row) {
+        return this.base().sliceColumn(row);
+    }
+
+    @Override
+    public void supplyTo(final TransformableRegion<N> receiver) {
+        this.base().supplyTo(receiver.regionByTransposing());
+    }
+
+    @Override
     public Scalar<N> toScalar(final long row, final long column) {
-        return this.getBase().toScalar(column, row);
+        return this.base().toScalar(column, row);
     }
 
     @Override
     public MatrixStore<N> transpose() {
-        return this.getBase();
+        return this.base();
+    }
+
+    @Override
+    public void visitColumn(final long col, final VoidFunction<N> visitor) {
+        this.base().visitRow(col, visitor);
+    }
+
+    @Override
+    public void visitRow(final long row, final VoidFunction<N> visitor) {
+        this.base().visitColumn(row, visitor);
     }
 
 }

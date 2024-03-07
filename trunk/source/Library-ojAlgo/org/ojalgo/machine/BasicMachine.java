@@ -19,17 +19,12 @@ public class BasicMachine {
     public final long memory;
     public final int threads;
 
-    public BasicMachine(final long memory, final int threads) {
+    public BasicMachine(final long memoryBytes, final int nbThreads) {
 
         super();
 
-        this.memory = memory;
-        this.threads = threads;
-    }
-
-    @SuppressWarnings("unused")
-    private BasicMachine() {
-        this(0L, 0);
+        memory = memoryBytes;
+        threads = nbThreads;
     }
 
     @Override
@@ -37,17 +32,11 @@ public class BasicMachine {
         if (this == obj) {
             return true;
         }
-        if (obj == null) {
-            return false;
-        }
         if (!(obj instanceof BasicMachine)) {
             return false;
         }
-        final BasicMachine other = (BasicMachine) obj;
-        if (memory != other.memory) {
-            return false;
-        }
-        if (threads != other.threads) {
+        BasicMachine other = (BasicMachine) obj;
+        if ((memory != other.memory) || (threads != other.threads)) {
             return false;
         }
         return true;
@@ -57,35 +46,34 @@ public class BasicMachine {
     public int hashCode() {
         final int prime = 31;
         int result = 1;
-        result = (prime * result) + (int) (memory ^ (memory >>> 32));
-        result = (prime * result) + threads;
-        return result;
+        result = prime * result + (int) (memory ^ (memory >>> 32));
+        return prime * result + threads;
     }
 
     @Override
     public String toString() {
 
-        int tmpPrefix = 1;
-        int tmpMeasure = (int) (memory / AbstractMachine.K);
+        int prefix = 1;
+        long measure = memory / CommonMachine.K;
 
-        while ((tmpMeasure / 1024) > 0) {
-            tmpPrefix++;
-            tmpMeasure /= 1024;
+        while ((measure / CommonMachine.K) > 0) {
+            prefix++;
+            measure /= CommonMachine.K;
         }
 
-        switch (tmpPrefix) {
+        switch (prefix) {
 
         case 1:
 
-            return tmpMeasure + KILO + threads + ((threads == 1) ? THREAD : THREADS);
+            return measure + KILO + threads + ((threads == 1) ? THREAD : THREADS);
 
         case 2:
 
-            return tmpMeasure + MEGA + threads + ((threads == 1) ? THREAD : THREADS);
+            return measure + MEGA + threads + ((threads == 1) ? THREAD : THREADS);
 
         case 3:
 
-            return tmpMeasure + GIGA + threads + ((threads == 1) ? THREAD : THREADS);
+            return measure + GIGA + threads + ((threads == 1) ? THREAD : THREADS);
 
         default:
 

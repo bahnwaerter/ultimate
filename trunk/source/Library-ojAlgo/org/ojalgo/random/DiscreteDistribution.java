@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,5 +26,5 @@ public interface DiscreteDistribution extends Distribution {
     /**
      * Probability density function
      */
-    double getProbability(int aVal);
+    double getProbability(int value);
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,131 +21,280 @@
  */
 package org.ojalgo.matrix.task;
 
-import java.math.BigDecimal;
+import java.util.Optional;
+import java.util.function.Supplier;
 
-import org.ojalgo.access.Access2D;
-import org.ojalgo.access.Structure2D;
-import org.ojalgo.matrix.MatrixUtils;
+import org.ojalgo.RecoverableCondition;
+import org.ojalgo.matrix.Provider2D;
 import org.ojalgo.matrix.decomposition.Cholesky;
-import org.ojalgo.matrix.decomposition.DecompositionStore;
 import org.ojalgo.matrix.decomposition.LU;
 import org.ojalgo.matrix.decomposition.QR;
 import org.ojalgo.matrix.decomposition.SingularValue;
+import org.ojalgo.matrix.store.ElementsSupplier;
 import org.ojalgo.matrix.store.MatrixStore;
+import org.ojalgo.matrix.store.PhysicalStore;
 import org.ojalgo.scalar.ComplexNumber;
+import org.ojalgo.scalar.Quadruple;
+import org.ojalgo.scalar.Quaternion;
+import org.ojalgo.scalar.RationalNumber;
+import org.ojalgo.structure.Access2D;
+import org.ojalgo.structure.Structure2D;
 
-public interface SolverTask<N extends Number> extends MatrixTask<N> {
+public interface SolverTask<N extends Comparable<N>> extends MatrixTask<N> {
 
-    public static abstract class Factory<N extends Number> {
+    public static abstract class Factory<N extends Comparable<N>> {
 
-        public final SolverTask<N> make(final MatrixStore<N> templateBody, final MatrixStore<N> templateRHS) {
-            return this.make(templateBody, templateRHS, MatrixUtils.isHermitian(templateBody));
+        public SolverTask<N> make(final int numberOfEquations, final int numberOfVariables, final int numberOfSolutions, final boolean symmetric,
+                final boolean positiveDefinite) {
+
+            Structure2D templateBody = new Structure2D() {
+
+                public long countColumns() {
+                    return numberOfVariables;
+                }
+
+                public long countRows() {
+                    return numberOfEquations;
+                }
+            };
+
+            Structure2D templateRHS = new Structure2D() {
+
+                public long countColumns() {
+                    return numberOfSolutions;
+                }
+
+                public long countRows() {
+                    return numberOfEquations;
+                }
+            };
+
+            return this.make(templateBody, templateRHS, symmetric, positiveDefinite);
         }
 
-        public abstract SolverTask<N> make(MatrixStore<N> templateBody, MatrixStore<N> templateRHS, boolean hermitian);
+        public SolverTask<N> make(final MatrixStore<N> templateBody, final MatrixStore<N> templateRHS) {
+            return this.make(templateBody, templateRHS, templateBody.isHermitian(), false);
+        }
+
+        public abstract SolverTask<N> make(Structure2D templateBody, Structure2D templateRHS, boolean symmetric, boolean positiveDefinite);
+
+        /**
+         * [A][X]=[B] or [body][return]=[rhs]
+         */
+        public MatrixStore<N> solve(final Access2D<?> body, final Access2D<?> rhs) throws RecoverableCondition {
+            return this.make(body, rhs, false, false).solve(body, rhs);
+        }
 
     }
 
-    public static final Factory<BigDecimal> BIG = new Factory<BigDecimal>() {
+    Factory<ComplexNumber> C128 = new Factory<>() {
 
         @Override
-        public SolverTask<BigDecimal> make(final MatrixStore<BigDecimal> templateBody, final MatrixStore<BigDecimal> templateRHS, final boolean hermitian) {
-            if (hermitian) {
-                return Cholesky.make(templateBody);
-            } else if (templateBody.countRows() == templateBody.countColumns()) {
-                return LU.make(templateBody);
-            } else if (templateBody.countRows() >= templateBody.countColumns()) {
-                return QR.make(templateBody);
-            } else {
-                return SingularValue.make(templateBody);
-            }
-        }
-
-    };
-
-    public static final Factory<ComplexNumber> COMPLEX = new Factory<ComplexNumber>() {
-
-        @Override
-        public SolverTask<ComplexNumber> make(final MatrixStore<ComplexNumber> templateBody, final MatrixStore<ComplexNumber> templateRHS,
-                final boolean hermitian) {
-            if (hermitian) {
-                return Cholesky.make(templateBody);
-            } else if (templateBody.countRows() == templateBody.countColumns()) {
-                return LU.make(templateBody);
-            } else if (templateBody.countRows() >= templateBody.countColumns()) {
-                return QR.make(templateBody);
-            } else {
-                return SingularValue.make(templateBody);
-            }
-        }
-
-    };
-
-    public static final Factory<Double> PRIMITIVE = new Factory<Double>() {
-
-        @Override
-        public SolverTask<Double> make(final MatrixStore<Double> templateBody, final MatrixStore<Double> templateRHS, final boolean hermitian) {
-            if (hermitian) {
-                final long tmpDim = templateBody.countColumns();
-                if (tmpDim == 1l) {
-                    return AbstractSolver.FULL_1X1;
-                } else if (tmpDim == 2l) {
-                    return AbstractSolver.SYMMETRIC_2X2;
-                } else if (tmpDim == 3l) {
-                    return AbstractSolver.SYMMETRIC_3X3;
-                } else if (tmpDim == 4l) {
-                    return AbstractSolver.SYMMETRIC_4X4;
-                } else if (tmpDim == 5l) {
-                    return AbstractSolver.SYMMETRIC_5X5;
+        public SolverTask<ComplexNumber> make(final Structure2D templateBody, final Structure2D templateRHS, final boolean symmetric,
+                final boolean positiveDefinite) {
+            if (templateBody.isSquare()) {
+                if (symmetric && positiveDefinite) {
+                    return Cholesky.C128.make(templateBody);
                 } else {
-                    return Cholesky.make(templateBody);
+                    return LU.C128.make(templateBody);
                 }
+            } else if (templateBody.isTall()) {
+                return QR.C128.make(templateBody);
             } else {
-                final long tmpDim = templateBody.countColumns();
-                if (templateBody.countRows() == tmpDim) {
-                    if (tmpDim == 1l) {
-                        return AbstractSolver.FULL_1X1;
-                    } else if (tmpDim == 2l) {
-                        return AbstractSolver.FULL_2X2;
-                    } else if (tmpDim == 3l) {
-                        return AbstractSolver.FULL_3X3;
-                    } else if (tmpDim == 4l) {
-                        return AbstractSolver.FULL_4X4;
-                    } else if (tmpDim == 5l) {
-                        return AbstractSolver.FULL_5X5;
-                    } else {
-                        return LU.make(templateBody);
-                    }
-                } else if (templateBody.countRows() >= tmpDim) {
-                    if (tmpDim <= 5) {
-                        return AbstractSolver.LEAST_SQUARES;
-                    } else {
-                        return QR.make(templateBody);
-                    }
-                } else {
-                    return SingularValue.make(templateBody);
-                }
+                return SingularValue.C128.make(templateBody);
             }
         }
 
     };
 
     /**
-     * Will create a {@linkplain DecompositionStore} instance suitable for use with
-     * {@link #solve(Access2D, Access2D, DecompositionStore)}. When solving an equation system [A][X]=[B]
-     * ([mxn][nxb]=[mxb]) the preallocated memory/matrix will typically be either mxb or nxb (if A is square
-     * then there is no doubt).
-     *
-     * @param templateBody
-     * @param templateRHS
-     * @return
+     * @deprecated Use {@link #C128} instead.
      */
-    DecompositionStore<N> preallocate(Structure2D templateBody, Structure2D templateRHS);
+    @Deprecated
+    Factory<ComplexNumber> COMPLEX = C128;
+
+    Factory<Double> R064 = new Factory<>() {
+
+        @Override
+        public SolverTask<Double> make(final Structure2D templateBody, final Structure2D templateRHS, final boolean symmetric, final boolean positiveDefinite) {
+
+            boolean vectorRHS = templateRHS.countColumns() == 1L;
+
+            long nbCols = templateBody.countColumns();
+
+            if (templateBody.isSquare()) {
+                if (symmetric) {
+                    if (!vectorRHS) {
+                        return positiveDefinite ? Cholesky.R064.make(templateBody) : LU.R064.make(templateBody);
+                    } else if (nbCols == 1L) {
+                        return AbstractSolver.FULL_1X1;
+                    } else if (nbCols == 2L) {
+                        return AbstractSolver.SYMMETRIC_2X2;
+                    } else if (nbCols == 3L) {
+                        return AbstractSolver.SYMMETRIC_3X3;
+                    } else if (nbCols == 4L) {
+                        return AbstractSolver.SYMMETRIC_4X4;
+                    } else if (nbCols == 5L) {
+                        return AbstractSolver.SYMMETRIC_5X5;
+                    } else {
+                        return positiveDefinite ? Cholesky.R064.make(templateBody) : LU.R064.make(templateBody);
+                    }
+                } else {
+                    if (!vectorRHS) {
+                        return LU.R064.make(templateBody);
+                    } else if (nbCols == 1L) {
+                        return AbstractSolver.FULL_1X1;
+                    } else if (nbCols == 2L) {
+                        return AbstractSolver.FULL_2X2;
+                    } else if (nbCols == 3L) {
+                        return AbstractSolver.FULL_3X3;
+                    } else if (nbCols == 4L) {
+                        return AbstractSolver.FULL_4X4;
+                    } else if (nbCols == 5L) {
+                        return AbstractSolver.FULL_5X5;
+                    } else {
+                        return LU.R064.make(templateBody);
+                    }
+                }
+            } else if (!templateBody.isTall()) {
+                return SingularValue.R064.make(templateBody);
+            } else if (vectorRHS && nbCols <= 5) {
+                return AbstractSolver.LEAST_SQUARES;
+            } else {
+                return QR.R064.make(templateBody);
+            }
+        }
+
+    };
+
+    /**
+     * @deprecated Use {@link #R064} instead.
+     */
+    @Deprecated
+    Factory<Double> PRIMITIVE = R064;
+
+    Factory<Quadruple> R128 = new Factory<>() {
+
+        @Override
+        public SolverTask<Quadruple> make(final Structure2D templateBody, final Structure2D templateRHS, final boolean symmetric,
+                final boolean positiveDefinite) {
+            if (templateBody.isSquare()) {
+                if (symmetric && positiveDefinite) {
+                    return Cholesky.R128.make(templateBody);
+                } else {
+                    return LU.R128.make(templateBody);
+                }
+            } else if (templateBody.isTall()) {
+                return QR.R128.make(templateBody);
+            } else {
+                return SingularValue.R128.make(templateBody);
+            }
+        }
+
+    };
+
+    /**
+     * @deprecated Use {@link #R128} instead.
+     */
+    @Deprecated
+    Factory<Quadruple> QUADRUPLE = R128;
+
+    Factory<Quaternion> H256 = new Factory<>() {
+
+        @Override
+        public SolverTask<Quaternion> make(final Structure2D templateBody, final Structure2D templateRHS, final boolean symmetric,
+                final boolean positiveDefinite) {
+            if (templateBody.isSquare()) {
+                if (symmetric && positiveDefinite) {
+                    return Cholesky.H256.make(templateBody);
+                } else {
+                    return LU.H256.make(templateBody);
+                }
+            } else if (templateBody.isTall()) {
+                return QR.H256.make(templateBody);
+            } else {
+                return SingularValue.H256.make(templateBody);
+            }
+        }
+
+    };
+
+    /**
+     * @deprecated Use {@link #H256} instead.
+     */
+    @Deprecated
+    Factory<Quaternion> QUATERNION = H256;
+
+    Factory<RationalNumber> Q128 = new Factory<>() {
+
+        @Override
+        public SolverTask<RationalNumber> make(final Structure2D templateBody, final Structure2D templateRHS, final boolean symmetric,
+                final boolean positiveDefinite) {
+            if (templateBody.isSquare()) {
+                if (symmetric && positiveDefinite) {
+                    return Cholesky.Q128.make(templateBody);
+                } else {
+                    return LU.Q128.make(templateBody);
+                }
+            } else if (templateBody.isTall()) {
+                return QR.Q128.make(templateBody);
+            } else {
+                return SingularValue.Q128.make(templateBody);
+            }
+        }
+
+    };
+
+    /**
+     * @deprecated Use {@link #Q128} instead.
+     */
+    @Deprecated
+    Factory<RationalNumber> RATIONAL = Q128;
+
+    default PhysicalStore<N> preallocate(final int numberOfEquations, final int numberOfVariables, final int numberOfSolutions) {
+
+        Structure2D templateBody = new Structure2D() {
+
+            public long countColumns() {
+                return numberOfVariables;
+            }
+
+            public long countRows() {
+                return numberOfEquations;
+            }
+        };
+
+        Structure2D templateRHS = new Structure2D() {
+
+            public long countColumns() {
+                return numberOfSolutions;
+            }
+
+            public long countRows() {
+                return numberOfEquations;
+            }
+        };
+
+        return this.preallocate(templateBody, templateRHS);
+    }
+
+    /**
+     * <p>
+     * Will create a {@linkplain PhysicalStore} instance suitable for use with
+     * {@link #solve(Access2D, Access2D, PhysicalStore)}. The dimensions of the returned instance is not
+     * specified by this interface - it is specified by the behaviour/requirements of each implementation.
+     * </p>
+     * <p>
+     * When solving an equation system [A][X]=[B] ([mxn][nxb]=[mxb]) the preallocated memory/matrix will
+     * typically be either mxb or nxb.
+     * </p>
+     */
+    PhysicalStore<N> preallocate(Structure2D templateBody, Structure2D templateRHS);
 
     /**
      * [A][X]=[B] or [body][return]=[rhs]
      */
-    default MatrixStore<N> solve(final Access2D<?> body, final Access2D<?> rhs) throws TaskException {
+    default MatrixStore<N> solve(final Access2D<?> body, final Access2D<?> rhs) throws RecoverableCondition {
         return this.solve(body, rhs, this.preallocate(body, rhs));
     }
 
@@ -157,11 +306,25 @@ public interface SolverTask<N extends Number> extends MatrixTask<N> {
      * <p>
      * Should produce the same results as calling {@link #solve(Access2D, Access2D)}.
      * </p>
+     * <p>
+     * Use {@link #preallocate(Structure2D, Structure2D)} to obtain a suitbale <code>preallocated</code>.
+     * </p>
      *
      * @param rhs The Right Hand Side, wont be modfied
      * @param preallocated Preallocated memory for the results, possibly some intermediate results. You must
-     *        assume this is modified, but you cannot assume it will contain the full/final/correct solution.
+     *        assume this is modified, but you cannot assume it will contain the full/ /correct solution.
      * @return The solution
      */
-    MatrixStore<N> solve(Access2D<?> body, Access2D<?> rhs, DecompositionStore<N> preallocated) throws TaskException;
+    MatrixStore<N> solve(Access2D<?> body, Access2D<?> rhs, PhysicalStore<N> preallocated) throws RecoverableCondition;
+
+    default Provider2D.Solution<Optional<MatrixStore<N>>> toSolutionProvider(final ElementsSupplier<N> body,
+            final Supplier<MatrixStore<N>> alternativeBodySupplier, final Access2D<?> rhs) {
+        try {
+            MatrixStore<N> solution = this.solve(alternativeBodySupplier.get(), rhs);
+            return r -> Optional.of(solution);
+        } catch (RecoverableCondition cause) {
+            return r -> Optional.empty();
+        }
+    }
+
 }

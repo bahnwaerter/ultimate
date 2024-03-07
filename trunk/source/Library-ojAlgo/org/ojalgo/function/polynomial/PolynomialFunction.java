@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,27 +23,38 @@ package org.ojalgo.function.polynomial;
 
 import java.util.List;
 
-import org.ojalgo.access.Access1D;
+import org.ojalgo.algebra.Ring;
 import org.ojalgo.function.BasicFunction.Differentiable;
 import org.ojalgo.function.BasicFunction.Integratable;
 import org.ojalgo.function.UnaryFunction;
 import org.ojalgo.series.NumberSeries;
+import org.ojalgo.structure.Access1D;
+import org.ojalgo.structure.Mutate1D;
+import org.ojalgo.type.context.NumberContext;
 
-public interface PolynomialFunction<N extends Number> extends UnaryFunction<N>, Access1D<N>, Differentiable<N, PolynomialFunction<N>>,
-        Integratable<N, PolynomialFunction<N>> {
+public interface PolynomialFunction<N extends Comparable<N>> extends UnaryFunction<N>, Access1D<N>, Mutate1D, Differentiable<N, PolynomialFunction<N>>,
+        Integratable<N, PolynomialFunction<N>>, Ring<PolynomialFunction<N>> {
 
-    int degree();
+    /**
+     * The largest exponent/power of the non-zero coefficients.
+     */
+    default int degree() {
+        return this.degree(AbstractPolynomial.DEGREE_ACCURACY);
+    }
+
+    /**
+     * The largest exponent/power of the non-zero (to the given accuracy) coefficients.
+     */
+    int degree(NumberContext accuracy);
 
     void estimate(Access1D<?> x, Access1D<?> y);
 
-    void estimate(List<? extends Number> x, List<? extends Number> y);
+    void estimate(List<? extends N> x, List<? extends N> y);
 
     void estimate(NumberSeries<?> samples);
 
     void set(Access1D<?> coefficients);
 
-    void set(final int aPower, final double aCoefficient);
-
-    void set(final int aPower, final N aCoefficient);
+    void set(final int power, final N coefficient);
 
 }

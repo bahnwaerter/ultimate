@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,98 +21,143 @@
  */
 package org.ojalgo.optimisation.integer;
 
-import java.io.Serializable;
+import static org.ojalgo.function.constant.PrimitiveMath.NaN;
+
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.ojalgo.ProgrammingError;
-import org.ojalgo.array.ArrayUtils;
-import org.ojalgo.constant.PrimitiveMath;
+import org.ojalgo.array.operation.COPY;
+import org.ojalgo.netio.BasicLogger;
 import org.ojalgo.optimisation.ExpressionsBasedModel;
 import org.ojalgo.optimisation.Variable;
+import org.ojalgo.type.ObjectPool;
+import org.ojalgo.type.context.NumberContext;
 
-final class NodeKey implements Serializable, Comparable<NodeKey> {
+public final class NodeKey implements Comparable<NodeKey> {
 
-    private static AtomicLong GENERATOR = new AtomicLong();
+    static final class IntArrayPool extends ObjectPool<int[]> {
 
-    private final int[] myLowerBounds;
-    private final int[] myUpperBounds;
+        private final int myArrayLength;
+
+        IntArrayPool(final int arrayLength) {
+            super();
+            myArrayLength = arrayLength;
+        }
+
+        @Override
+        protected int[] newObject() {
+            return new int[myArrayLength];
+        }
+
+        @Override
+        protected void reset(final int[] object) {
+            // No need to do anything. All values explicitly set when reused.
+        }
+
+    }
+
+    public static final Comparator<NodeKey> EARLIEST_SEQUENCE = Comparator.comparingLong((final NodeKey nk) -> nk.sequence).reversed();
+    public static final Comparator<NodeKey> LARGEST_DISPLACEMENT = Comparator.comparingDouble((final NodeKey nk) -> nk.displacement);
+    public static final Comparator<NodeKey> LATEST_SEQUENCE = Comparator.comparingLong((final NodeKey nk) -> nk.sequence);
+    public static final Comparator<NodeKey> MAX_OBJECTIVE = Comparator.comparingDouble((final NodeKey nk) -> nk.objective);
+    public static final Comparator<NodeKey> MIN_OBJECTIVE = Comparator.comparingDouble((final NodeKey nk) -> nk.objective).reversed();
+    public static final Comparator<NodeKey> SMALLEST_DISPLACEMENT = Comparator.comparingDouble((final NodeKey nk) -> nk.displacement).reversed();
+
+    /**
+     * Used for one thing only - to validate (log problems with) node solver results. Does not effect the
+     * algorithm.
+     */
+    private static final NumberContext FEASIBILITY = NumberContext.of(8, 6);
+    private static final AtomicLong SEQUENCE_GENERATOR = new AtomicLong();
 
     /**
      * How much the branched on variable must be displaced because of the new constraint introduced with this
      * node (each node introduces precisely 1 new upper or lower bound).
      */
-    final double displacement;
+    public final double displacement;
     /**
      * The index of the branched on variable.
      */
-    final int index;
+    public final int index;
     /**
      * The objective function value of the parent node.
      */
-    final double objective;
+    public final double objective;
     /**
      * Parent node sequence number.
      */
-    final long parent;
+    public final long parent;
     /**
      * Node sequennce number to keep track of in which order the nodes were created.
      */
-    final long sequence = GENERATOR.getAndIncrement();
+    public final long sequence;
 
-    @SuppressWarnings("unused")
-    private NodeKey() {
-        this(null);
-        ProgrammingError.throwForIllegalInvocation();
-    }
+    private final IntArrayPool myIntArrayPool;
+    private final int[] myLowerBounds;
+    private final boolean mySignChanged;
+    private final int[] myUpperBounds;
 
-    private NodeKey(final int[] lowerBounds, final int[] upperBounds, final long parentSequenceNumber, final int indexBranchedOn,
-            final double branchVariableDisplacement, final double parentObjectiveFunctionValue) {
+    private NodeKey(final int[] lowerBounds, final int[] upperBounds, final long parentSequenceNumber, final int integerIndexBranchedOn,
+            final double branchVariableDisplacement, final double parentObjectiveFunctionValue, final boolean signChanged, final IntArrayPool pool) {
 
         super();
+
+        sequence = SEQUENCE_GENERATOR.incrementAndGet();
 
         myLowerBounds = lowerBounds;
         myUpperBounds = upperBounds;
 
         parent = parentSequenceNumber;
-        index = indexBranchedOn;
+        index = integerIndexBranchedOn;
         displacement = branchVariableDisplacement;
         objective = parentObjectiveFunctionValue;
+
+        mySignChanged = signChanged;
+
+        myIntArrayPool = pool;
     }
 
     NodeKey(final ExpressionsBasedModel integerModel) {
 
         super();
 
-        final List<Variable> tmpIntegerVariables = integerModel.getIntegerVariables();
-        final int tmpLength = tmpIntegerVariables.size();
+        sequence = 0L;
 
-        myLowerBounds = new int[tmpLength];
-        myUpperBounds = new int[tmpLength];
-        Arrays.fill(myLowerBounds, Integer.MIN_VALUE);
-        Arrays.fill(myUpperBounds, Integer.MAX_VALUE);
+        List<Variable> integerVariables = integerModel.getIntegerVariables();
+        int nbIntegerVariables = integerVariables.size();
 
-        for (int i = 0; i < tmpLength; i++) {
+        myIntArrayPool = new IntArrayPool(nbIntegerVariables);
 
-            final Variable tmpVariable = tmpIntegerVariables.get(i);
+        myLowerBounds = myIntArrayPool.borrow();
+        myUpperBounds = myIntArrayPool.borrow();
 
-            final BigDecimal tmpLowerLimit = tmpVariable.getLowerLimit();
-            if (tmpLowerLimit != null) {
-                myLowerBounds[i] = tmpLowerLimit.intValue();
+        for (int i = 0; i < nbIntegerVariables; i++) {
+            Variable variable = integerVariables.get(i);
+
+            BigDecimal lowerLimit = variable.getLowerLimit();
+            if (lowerLimit != null) {
+                myLowerBounds[i] = lowerLimit.intValue();
+            } else {
+                myLowerBounds[i] = Integer.MIN_VALUE;
             }
 
-            final BigDecimal tmpUpperLimit = tmpVariable.getUpperLimit();
-            if (tmpUpperLimit != null) {
-                myUpperBounds[i] = tmpUpperLimit.intValue();
+            BigDecimal upperLimit = variable.getUpperLimit();
+            if (upperLimit != null) {
+                myUpperBounds[i] = upperLimit.intValue();
+            } else {
+                myUpperBounds[i] = Integer.MAX_VALUE;
             }
         }
 
         parent = sequence;
         index = -1;
-        displacement = PrimitiveMath.NaN;
-        objective = PrimitiveMath.NaN;
+        displacement = NaN;
+        objective = NaN;
+
+        mySignChanged = false;
     }
 
     public int compareTo(final NodeKey ref) {
@@ -124,17 +169,11 @@ final class NodeKey implements Serializable, Comparable<NodeKey> {
         if (this == obj) {
             return true;
         }
-        if (obj == null) {
-            return false;
-        }
         if (!(obj instanceof NodeKey)) {
             return false;
         }
-        final NodeKey other = (NodeKey) obj;
-        if (!Arrays.equals(myLowerBounds, other.myLowerBounds)) {
-            return false;
-        }
-        if (!Arrays.equals(myUpperBounds, other.myUpperBounds)) {
+        NodeKey other = (NodeKey) obj;
+        if (sequence != other.sequence) {
             return false;
         }
         return true;
@@ -144,15 +183,14 @@ final class NodeKey implements Serializable, Comparable<NodeKey> {
     public int hashCode() {
         final int prime = 31;
         int result = 1;
-        result = (prime * result) + Arrays.hashCode(myLowerBounds);
-        result = (prime * result) + Arrays.hashCode(myUpperBounds);
+        result = prime * result + (int) (sequence ^ sequence >>> 32);
         return result;
     }
 
     @Override
     public String toString() {
 
-        final StringBuilder retVal = new StringBuilder();
+        StringBuilder retVal = new StringBuilder();
 
         retVal.append(sequence);
         retVal.append(' ');
@@ -181,96 +219,168 @@ final class NodeKey implements Serializable, Comparable<NodeKey> {
         return retVal.append(']').toString();
     }
 
-    private void append(final StringBuilder builder, final int index) {
-        builder.append(index);
+    private void append(final StringBuilder builder, final int idx) {
+        builder.append(idx);
         builder.append('=');
-        builder.append(myLowerBounds[index]);
+        builder.append(myLowerBounds[idx]);
         builder.append('<');
-        builder.append(myUpperBounds[index]);
+        builder.append(myUpperBounds[idx]);
     }
 
-    private double feasible(final int index, final double value) {
-        return Math.min(Math.max(myLowerBounds[index], value), myUpperBounds[index]);
-    }
+    private double feasible(final int idx, final double value, final boolean validate) {
 
-    private int[] getLowerBounds() {
-        return ArrayUtils.copyOf(myLowerBounds);
-    }
+        double feasibilityAdjusted = Math.min(Math.max(myLowerBounds[idx], value), myUpperBounds[idx]);
 
-    private int[] getUpperBounds() {
-        return ArrayUtils.copyOf(myUpperBounds);
+        if (validate && FEASIBILITY.isDifferent(feasibilityAdjusted, value)) {
+            BasicLogger.error("Obviously infeasible value {}: {} <= {} <= {} @ {}", idx, myLowerBounds[idx], value, myUpperBounds[idx], this);
+        }
+
+        return feasibilityAdjusted;
     }
 
     long calculateTreeSize() {
 
         long retVal = 1L;
 
-        final int tmpLength = myLowerBounds.length;
-        for (int i = 0; i < tmpLength; i++) {
-            retVal *= (1L + (myUpperBounds[i] - myLowerBounds[i]));
+        for (int i = 0, limit = myLowerBounds.length; i < limit; i++) {
+            retVal *= 1L + (myUpperBounds[i] - myLowerBounds[i]);
         }
 
         return retVal;
     }
 
-    NodeKey createLowerBranch(final int index, final double value, final double objective) {
+    int[] copyLowerBounds() {
+        return COPY.invoke(myLowerBounds, myIntArrayPool.borrow());
+    }
 
-        final int[] tmpLBs = this.getLowerBounds();
-        final int[] tmpUBs = this.getUpperBounds();
+    int[] copyUpperBounds() {
+        return COPY.invoke(myUpperBounds, myIntArrayPool.borrow());
+    }
 
-        final double tmpFeasibleValue = this.feasible(index, value);
+    NodeKey createLowerBranch(final int branchIntegerIndex, final double value, final double objVal) {
 
-        final int tmpFloor = (int) Math.floor(tmpFeasibleValue);
+        int[] tmpLBs = this.copyLowerBounds();
+        int[] tmpUBs = this.copyUpperBounds();
 
-        if ((tmpFloor >= tmpUBs[index]) && (tmpFloor > tmpLBs[index])) {
-            tmpUBs[index] = tmpFloor - 1;
+        int floorValue = (int) Math.floor(this.feasible(branchIntegerIndex, value, false));
+
+        int oldVal = tmpUBs[branchIntegerIndex];
+
+        if (floorValue >= tmpUBs[branchIntegerIndex] && floorValue > tmpLBs[branchIntegerIndex]) {
+            tmpUBs[branchIntegerIndex] = floorValue - 1;
         } else {
-            tmpUBs[index] = tmpFloor;
+            tmpUBs[branchIntegerIndex] = floorValue;
         }
 
-        return new NodeKey(tmpLBs, tmpUBs, sequence, index, value - tmpFloor, objective);
+        int newVal = tmpUBs[branchIntegerIndex];
+
+        boolean changed = oldVal > 0 && newVal <= 0;
+
+        return new NodeKey(tmpLBs, tmpUBs, sequence, branchIntegerIndex, value - floorValue, objVal, changed, myIntArrayPool);
     }
 
-    NodeKey createUpperBranch(final int index, final double value, final double objective) {
+    NodeKey createUpperBranch(final int branchIntegerIndex, final double value, final double objVal) {
 
-        final int[] tmpLBs = this.getLowerBounds();
-        final int[] tmpUBs = this.getUpperBounds();
+        int[] tmpLBs = this.copyLowerBounds();
+        int[] tmpUBs = this.copyUpperBounds();
 
-        final double tmpFeasibleValue = this.feasible(index, value);
+        int ceilValue = (int) Math.ceil(this.feasible(branchIntegerIndex, value, false));
 
-        final int tmpCeil = (int) Math.ceil(tmpFeasibleValue);
+        int oldVal = tmpLBs[branchIntegerIndex];
 
-        if ((tmpCeil <= tmpLBs[index]) && (tmpCeil < tmpUBs[index])) {
-            tmpLBs[index] = tmpCeil + 1;
+        if (ceilValue <= tmpLBs[branchIntegerIndex] && ceilValue < tmpUBs[branchIntegerIndex]) {
+            tmpLBs[branchIntegerIndex] = ceilValue + 1;
         } else {
-            tmpLBs[index] = tmpCeil;
+            tmpLBs[branchIntegerIndex] = ceilValue;
         }
 
-        return new NodeKey(tmpLBs, tmpUBs, sequence, index, tmpCeil - value, objective);
+        int newVal = tmpLBs[branchIntegerIndex];
+
+        boolean changed = oldVal < 0 && newVal >= 0;
+
+        return new NodeKey(tmpLBs, tmpUBs, sequence, branchIntegerIndex, ceilValue - value, objVal, changed, myIntArrayPool);
     }
 
-    double getFraction(final int index, final double value) {
-
-        final double tmpFeasibleValue = this.feasible(index, value);
-
-        return Math.abs(tmpFeasibleValue - Math.rint(tmpFeasibleValue));
+    void dispose() {
+        myIntArrayPool.giveBack(myLowerBounds);
+        myIntArrayPool.giveBack(myUpperBounds);
     }
 
-    BigDecimal getLowerBound(final int index) {
-        final int tmpLower = myLowerBounds[index];
+    void enforceBounds(final ExpressionsBasedModel model, final int idx, final ModelStrategy strategy) {
+
+        BigDecimal lowerBound = this.getLowerBound(idx);
+        BigDecimal upperBound = this.getUpperBound(idx);
+
+        Variable variable = model.getVariable(strategy.getIndex(idx));
+        variable.lower(lowerBound);
+        variable.upper(upperBound);
+
+        BigDecimal value = variable.getValue();
+        if (value != null) {
+            // Re-setting will ensure the new bounds are not violated
+            variable.setValue(value);
+        }
+    }
+
+    void enforceBounds(final NodeSolver nodeSolver, final ModelStrategy strategy) {
+
+        BigDecimal lowerBound = this.getLowerBound(index);
+        BigDecimal upperBound = this.getUpperBound(index);
+
+        Variable variable = nodeSolver.getVariable(strategy.getIndex(index));
+        variable.lower(lowerBound);
+        variable.upper(upperBound);
+
+        BigDecimal value = variable.getValue();
+        if (value != null) {
+            // Re-setting will ensure the new bounds are not violated
+            variable.setValue(value);
+        }
+
+        if (this.isSignChanged()) {
+            nodeSolver.reset();
+        } else {
+            nodeSolver.update(variable);
+        }
+    }
+
+    boolean equals(final int[] lowerBounds, final int[] upperBounds) {
+        if (!Arrays.equals(myLowerBounds, lowerBounds) || !Arrays.equals(myUpperBounds, upperBounds)) {
+            return false;
+        }
+        return true;
+    }
+
+    BigDecimal getLowerBound(final int idx) {
+        int tmpLower = myLowerBounds[idx];
         if (tmpLower != Integer.MIN_VALUE) {
             return new BigDecimal(tmpLower);
-        } else {
-            return null;
         }
+        return null;
     }
 
-    BigDecimal getUpperBound(final int index) {
-        final int tmpUpper = myUpperBounds[index];
+    double getMinimumDisplacement(final int idx, final double value) {
+
+        double feasibleValue = this.feasible(idx, value, true);
+
+        return Math.abs(feasibleValue - Math.rint(feasibleValue));
+    }
+
+    BigDecimal getUpperBound(final int idx) {
+        int tmpUpper = myUpperBounds[idx];
         if (tmpUpper != Integer.MAX_VALUE) {
             return new BigDecimal(tmpUpper);
-        } else {
-            return null;
+        }
+        return null;
+    }
+
+    boolean isSignChanged() {
+        return mySignChanged;
+    }
+
+    void setNodeState(final ExpressionsBasedModel model, final ModelStrategy strategy) {
+        for (int i = 0; i < strategy.countIntegerVariables(); i++) {
+            this.enforceBounds(model, i, strategy);
         }
     }
 

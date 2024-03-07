@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,99 +21,166 @@
  */
 package org.ojalgo.function.multiary;
 
-import java.math.BigDecimal;
-
-import org.ojalgo.access.Access1D;
-import org.ojalgo.matrix.store.BigDenseStore;
-import org.ojalgo.matrix.store.ComplexDenseStore;
+import org.ojalgo.matrix.store.GenericStore;
 import org.ojalgo.matrix.store.MatrixStore;
 import org.ojalgo.matrix.store.PhysicalStore;
-import org.ojalgo.matrix.store.PhysicalStore.Factory;
-import org.ojalgo.matrix.store.PrimitiveDenseStore;
+import org.ojalgo.matrix.store.Primitive64Store;
 import org.ojalgo.scalar.ComplexNumber;
-import org.ojalgo.scalar.Scalar;
+import org.ojalgo.scalar.RationalNumber;
+import org.ojalgo.structure.Access1D;
 
 /**
- * [l]<sup>T</sup>[x] + c
+ * [l]<sup>T</sup>[x]
  *
  * @author apete
  */
-public final class LinearFunction<N extends Number> extends AbstractMultiary<N, LinearFunction<N>>implements MultiaryFunction.Linear<N> {
+public final class LinearFunction<N extends Comparable<N>> implements MultiaryFunction.TwiceDifferentiable<N>, MultiaryFunction.Linear<N> {
 
-    public static LinearFunction<BigDecimal> makeBig(final Access1D<? extends Number> factors) {
-        return new LinearFunction<BigDecimal>(BigDenseStore.FACTORY.rows(factors));
+    public static final class Factory<N extends Comparable<N>> {
+
+        private Access1D<?> myCoefficients = null;
+        private final PhysicalStore.Factory<N, ?> myFactory;
+
+        Factory(final PhysicalStore.Factory<N, ?> factory) {
+            super();
+            myFactory = factory;
+        }
+
+        public Factory<N> coefficients(final Access1D<?> coefficients) {
+            myCoefficients = coefficients;
+            return this;
+        }
+
+        public LinearFunction<N> make(final int arity) {
+            if (myCoefficients != null) {
+                return new LinearFunction<>(myFactory.rows(myCoefficients));
+            } else {
+                return new LinearFunction<>(myFactory.make(1, arity));
+            }
+        }
+
     }
 
-    public static LinearFunction<BigDecimal> makeBig(final int arity) {
-        return new LinearFunction<BigDecimal>(BigDenseStore.FACTORY.makeZero(1, arity));
+    public static <N extends Comparable<N>> Factory<N> factory(final PhysicalStore.Factory<N, ?> factory) {
+        return new Factory<>(factory);
     }
 
-    public static LinearFunction<ComplexNumber> makeComplex(final Access1D<? extends Number> factors) {
-        return new LinearFunction<ComplexNumber>(ComplexDenseStore.FACTORY.rows(factors));
+    /**
+     * @deprecated v53 Use {@link #factory(PhysicalStore.Factory)} instead.
+     */
+    @Deprecated
+    public static LinearFunction<ComplexNumber> makeComplex(final Access1D<?> coefficients) {
+        // return new LinearFunction<>(GenericStore.C128.rows(coefficients));
+        return LinearFunction.factory(GenericStore.C128).coefficients(coefficients).make(coefficients.size());
     }
 
+    /**
+     * @deprecated v53 Use {@link #factory(PhysicalStore.Factory)} instead.
+     */
+    @Deprecated
     public static LinearFunction<ComplexNumber> makeComplex(final int arity) {
-        return new LinearFunction<ComplexNumber>(ComplexDenseStore.FACTORY.makeZero(1, arity));
+        // return new LinearFunction<>(GenericStore.C128.make(1, arity));
+        return LinearFunction.factory(GenericStore.C128).make(arity);
     }
 
-    public static LinearFunction<Double> makePrimitive(final Access1D<? extends Number> factors) {
-        return new LinearFunction<Double>(PrimitiveDenseStore.FACTORY.rows(factors));
+    /**
+     * @deprecated v53 Use {@link #factory(PhysicalStore.Factory)} instead.
+     */
+    @Deprecated
+    public static LinearFunction<Double> makePrimitive(final Access1D<?> coefficients) {
+        // return new LinearFunction<>(Primitive64Store.FACTORY.rows(coefficients));
+        return LinearFunction.factory(Primitive64Store.FACTORY).coefficients(coefficients).make(coefficients.size());
     }
 
+    /**
+     * @deprecated v53 Use {@link #factory(PhysicalStore.Factory)} instead.
+     */
+    @Deprecated
     public static LinearFunction<Double> makePrimitive(final int arity) {
-        return new LinearFunction<Double>(PrimitiveDenseStore.FACTORY.makeZero(1, arity));
+        // return new LinearFunction<>(Primitive64Store.FACTORY.make(1, arity));
+        return LinearFunction.factory(Primitive64Store.FACTORY).make(arity);
     }
 
-    private final MatrixStore<N> myFactors;
-
-    @SuppressWarnings("unused")
-    private LinearFunction() {
-        this(null);
+    /**
+     * @deprecated v53 Use {@link #factory(PhysicalStore.Factory)} instead.
+     */
+    @Deprecated
+    public static LinearFunction<RationalNumber> makeRational(final Access1D<?> coefficients) {
+        // return new LinearFunction<>(GenericStore.Q128.rows(coefficients));
+        return LinearFunction.factory(GenericStore.Q128).coefficients(coefficients).make(coefficients.size());
     }
 
-    LinearFunction(final MatrixStore<N> factors) {
+    /**
+     * @deprecated v53 Use {@link #factory(PhysicalStore.Factory)} instead.
+     */
+    @Deprecated
+    public static LinearFunction<RationalNumber> makeRational(final int arity) {
+        // return new LinearFunction<>(GenericStore.Q128.make(1, arity));
+        return LinearFunction.factory(GenericStore.Q128).make(arity);
+    }
+
+    public static <N extends Comparable<N>> LinearFunction<N> wrap(final PhysicalStore<N> coefficients) {
+        return new LinearFunction<>(coefficients);
+    }
+
+    private final MatrixStore<N> myCoefficients;
+
+    LinearFunction(final MatrixStore<N> coefficients) {
 
         super();
 
-        myFactors = factors;
-
-        if (myFactors.countRows() != 1L) {
-            throw new IllegalArgumentException("Must be a row vector!");
+        if (!coefficients.isVector()) {
+            throw new IllegalArgumentException("Must be a  vector!");
         }
+
+        myCoefficients = coefficients;
     }
 
     public int arity() {
-        return (int) myFactors.countColumns();
+        return Math.toIntExact(myCoefficients.count());
     }
 
     @Override
-    public MatrixStore<N> getGradient(final Access1D<N> arg) {
-        return myFactors.transpose();
+    public MatrixStore<N> getGradient(final Access1D<N> point) {
+        return this.getLinearFactors(false);
     }
 
     @Override
-    public MatrixStore<N> getHessian(final Access1D<N> arg) {
-        //return new ZeroStore<N>(myFactors.factory(), this.arity(), this.arity());
-        return this.factory().builder().makeZero(this.arity(), this.arity()).get();
+    public MatrixStore<N> getHessian(final Access1D<N> point) {
+        return this.factory().makeZero(this.arity(), this.arity());
+    }
+
+    public MatrixStore<N> getLinearFactors(final boolean negated) {
+
+        MatrixStore<N> retVal = myCoefficients;
+
+        if (myCoefficients.countRows() == 1L) {
+            retVal = retVal.transpose();
+        }
+
+        if (negated) {
+            retVal = retVal.negate();
+        }
+
+        return retVal;
     }
 
     @Override
     public N invoke(final Access1D<N> arg) {
 
-        Scalar<N> retVal = this.getScalarConstant();
+        PhysicalStore<N> preallocated = myCoefficients.physical().make(1L, 1L);
 
-        retVal = retVal.add(myFactors.multiply(arg).get(0, 0));
+        myCoefficients.multiply(arg, preallocated);
 
-        return retVal.getNumber();
+        return preallocated.get(0, 0);
     }
 
     public PhysicalStore<N> linear() {
-        return (PhysicalStore<N>) myFactors;
+        return (PhysicalStore<N>) myCoefficients;
     }
 
-    @Override
-    protected Factory<N, ?> factory() {
-        return myFactors.factory();
+    PhysicalStore.Factory<N, ?> factory() {
+        return myCoefficients.physical();
     }
 
 }

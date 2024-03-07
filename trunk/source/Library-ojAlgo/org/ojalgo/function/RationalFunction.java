@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,10 +21,11 @@
  */
 package org.ojalgo.function;
 
-import java.math.BigDecimal;
-
+import org.ojalgo.function.aggregator.AggregatorSet;
+import org.ojalgo.function.aggregator.RationalAggregator;
+import org.ojalgo.function.constant.RationalMath;
 import org.ojalgo.scalar.RationalNumber;
-import org.ojalgo.type.TypeUtils;
+import org.ojalgo.type.context.NumberContext;
 
 /**
  * RationalFunction
@@ -34,436 +35,79 @@ import org.ojalgo.type.TypeUtils;
 public final class RationalFunction extends FunctionSet<RationalNumber> {
 
     @FunctionalInterface
-    public static interface Binary extends BinaryFunction<RationalNumber> {
+    public interface Binary extends BinaryFunction<RationalNumber> {
 
         default double invoke(final double arg1, final double arg2) {
             return this.invoke(RationalNumber.valueOf(arg1), RationalNumber.valueOf(arg2)).doubleValue();
         }
 
+        default RationalNumber invoke(final RationalNumber arg1, final double arg2) {
+            return this.invoke(arg1, RationalNumber.valueOf(arg2));
+        }
+
+        default float invoke(final float arg1, final float arg2) {
+            return this.invoke(RationalNumber.valueOf(arg1), RationalNumber.valueOf(arg2)).floatValue();
+        }
+
     }
 
     @FunctionalInterface
-    public static interface Parameter extends ParameterFunction<RationalNumber> {
+    public interface Consumer extends VoidFunction<RationalNumber> {
+
+        default void invoke(final double arg) {
+            this.invoke(RationalNumber.valueOf(arg));
+        }
+
+        default void invoke(final float arg) {
+            this.invoke(RationalNumber.valueOf(arg));
+        }
+
+    }
+
+    @FunctionalInterface
+    public interface Parameter extends ParameterFunction<RationalNumber> {
 
         default double invoke(final double arg, final int param) {
             return this.invoke(RationalNumber.valueOf(arg), param).doubleValue();
         }
 
+        default float invoke(final float arg, final int param) {
+            return this.invoke(RationalNumber.valueOf(arg), param).floatValue();
+        }
+
     }
 
     @FunctionalInterface
-    public static interface Unary extends UnaryFunction<RationalNumber> {
+    public interface Predicate extends PredicateFunction<RationalNumber> {
+
+        default boolean invoke(final double arg) {
+            return this.invoke(RationalNumber.valueOf(arg));
+        }
+
+        default boolean invoke(final float arg) {
+            return this.invoke(RationalNumber.valueOf(arg));
+        }
+
+    }
+
+    @FunctionalInterface
+    public interface Unary extends UnaryFunction<RationalNumber> {
 
         default double invoke(final double arg) {
             return this.invoke(RationalNumber.valueOf(arg)).doubleValue();
         }
 
+        default float invoke(final float arg) {
+            return this.invoke(RationalNumber.valueOf(arg)).floatValue();
+        }
+
     }
+
+    private static final RationalFunction SET = new RationalFunction();
 
     public static RationalFunction getSet() {
         return SET;
     }
-
-    public static final UnaryFunction<RationalNumber> ABS = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-            if (arg.compareTo(RationalNumber.ZERO) == -1) {
-                return arg.negate();
-            } else {
-                return arg;
-            }
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> ACOS = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-
-            final BigDecimal tmpArg = TypeUtils.toBigDecimal(arg);
-
-            final BigDecimal tmpRet = BigFunction.ACOS.invoke(tmpArg);
-
-            return RationalNumber.valueOf(tmpRet);
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> ACOSH = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-
-            final RationalNumber tmpNmbr = arg.multiply(arg).subtract(RationalNumber.ONE);
-
-            return RationalFunction.LOG.invoke(arg.add(RationalFunction.SQRT.invoke(tmpNmbr)));
-        }
-    };
-
-    public static final BinaryFunction<RationalNumber> ADD = new Binary() {
-
-        @Override
-        public final RationalNumber invoke(final RationalNumber arg1, final RationalNumber arg2) {
-            return arg1.add(arg2);
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> ASIN = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-
-            final BigDecimal tmpArg = TypeUtils.toBigDecimal(arg);
-
-            final BigDecimal tmpRet = BigFunction.ASIN.invoke(tmpArg);
-
-            return RationalNumber.valueOf(tmpRet);
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> ASINH = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-
-            final RationalNumber tmpNmbr = arg.multiply(arg).add(RationalNumber.ONE);
-
-            return RationalFunction.LOG.invoke(arg.add(RationalFunction.SQRT.invoke(tmpNmbr)));
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> ATAN = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-
-            final BigDecimal tmpArg = TypeUtils.toBigDecimal(arg);
-
-            final BigDecimal tmpRet = BigFunction.ATAN.invoke(tmpArg);
-
-            return RationalNumber.valueOf(tmpRet);
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> ATANH = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-
-            final RationalNumber tmpNmbr = arg.add(RationalNumber.ONE).divide(RationalNumber.ONE.subtract(arg));
-
-            return RationalFunction.LOG.invoke(tmpNmbr).divide(RationalNumber.TWO);
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> CARDINALITY = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-            return arg.compareTo(RationalNumber.ZERO) == 0 ? RationalNumber.ZERO : RationalNumber.ONE;
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> CONJUGATE = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-            return arg.conjugate();
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> COS = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-
-            final BigDecimal tmpArg = TypeUtils.toBigDecimal(arg);
-
-            final BigDecimal tmpRet = BigFunction.COS.invoke(tmpArg);
-
-            return RationalNumber.valueOf(tmpRet);
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> COSH = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-            return (EXP.invoke(arg).add(EXP.invoke(arg.negate()))).divide(RationalNumber.TWO);
-        }
-    };
-
-    public static final BinaryFunction<RationalNumber> DIVIDE = new Binary() {
-
-        @Override
-        public final RationalNumber invoke(final RationalNumber arg1, final RationalNumber arg2) {
-            return arg1.divide(arg2);
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> EXP = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-
-            final BigDecimal tmpArg = TypeUtils.toBigDecimal(arg);
-
-            final BigDecimal tmpRet = BigFunction.EXP.invoke(tmpArg);
-
-            return RationalNumber.valueOf(tmpRet);
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> EXPM1 = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-
-            final BigDecimal tmpArg = TypeUtils.toBigDecimal(arg);
-
-            final BigDecimal tmpRet = BigFunction.EXPM1.invoke(tmpArg);
-
-            return RationalNumber.valueOf(tmpRet);
-        }
-    };
-
-    public static final BinaryFunction<RationalNumber> HYPOT = new Binary() {
-
-        @Override
-        public final RationalNumber invoke(final RationalNumber arg1, final RationalNumber arg2) {
-
-            final BigDecimal tmpArg1 = arg1.toBigDecimal();
-            final BigDecimal tmpArg2 = arg2.toBigDecimal();
-
-            final BigDecimal tmpResult = BigFunction.HYPOT.invoke(tmpArg1, tmpArg2);
-
-            return RationalNumber.valueOf(tmpResult);
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> INVERT = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-            return arg.invert();
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> LOG = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-
-            final BigDecimal tmpArg = TypeUtils.toBigDecimal(arg);
-
-            final BigDecimal tmpRet = BigFunction.LOG.invoke(tmpArg);
-
-            return RationalNumber.valueOf(tmpRet);
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> LOG10 = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-
-            final BigDecimal tmpArg = TypeUtils.toBigDecimal(arg);
-
-            final BigDecimal tmpRet = BigFunction.LOG10.invoke(tmpArg);
-
-            return RationalNumber.valueOf(tmpRet);
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> LOG1P = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-
-            final BigDecimal tmpArg = TypeUtils.toBigDecimal(arg);
-
-            final BigDecimal tmpRet = BigFunction.LOG1P.invoke(tmpArg);
-
-            return RationalNumber.valueOf(tmpRet);
-        }
-    };
-
-    public static final BinaryFunction<RationalNumber> MAX = new Binary() {
-
-        @Override
-        public final RationalNumber invoke(final RationalNumber arg1, final RationalNumber arg2) {
-
-            RationalNumber retVal = null;
-
-            if (arg1.compareTo(arg2) >= 0) {
-                retVal = arg1;
-            } else {
-                retVal = arg2;
-            }
-
-            return retVal;
-        }
-    };
-
-    public static final BinaryFunction<RationalNumber> MIN = new Binary() {
-
-        @Override
-        public final RationalNumber invoke(final RationalNumber arg1, final RationalNumber arg2) {
-
-            RationalNumber retVal = null;
-
-            if (arg1.compareTo(arg2) <= 0) {
-                retVal = arg1;
-            } else {
-                retVal = arg2;
-            }
-
-            return retVal;
-        }
-    };
-
-    public static final BinaryFunction<RationalNumber> MULTIPLY = new Binary() {
-
-        @Override
-        public final RationalNumber invoke(final RationalNumber arg1, final RationalNumber arg2) {
-            return arg1.multiply(arg2);
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> NEGATE = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-            return arg.negate();
-        }
-    };
-
-    public static final BinaryFunction<RationalNumber> POW = new Binary() {
-
-        @Override
-        public final RationalNumber invoke(final RationalNumber arg1, final RationalNumber arg2) {
-            return EXP.invoke(LOG.invoke(arg1).multiply(arg2));
-        }
-    };
-
-    public static final ParameterFunction<RationalNumber> POWER = new Parameter() {
-
-        @Override
-        public final RationalNumber invoke(final RationalNumber arg, final int param) {
-
-            final BigDecimal tmpArg = arg.toBigDecimal();
-
-            final BigDecimal tmpRet = BigFunction.POWER.invoke(tmpArg, param);
-
-            return RationalNumber.valueOf(tmpRet);
-        }
-    };
-
-    public static final ParameterFunction<RationalNumber> ROOT = new Parameter() {
-
-        @Override
-        public final RationalNumber invoke(final RationalNumber arg, final int param) {
-
-            final BigDecimal tmpArg = TypeUtils.toBigDecimal(arg);
-
-            final BigDecimal tmpRet = BigFunction.ROOT.invoke(tmpArg, param);
-
-            return RationalNumber.valueOf(tmpRet);
-        }
-    };
-
-    public static final ParameterFunction<RationalNumber> SCALE = new Parameter() {
-
-        @Override
-        public final RationalNumber invoke(final RationalNumber arg, final int param) {
-
-            final BigDecimal tmpArg = TypeUtils.toBigDecimal(arg);
-
-            final BigDecimal tmpRet = BigFunction.SCALE.invoke(tmpArg, param);
-
-            return RationalNumber.valueOf(tmpRet);
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> SIGNUM = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-            return arg.signum();
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> SIN = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-
-            final BigDecimal tmpArg = TypeUtils.toBigDecimal(arg);
-
-            final BigDecimal tmpRet = BigFunction.SIN.invoke(tmpArg);
-
-            return RationalNumber.valueOf(tmpRet);
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> SINH = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-            return (RationalFunction.EXP.invoke(arg).subtract(RationalFunction.EXP.invoke(arg.negate()))).divide(RationalNumber.TWO);
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> SQRT = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-
-            final BigDecimal tmpArg = TypeUtils.toBigDecimal(arg);
-
-            final BigDecimal tmpRet = BigFunction.SQRT.invoke(tmpArg);
-
-            return RationalNumber.valueOf(tmpRet);
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> SQRT1PX2 = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-            return SQRT.invoke(RationalNumber.ONE.add(arg.multiply(arg)));
-        }
-    };
-
-    public static final BinaryFunction<RationalNumber> SUBTRACT = new Binary() {
-
-        @Override
-        public final RationalNumber invoke(final RationalNumber arg1, final RationalNumber arg2) {
-            return arg1.subtract(arg2);
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> TAN = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-
-            final BigDecimal tmpArg = TypeUtils.toBigDecimal(arg);
-
-            final BigDecimal tmpRet = BigFunction.TAN.invoke(tmpArg);
-
-            return RationalNumber.valueOf(tmpRet);
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> TANH = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-
-            RationalNumber retVal;
-
-            final RationalNumber tmpPlus = RationalFunction.EXP.invoke(arg);
-            final RationalNumber tmpMinus = RationalFunction.EXP.invoke(arg.negate());
-
-            final RationalNumber tmpDividend = tmpPlus.subtract(tmpMinus);
-            final RationalNumber tmpDivisor = tmpPlus.add(tmpMinus);
-
-            if (tmpDividend.equals(tmpDivisor)) {
-                retVal = RationalNumber.ONE;
-            } else if (tmpDividend.equals(tmpDivisor.negate())) {
-                retVal = RationalNumber.ONE.negate();
-            } else {
-                retVal = tmpDividend.divide(tmpDivisor);
-            }
-
-            return retVal;
-        }
-    };
-
-    public static final UnaryFunction<RationalNumber> VALUE = new Unary() {
-
-        public final RationalNumber invoke(final RationalNumber arg) {
-            return arg;
-        }
-    };
-
-    private static final RationalFunction SET = new RationalFunction();
 
     private RationalFunction() {
         super();
@@ -471,187 +115,232 @@ public final class RationalFunction extends FunctionSet<RationalNumber> {
 
     @Override
     public UnaryFunction<RationalNumber> abs() {
-        return ABS;
+        return RationalMath.ABS;
     }
 
     @Override
     public UnaryFunction<RationalNumber> acos() {
-        return ACOS;
+        return RationalMath.ACOS;
     }
 
     @Override
     public UnaryFunction<RationalNumber> acosh() {
-        return ACOSH;
+        return RationalMath.ACOSH;
     }
 
     @Override
     public BinaryFunction<RationalNumber> add() {
-        return ADD;
+        return RationalMath.ADD;
+    }
+
+    @Override
+    public AggregatorSet<RationalNumber> aggregator() {
+        return RationalAggregator.getSet();
     }
 
     @Override
     public UnaryFunction<RationalNumber> asin() {
-        return ASIN;
+        return RationalMath.ASIN;
     }
 
     @Override
     public UnaryFunction<RationalNumber> asinh() {
-        return ASINH;
+        return RationalMath.ASINH;
     }
 
     @Override
     public UnaryFunction<RationalNumber> atan() {
-        return ATAN;
+        return RationalMath.ATAN;
+    }
+
+    @Override
+    public BinaryFunction<RationalNumber> atan2() {
+        return RationalMath.ATAN2;
     }
 
     @Override
     public UnaryFunction<RationalNumber> atanh() {
-        return ATANH;
+        return RationalMath.ATANH;
     }
 
     @Override
     public UnaryFunction<RationalNumber> cardinality() {
-        return CARDINALITY;
+        return RationalMath.CARDINALITY;
+    }
+
+    @Override
+    public UnaryFunction<RationalNumber> cbrt() {
+        return RationalMath.CBRT;
+    }
+
+    @Override
+    public UnaryFunction<RationalNumber> ceil() {
+        return RationalMath.CEIL;
     }
 
     @Override
     public UnaryFunction<RationalNumber> conjugate() {
-        return CONJUGATE;
+        return RationalMath.CONJUGATE;
     }
 
     @Override
     public UnaryFunction<RationalNumber> cos() {
-        return COS;
+        return RationalMath.COS;
     }
 
     @Override
     public UnaryFunction<RationalNumber> cosh() {
-        return COSH;
+        return RationalMath.COSH;
     }
 
     @Override
     public BinaryFunction<RationalNumber> divide() {
-        return DIVIDE;
+        return RationalMath.DIVIDE;
+    }
+
+    @Override
+    public Unary enforce(final NumberContext context) {
+        return t -> RationalNumber.valueOf(context.enforce(t));
     }
 
     @Override
     public UnaryFunction<RationalNumber> exp() {
-        return EXP;
+        return RationalMath.EXP;
     }
 
     @Override
     public UnaryFunction<RationalNumber> expm1() {
-        return EXPM1;
+        return RationalMath.EXPM1;
+    }
+
+    @Override
+    public UnaryFunction<RationalNumber> floor() {
+        return RationalMath.FLOOR;
     }
 
     @Override
     public BinaryFunction<RationalNumber> hypot() {
-        return HYPOT;
+        return RationalMath.HYPOT;
     }
 
     @Override
     public UnaryFunction<RationalNumber> invert() {
-        return INVERT;
+        return RationalMath.INVERT;
     }
 
     @Override
     public UnaryFunction<RationalNumber> log() {
-        return LOG;
+        return RationalMath.LOG;
     }
 
     @Override
     public UnaryFunction<RationalNumber> log10() {
-        return LOG10;
+        return RationalMath.LOG10;
     }
 
     @Override
     public UnaryFunction<RationalNumber> log1p() {
-        return LOG1P;
+        return RationalMath.LOG1P;
+    }
+
+    @Override
+    public UnaryFunction<RationalNumber> logistic() {
+        return RationalMath.LOGISTIC;
+    }
+
+    @Override
+    public UnaryFunction<RationalNumber> logit() {
+        return RationalMath.LOGIT;
     }
 
     @Override
     public BinaryFunction<RationalNumber> max() {
-        return MAX;
+        return RationalMath.MAX;
     }
 
     @Override
     public BinaryFunction<RationalNumber> min() {
-        return MIN;
+        return RationalMath.MIN;
     }
 
     @Override
     public BinaryFunction<RationalNumber> multiply() {
-        return MULTIPLY;
+        return RationalMath.MULTIPLY;
     }
 
     @Override
     public UnaryFunction<RationalNumber> negate() {
-        return NEGATE;
+        return RationalMath.NEGATE;
     }
 
     @Override
     public BinaryFunction<RationalNumber> pow() {
-        return POW;
+        return RationalMath.POW;
     }
 
     @Override
     public ParameterFunction<RationalNumber> power() {
-        return POWER;
+        return RationalMath.POWER;
+    }
+
+    @Override
+    public UnaryFunction<RationalNumber> rint() {
+        return RationalMath.RINT;
     }
 
     @Override
     public ParameterFunction<RationalNumber> root() {
-        return ROOT;
+        return RationalMath.ROOT;
     }
 
     @Override
     public ParameterFunction<RationalNumber> scale() {
-        return SCALE;
+        return RationalMath.SCALE;
     }
 
     @Override
     public UnaryFunction<RationalNumber> signum() {
-        return SIGNUM;
+        return RationalMath.SIGNUM;
     }
 
     @Override
     public UnaryFunction<RationalNumber> sin() {
-        return SIN;
+        return RationalMath.SIN;
     }
 
     @Override
     public UnaryFunction<RationalNumber> sinh() {
-        return SINH;
+        return RationalMath.SINH;
     }
 
     @Override
     public UnaryFunction<RationalNumber> sqrt() {
-        return SQRT;
+        return RationalMath.SQRT;
     }
 
     @Override
     public UnaryFunction<RationalNumber> sqrt1px2() {
-        return SQRT1PX2;
+        return RationalMath.SQRT1PX2;
     }
 
     @Override
     public BinaryFunction<RationalNumber> subtract() {
-        return SUBTRACT;
+        return RationalMath.SUBTRACT;
     }
 
     @Override
     public UnaryFunction<RationalNumber> tan() {
-        return TAN;
+        return RationalMath.TAN;
     }
 
     @Override
     public UnaryFunction<RationalNumber> tanh() {
-        return TANH;
+        return RationalMath.TANH;
     }
 
     @Override
     public UnaryFunction<RationalNumber> value() {
-        return VALUE;
+        return RationalMath.VALUE;
     }
 
 }

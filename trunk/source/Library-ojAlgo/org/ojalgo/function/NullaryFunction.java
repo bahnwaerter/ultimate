@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,25 @@ package org.ojalgo.function;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
-public interface NullaryFunction<N extends Number> extends BasicFunction<N>, Supplier<N>, DoubleSupplier {
+import org.ojalgo.ProgrammingError;
+import org.ojalgo.structure.AccessScalar;
+
+public interface NullaryFunction<N extends Comparable<N>> extends BasicFunction, Supplier<N>, DoubleSupplier, AccessScalar<N> {
+
+    default NullaryFunction<N> andThen(final UnaryFunction<N> after) {
+        ProgrammingError.throwIfNull(after);
+        return new NullaryFunction<N>() {
+
+            public double doubleValue() {
+                return after.invoke(NullaryFunction.this.doubleValue());
+            }
+
+            public N invoke() {
+                return after.invoke(NullaryFunction.this.invoke());
+            }
+
+        };
+    }
 
     double doubleValue();
 

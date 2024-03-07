@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,66 +23,61 @@ package org.ojalgo.matrix.decomposition;
 
 import org.ojalgo.ProgrammingError;
 import org.ojalgo.array.Array1D;
-import org.ojalgo.matrix.store.ElementsSupplier;
 import org.ojalgo.matrix.store.MatrixStore;
-import org.ojalgo.matrix.store.PrimitiveDenseStore;
+import org.ojalgo.matrix.store.PhysicalStore;
+import org.ojalgo.matrix.store.Primitive64Store;
 import org.ojalgo.scalar.ComplexNumber;
-import org.ojalgo.type.context.NumberContext;
+import org.ojalgo.structure.Access2D.Collectable;
 
-abstract class DynamicEvD<N extends Number> extends EigenvalueDecomposition<N> {
+abstract class DynamicEvD<N extends Comparable<N>> extends EigenvalueDecomposition<N> {
 
-    static final class Primitive extends DynamicEvD<Double> {
+    static final class R064 extends DynamicEvD<Double> {
 
-        Primitive() {
-            super(PrimitiveDenseStore.FACTORY, new HermitianEvD.Primitive(), new GeneralEvD.Primitive());
+        R064() {
+            super(Primitive64Store.FACTORY, new HermitianEvD.R064(), new GeneralEvD.R064());
         }
 
     }
 
+    private final EigenvalueDecomposition<N> myGeneralDelegate;
     private boolean myHermitian = false;
-    private final EigenvalueDecomposition<N> myNonsymmetricDelegate;
-
-    private final EigenvalueDecomposition<N> mySymmetricDelegate;
+    private final EigenvalueDecomposition<N> myHermitianDelegate;
 
     @SuppressWarnings("unused")
-    private DynamicEvD(final DecompositionStore.Factory<N, ? extends DecompositionStore<N>> aFactory) {
+    private DynamicEvD(final DecompositionStore.Factory<N, ? extends DecompositionStore<N>> factory) {
 
-        this(aFactory, null, null);
+        this(factory, null, null);
 
         ProgrammingError.throwForIllegalInvocation();
     }
 
-    protected DynamicEvD(final DecompositionStore.Factory<N, ? extends DecompositionStore<N>> aFactory, final EigenvalueDecomposition<N> aSymmetric,
-            final EigenvalueDecomposition<N> aNonsymmetric) {
+    protected DynamicEvD(final DecompositionStore.Factory<N, ? extends DecompositionStore<N>> factory, final EigenvalueDecomposition<N> hermitianDelegate,
+            final EigenvalueDecomposition<N> generalDelegate) {
 
-        super(aFactory);
+        super(factory);
 
-        mySymmetricDelegate = aSymmetric;
-        myNonsymmetricDelegate = aNonsymmetric;
+        myHermitianDelegate = hermitianDelegate;
+        myGeneralDelegate = generalDelegate;
     }
 
-    public boolean equals(final MatrixStore<N> other, final NumberContext context) {
-        if (myHermitian) {
-            return mySymmetricDelegate.equals(other, context);
-        } else {
-            return myNonsymmetricDelegate.equals(other, context);
-        }
+    public boolean checkAndDecompose(final MatrixStore<N> matrix) {
+        return this.decompose(matrix);
     }
 
     @Override
     public N getDeterminant() {
         if (myHermitian) {
-            return mySymmetricDelegate.getDeterminant();
+            return myHermitianDelegate.getDeterminant();
         } else {
-            return myNonsymmetricDelegate.getDeterminant();
+            return myGeneralDelegate.getDeterminant();
         }
     }
 
     public ComplexNumber getTrace() {
         if (myHermitian) {
-            return mySymmetricDelegate.getTrace();
+            return myHermitianDelegate.getTrace();
         } else {
-            return myNonsymmetricDelegate.getTrace();
+            return myGeneralDelegate.getTrace();
         }
     }
 
@@ -91,11 +86,7 @@ abstract class DynamicEvD<N extends Number> extends EigenvalueDecomposition<N> {
     }
 
     public boolean isOrdered() {
-        if (myHermitian) {
-            return mySymmetricDelegate.isOrdered();
-        } else {
-            return myNonsymmetricDelegate.isOrdered();
-        }
+        return myHermitian ? myHermitianDelegate.isOrdered() : myGeneralDelegate.isOrdered();
     }
 
     @Override
@@ -103,52 +94,50 @@ abstract class DynamicEvD<N extends Number> extends EigenvalueDecomposition<N> {
 
         super.reset();
 
-        myNonsymmetricDelegate.reset();
-        mySymmetricDelegate.reset();
-
-        myHermitian = false;
+        myGeneralDelegate.reset();
+        myHermitianDelegate.reset();
     }
 
     @Override
-    protected boolean doNonsymmetric(final ElementsSupplier<N> matrix, final boolean eigenvaluesOnly) {
+    protected boolean doDecompose(final Collectable<N, ? super PhysicalStore<N>> matrix, final boolean valuesOnly) {
 
-        myHermitian = false;
+        if (matrix instanceof MatrixStore) {
+            myHermitian = ((MatrixStore<?>) matrix).isHermitian();
+        } else {
+            myHermitian = false;
+        }
 
-        return myNonsymmetricDelegate.compute(matrix, false, eigenvaluesOnly);
-    }
-
-    @Override
-    protected boolean doSymmetric(final ElementsSupplier<N> matrix, final boolean eigenvaluesOnly) {
-
-        myHermitian = true;
-
-        return mySymmetricDelegate.compute(matrix, true, eigenvaluesOnly);
+        if (myHermitian) {
+            return myHermitianDelegate.doDecompose(matrix, valuesOnly);
+        } else {
+            return myGeneralDelegate.doDecompose(matrix, valuesOnly);
+        }
     }
 
     @Override
     protected MatrixStore<N> makeD() {
         if (myHermitian) {
-            return mySymmetricDelegate.getD();
+            return myHermitianDelegate.getD();
         } else {
-            return myNonsymmetricDelegate.getD();
+            return myGeneralDelegate.getD();
         }
     }
 
     @Override
     protected Array1D<ComplexNumber> makeEigenvalues() {
         if (myHermitian) {
-            return mySymmetricDelegate.getEigenvalues();
+            return myHermitianDelegate.getEigenvalues();
         } else {
-            return myNonsymmetricDelegate.getEigenvalues();
+            return myGeneralDelegate.getEigenvalues();
         }
     }
 
     @Override
     protected MatrixStore<N> makeV() {
         if (myHermitian) {
-            return mySymmetricDelegate.getV();
+            return myHermitianDelegate.getV();
         } else {
-            return myNonsymmetricDelegate.getV();
+            return myGeneralDelegate.getV();
         }
     }
 

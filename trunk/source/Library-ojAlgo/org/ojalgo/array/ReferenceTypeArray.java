@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,170 +25,120 @@ import java.util.Arrays;
 import java.util.Spliterator;
 import java.util.Spliterators;
 
-import org.ojalgo.access.Access1D;
+import org.ojalgo.array.operation.COPY;
+import org.ojalgo.array.operation.Exchange;
+import org.ojalgo.array.operation.FillAll;
+import org.ojalgo.array.operation.FillMatchingSingle;
+import org.ojalgo.array.operation.OperationBinary;
+import org.ojalgo.array.operation.OperationUnary;
+import org.ojalgo.array.operation.OperationVoid;
 import org.ojalgo.function.BinaryFunction;
-import org.ojalgo.function.FunctionUtils;
 import org.ojalgo.function.NullaryFunction;
-import org.ojalgo.function.ParameterFunction;
 import org.ojalgo.function.UnaryFunction;
 import org.ojalgo.function.VoidFunction;
+import org.ojalgo.function.constant.PrimitiveMath;
+import org.ojalgo.function.special.MissingMath;
+import org.ojalgo.scalar.Scalar;
+import org.ojalgo.structure.Access1D;
+import org.ojalgo.structure.Mutate1D;
 
 /**
- * A one- and/or arbitrary-dimensional array of {@linkplain java.lang.Number}.
+ * A one- and/or arbitrary-dimensional array of {@linkplain java.lang.Comparable}.
  *
  * @author apete
  */
-abstract class ReferenceTypeArray<N extends Number> extends DenseArray<N> {
-
-    protected static <N extends Number> void exchange(final N[] data, final int firstA, final int firstB, final int step, final int aCount) {
-
-        int tmpIndexA = firstA;
-        int tmpIndexB = firstB;
-
-        N tmpVal;
-
-        for (int i = 0; i < aCount; i++) {
-
-            tmpVal = data[tmpIndexA];
-            data[tmpIndexA] = data[tmpIndexB];
-            data[tmpIndexB] = tmpVal;
-
-            tmpIndexA += step;
-            tmpIndexB += step;
-        }
-    }
-
-    protected static <N extends Number> void fill(final N[] data, final int first, final int limit, final int step, final N value) {
-        for (int i = first; i < limit; i += step) {
-            data[i] = value;
-        }
-    }
-
-    protected static <N extends Number> void fill(final N[] data, final int first, final int limit, final int step, final NullaryFunction<N> supplier) {
-        for (int i = first; i < limit; i += step) {
-            data[i] = supplier.invoke();
-        }
-    }
-
-    protected static <N extends Number> void invoke(final N[] data, final int first, final int limit, final int step, final Access1D<N> left,
-            final BinaryFunction<N> function, final Access1D<N> right) {
-        for (int i = first; i < limit; i += step) {
-            data[i] = function.invoke(left.get(i), right.get(i));
-        }
-    }
-
-    protected static <N extends Number> void invoke(final N[] data, final int first, final int limit, final int step, final Access1D<N> left,
-            final BinaryFunction<N> function, final N right) {
-        for (int i = first; i < limit; i += step) {
-            data[i] = function.invoke(left.get(i), right);
-        }
-    }
-
-    protected static <N extends Number> void invoke(final N[] data, final int first, final int limit, final int step, final Access1D<N> value,
-            final ParameterFunction<N> function, final int aParam) {
-        for (int i = first; i < limit; i += step) {
-            data[i] = function.invoke(value.get(i), aParam);
-        }
-    }
-
-    protected static <N extends Number> void invoke(final N[] data, final int first, final int limit, final int step, final Access1D<N> value,
-            final UnaryFunction<N> function) {
-        for (int i = first; i < limit; i += step) {
-            data[i] = function.invoke(value.get(i));
-        }
-    }
-
-    protected static <N extends Number> void invoke(final N[] data, final int first, final int limit, final int step, final N left,
-            final BinaryFunction<N> function, final Access1D<N> right) {
-        for (int i = first; i < limit; i += step) {
-            data[i] = function.invoke(left, right.get(i));
-        }
-    }
-
-    protected static <N extends Number> void invoke(final N[] data, final int first, final int limit, final int step, final VoidFunction<N> aVisitor) {
-        for (int i = first; i < limit; i += step) {
-            aVisitor.invoke(data[i]);
-        }
-    }
+public abstract class ReferenceTypeArray<N extends Comparable<N>> extends PlainArray<N> implements Mutate1D.Sortable {
 
     public final N[] data;
 
-    protected ReferenceTypeArray(final N[] data) {
+    ReferenceTypeArray(final DenseArray.Factory<N> factory, final int length) {
 
-        super();
+        super(factory, length);
+
+        Scalar.Factory<N> scalarFactory = factory.scalar();
+
+        data = scalarFactory.newArrayInstance(length);
+
+        N zero = scalarFactory.zero().get();
+        Arrays.fill(data, zero);
+    }
+
+    ReferenceTypeArray(final DenseArray.Factory<N> factory, final N[] data) {
+
+        super(factory, data.length);
 
         this.data = data;
     }
 
     @Override
-    public boolean equals(final Object anObj) {
-        if (anObj instanceof ReferenceTypeArray) {
-            return Arrays.equals(data, ((ReferenceTypeArray<?>) anObj).data);
-        } else {
-            return super.equals(anObj);
+    public boolean equals(final Object obj) {
+        if (this == obj) {
+            return true;
         }
+        if (!super.equals(obj) || !(obj instanceof ReferenceTypeArray)) {
+            return false;
+        }
+        ReferenceTypeArray<?> other = (ReferenceTypeArray<?>) obj;
+        if (!Arrays.equals(data, other.data)) {
+            return false;
+        }
+        return true;
     }
 
-    public final void fillMatching(final Access1D<N> left, final BinaryFunction<N> function, final Access1D<N> right) {
-        final int tmpLimit = (int) FunctionUtils.min(this.count(), left.count(), right.count());
-        for (int i = 0; i < tmpLimit; i++) {
+    @Override
+    public void fillMatching(final Access1D<?> values) {
+        FillMatchingSingle.fill(data, values, this.factory().scalar());
+    }
+
+    @Override
+    public void fillMatching(final Access1D<N> left, final BinaryFunction<N> function, final Access1D<N> right) {
+        int limit = MissingMath.toMinIntExact(this.count(), left.count(), right.count());
+        for (int i = 0; i < limit; i++) {
             data[i] = function.invoke(left.get(i), right.get(i));
         }
     }
 
-    public final void fillMatching(final UnaryFunction<N> function, final Access1D<N> arguments) {
-        final int tmpLimit = (int) FunctionUtils.min(this.count(), arguments.count());
-        for (int i = 0; i < tmpLimit; i++) {
+    @Override
+    public void fillMatching(final UnaryFunction<N> function, final Access1D<N> arguments) {
+        int limit = MissingMath.toMinIntExact(this.count(), arguments.count());
+        for (int i = 0; i < limit; i++) {
             data[i] = function.invoke(arguments.get(i));
         }
     }
 
     @Override
     public int hashCode() {
-        return Arrays.hashCode(data);
-    }
-
-    public final Spliterator<N> spliterator() {
-        return Spliterators.spliterator(data, 0, data.length, DenseArray.CHARACTERISTICS);
-    }
-
-    protected final N[] copyOfData() {
-        return ArrayUtils.copyOf(data);
+        final int prime = 31;
+        int result = super.hashCode();
+        return prime * result + Arrays.hashCode(data);
     }
 
     @Override
-    protected final double doubleValue(final int index) {
-        return data[index].doubleValue();
+    public final void reset() {
+        Arrays.fill(data, this.valueOf(PrimitiveMath.ZERO));
+    }
+
+    public final Spliterator<N> spliterator() {
+        return Spliterators.spliterator(data, 0, data.length, PlainArray.CHARACTERISTICS);
+    }
+
+    protected final N[] copyOfData() {
+        return COPY.copyOf(data);
     }
 
     @Override
     protected final void exchange(final int firstA, final int firstB, final int step, final int count) {
-        ReferenceTypeArray.exchange(data, firstA, firstB, step, count);
-    }
-
-    @Override
-    protected final void fill(final int first, final int limit, final Access1D<N> left, final BinaryFunction<N> function, final Access1D<N> right) {
-        ReferenceTypeArray.invoke(data, first, limit, 1, left, function, right);
-    }
-
-    @Override
-    protected final void fill(final int first, final int limit, final Access1D<N> left, final BinaryFunction<N> function, final N right) {
-        ReferenceTypeArray.invoke(data, first, limit, 1, left, function, right);
+        Exchange.exchange(data, firstA, firstB, step, count);
     }
 
     @Override
     protected final void fill(final int first, final int limit, final int step, final N value) {
-        ReferenceTypeArray.fill(data, first, limit, step, value);
+        FillAll.fill(data, first, limit, step, value);
     }
 
     @Override
-    protected final void fill(final int first, final int limit, final int step, final NullaryFunction<N> supplier) {
-        ReferenceTypeArray.fill(data, first, limit, step, supplier);
-    }
-
-    @Override
-    protected final void fill(final int first, final int limit, final N left, final BinaryFunction<N> function, final Access1D<N> right) {
-        ReferenceTypeArray.invoke(data, first, limit, 1, left, function, right);
+    protected final void fill(final int first, final int limit, final int step, final NullaryFunction<?> supplier) {
+        FillAll.fill(data, first, limit, step, supplier, this.factory().scalar());
     }
 
     @Override
@@ -198,63 +148,33 @@ abstract class ReferenceTypeArray<N extends Number> extends DenseArray<N> {
     }
 
     @Override
-    protected final void fillOne(final int index, final NullaryFunction<N> supplier) {
-        data[index] = supplier.get();
+    protected final void fillOne(final int index, final NullaryFunction<?> supplier) {
+        data[index] = this.valueOf(supplier.get());
     }
 
     @Override
-    protected final void fillOneMatching(final int index, final Access1D<?> values, final long valueIndex) {
-        data[index] = this.valueOf(values.get(valueIndex));
-    }
-
-    @Override
-    protected final N get(final int index) {
+    public final N get(final int index) {
         return data[index];
     }
 
     @Override
-    protected final void modify(final int index, final Access1D<N> left, final BinaryFunction<N> function) {
-        data[index] = function.invoke(left.get(index), data[index]);
-    }
-
-    @Override
-    protected final void modify(final int index, final BinaryFunction<N> function, final Access1D<N> right) {
-        data[index] = function.invoke(data[index], right.get(index));
-    }
-
-    @Override
     protected final void modify(final int first, final int limit, final int step, final Access1D<N> left, final BinaryFunction<N> function) {
-        ReferenceTypeArray.invoke(data, first, limit, step, left, function, this);
+        OperationBinary.invoke(data, first, limit, step, left, function, this);
     }
 
     @Override
     protected final void modify(final int first, final int limit, final int step, final BinaryFunction<N> function, final Access1D<N> right) {
-        ReferenceTypeArray.invoke(data, first, limit, step, this, function, right);
-    }
-
-    @Override
-    protected final void modify(final int first, final int limit, final int step, final BinaryFunction<N> function, final N right) {
-        ReferenceTypeArray.invoke(data, first, limit, step, this, function, right);
-    }
-
-    @Override
-    protected final void modify(final int first, final int limit, final int step, final N left, final BinaryFunction<N> function) {
-        ReferenceTypeArray.invoke(data, first, limit, step, left, function, this);
-    }
-
-    @Override
-    protected final void modify(final int first, final int limit, final int step, final ParameterFunction<N> function, final int parameter) {
-        ReferenceTypeArray.invoke(data, first, limit, step, this, function, parameter);
+        OperationBinary.invoke(data, first, limit, step, this, function, right);
     }
 
     @Override
     protected final void modify(final int first, final int limit, final int step, final UnaryFunction<N> function) {
-        ReferenceTypeArray.invoke(data, first, limit, step, this, function);
+        OperationUnary.invoke(data, first, limit, step, this, function);
     }
 
     @Override
-    protected final void modify(final int index, final UnaryFunction<N> function) {
-        data[index] = function.invoke(data[index]);
+    protected final void modifyOne(final int index, final UnaryFunction<N> modifier) {
+        data[index] = modifier.invoke(data[index]);
     }
 
     @Override
@@ -263,28 +183,23 @@ abstract class ReferenceTypeArray<N extends Number> extends DenseArray<N> {
     }
 
     @Override
-    protected final void set(final int index, final double value) {
+    protected final void set(final int index, final Comparable<?> value) {
         data[index] = this.valueOf(value);
     }
 
     @Override
-    protected final void set(final int index, final Number value) {
+    public final void set(final int index, final double value) {
         data[index] = this.valueOf(value);
     }
 
     @Override
-    protected final int size() {
-        return data.length;
-    }
-
-    @Override
-    protected final void sortAscending() {
-        Arrays.sort(data);
+    public final void set(final int index, final float value) {
+        data[index] = this.valueOf(value);
     }
 
     @Override
     protected final void visit(final int first, final int limit, final int step, final VoidFunction<N> visitor) {
-        ReferenceTypeArray.invoke(data, first, limit, step, visitor);
+        OperationVoid.invoke(data, first, limit, step, visitor);
     }
 
     @Override
@@ -293,12 +208,30 @@ abstract class ReferenceTypeArray<N extends Number> extends DenseArray<N> {
     }
 
     @Override
-    final boolean isPrimitive() {
-        return false;
+    final void modify(final long extIndex, final int intIndex, final Access1D<N> left, final BinaryFunction<N> function) {
+        data[intIndex] = function.invoke(left.get(extIndex), data[intIndex]);
     }
 
-    abstract N valueOf(double value);
+    @Override
+    final void modify(final long extIndex, final int intIndex, final BinaryFunction<N> function, final Access1D<N> right) {
+        data[intIndex] = function.invoke(data[intIndex], right.get(extIndex));
+    }
 
-    abstract N valueOf(Number number);
+    @Override
+    final void modify(final long extIndex, final int intIndex, final UnaryFunction<N> function) {
+        data[intIndex] = function.invoke(data[intIndex]);
+    }
+
+    final N valueOf(final Comparable<?> number) {
+        return this.factory().scalar().cast(number);
+    }
+
+    final N valueOf(final double value) {
+        return this.factory().scalar().cast(value);
+    }
+
+    final N valueOf(final float value) {
+        return this.factory().scalar().cast(value);
+    }
 
 }

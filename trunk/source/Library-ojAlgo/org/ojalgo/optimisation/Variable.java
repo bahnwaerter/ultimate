@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,12 +21,17 @@
  */
 package org.ojalgo.optimisation;
 
-import static org.ojalgo.constant.BigMath.*;
+import static org.ojalgo.function.constant.BigMath.*;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.Objects;
 
-import org.ojalgo.access.IntIndex;
+import org.ojalgo.function.aggregator.AggregatorFunction;
+import org.ojalgo.function.aggregator.AggregatorSet;
+import org.ojalgo.function.aggregator.BigAggregator;
 import org.ojalgo.netio.BasicLogger;
+import org.ojalgo.structure.Structure1D.IntIndex;
 import org.ojalgo.type.TypeUtils;
 import org.ojalgo.type.context.NumberContext;
 
@@ -37,18 +42,39 @@ import org.ojalgo.type.context.NumberContext;
  */
 public final class Variable extends ModelEntity<Variable> {
 
+    /**
+     * @deprecated v53 Use {@link #ExpressionsBasedModel()} and {@link #newVariable(String)} instead.
+     */
+    @Deprecated
     public static Variable make(final String name) {
         return new Variable(name);
     }
 
+    /**
+     * @deprecated v53 Use {@link #ExpressionsBasedModel()} and {@link #newVariable(String)} instead.
+     */
+    @Deprecated
     public static Variable makeBinary(final String name) {
         return Variable.make(name).binary();
     }
 
+    /**
+     * @deprecated v53 Use {@link #ExpressionsBasedModel()} and {@link #newVariable(String)} instead.
+     */
+    @Deprecated
+    public static Variable makeInteger(final String name) {
+        return Variable.make(name).integer();
+    }
+
     private IntIndex myIndex = null;
     private boolean myInteger = false;
+    private transient boolean myUnbounded = false;
     private BigDecimal myValue = null;
 
+    /**
+     * @deprecated v53 Use {@link #ExpressionsBasedModel()} and {@link #newVariable(String)} instead.
+     */
+    @Deprecated
     public Variable(final String name) {
         super(name);
     }
@@ -62,10 +88,29 @@ public final class Variable extends ModelEntity<Variable> {
         myValue = variableToCopy.getValue();
     }
 
+    @Override
+    public void addTo(final Expression target, final BigDecimal scale) {
+        target.add(this, scale);
+    }
+
+    /**
+     * See {@link #isBinary()}.
+     *
+     * @see #getUpperLimit()
+     * @see #isInteger()
+     * @see #isBinary()
+     */
     public Variable binary() {
         return this.lower(ZERO).upper(ONE).integer(true);
     }
 
+    public int compareTo(final Variable obj) {
+        return this.getIndex().compareTo(obj.getIndex());
+    }
+
+    /**
+     * @return A copy that can be used with other models
+     */
     public Variable copy() {
         return new Variable(this);
     }
@@ -86,7 +131,7 @@ public final class Variable extends ModelEntity<Variable> {
             }
         }
 
-        if ((retVal != null) && this.isInteger()) {
+        if (retVal != null && this.isInteger()) {
             retVal = retVal.setScale(0, BigDecimal.ROUND_CEILING);
         }
 
@@ -109,7 +154,7 @@ public final class Variable extends ModelEntity<Variable> {
             }
         }
 
-        if ((retVal != null) && this.isInteger()) {
+        if (retVal != null && this.isInteger()) {
             retVal = retVal.setScale(0, BigDecimal.ROUND_FLOOR);
         }
 
@@ -117,48 +162,71 @@ public final class Variable extends ModelEntity<Variable> {
     }
 
     public BigDecimal getValue() {
+        if (myValue == null && this.isEqualityConstraint()) {
+            myValue = this.getLowerLimit();
+        }
         return myValue;
     }
 
+    public Variable integer() {
+        return this.integer(true);
+    }
+
+    /**
+     * See {@link #isInteger()}.
+     */
     public Variable integer(final boolean integer) {
         this.setInteger(integer);
         return this;
     }
 
+    /**
+     * Variable can only be 0 or 1.
+     */
     public boolean isBinary() {
-
-        boolean retVal = this.isInteger();
-
-        retVal &= this.isLowerConstraint() && (this.getLowerLimit().compareTo(ZERO) == 0);
-
-        retVal &= this.isUpperConstraint() && (this.getUpperLimit().compareTo(ONE) == 0);
-
-        return retVal;
+        return myInteger && this.isClosedRange(ZERO, ONE);
     }
 
+    /**
+     * @return true if this is an integer variable, otherwise false
+     */
+    @Override
     public boolean isInteger() {
         return myInteger;
     }
 
+    /**
+     * The range includes something < 0.0
+     */
     public boolean isNegative() {
-        return !this.isLowerLimitSet() || (this.getLowerLimit().signum() < 0);
+        return !this.isLowerLimitSet() || this.getLowerLimit().signum() < 0;
     }
 
+    /**
+     * The range includes something > 0.0
+     */
     public boolean isPositive() {
-        return !this.isUpperLimitSet() || (this.getUpperLimit().signum() > 0);
+        return !this.isUpperLimitSet() || this.getUpperLimit().signum() > 0;
     }
 
     public boolean isValueSet() {
         return myValue != null;
     }
 
+    @Override
+    public Variable lower(final Comparable<?> lower) {
+        Variable retVal = super.lower(lower);
+        this.assertFixedValue();
+        return retVal;
+    }
+
     public BigDecimal quantifyContribution() {
 
         BigDecimal retVal = ZERO;
 
-        final BigDecimal tmpContributionWeight = this.getContributionWeight();
-        if ((tmpContributionWeight != null) && (myValue != null)) {
-            retVal = tmpContributionWeight.multiply(myValue);
+        BigDecimal contributionWeight = this.getContributionWeight();
+        if (contributionWeight != null && myValue != null) {
+            retVal = contributionWeight.multiply(myValue);
         }
 
         return retVal;
@@ -172,25 +240,61 @@ public final class Variable extends ModelEntity<Variable> {
         myInteger = integer;
     }
 
-    public void setValue(final Number value) {
-        myValue = TypeUtils.toBigDecimal(value);
+    public void setValue(final Comparable<?> value) {
+        BigDecimal tmpValue = null;
+        if (value != null) {
+            tmpValue = TypeUtils.toBigDecimal(value);
+            if (this.isUpperLimitSet()) {
+                tmpValue = tmpValue.min(this.getUpperLimit());
+            }
+            if (this.isLowerLimitSet()) {
+                tmpValue = tmpValue.max(this.getLowerLimit());
+            }
+        }
+        myValue = tmpValue;
     }
 
     @Override
-    protected void appendMiddlePart(final StringBuilder aStringBuilder) {
+    public Variable upper(final Comparable<?> upper) {
+        Variable retVal = super.upper(upper);
+        this.assertFixedValue();
+        return retVal;
+    }
 
-        aStringBuilder.append(this.getName());
+    private void assertFixedValue() {
+        if (this.isLowerLimitSet() && this.isUpperLimitSet() && this.getLowerLimit().compareTo(this.getUpperLimit()) == 0) {
+            myValue = this.getLowerLimit();
+        }
+    }
+
+    @Override
+    protected void appendMiddlePart(final StringBuilder builder, final NumberContext display) {
+
+        builder.append(this.getName());
 
         if (myValue != null) {
-            aStringBuilder.append(": ");
-            aStringBuilder.append(OptimisationUtils.DISPLAY.enforce(myValue).toPlainString());
+            builder.append(": ");
+            builder.append(display.enforce(myValue).toPlainString());
         }
 
         if (this.isObjective()) {
-            aStringBuilder.append(" (");
-            aStringBuilder.append(OptimisationUtils.DISPLAY.enforce(this.getContributionWeight()).toPlainString());
-            aStringBuilder.append(")");
+            builder.append(" (");
+            builder.append(display.enforce(this.getContributionWeight()).toPlainString());
+            builder.append(")");
         }
+    }
+
+    /**
+     * Internal copy that includes the index
+     */
+    @Override
+    protected Variable clone() {
+
+        Variable retVal = this.copy();
+
+        retVal.setIndex(myIndex);
+
+        return retVal;
     }
 
     @Override
@@ -203,11 +307,93 @@ public final class Variable extends ModelEntity<Variable> {
     }
 
     @Override
-    protected boolean validate(final BigDecimal value, final NumberContext context, final BasicLogger.Printer appender) {
+    protected boolean validate(final BigDecimal value, final NumberContext context, final BasicLogger appender) {
+        return this.validate(value, context, appender, false);
+    }
+
+    @Override
+    int deriveAdjustmentExponent() {
+
+        if (!this.isConstraint() || this.isInteger()) {
+            return 0;
+        }
+
+        AggregatorSet<BigDecimal> aggregators = BigAggregator.getSet();
+
+        AggregatorFunction<BigDecimal> largest = aggregators.largest();
+        AggregatorFunction<BigDecimal> smallest = aggregators.smallest();
+
+        BigDecimal lowerLimit = this.getLowerLimit();
+        if (lowerLimit != null) {
+            if (lowerLimit.signum() == 0) {
+                largest.invoke(ONE);
+                smallest.invoke(ONE);
+            } else {
+                largest.invoke(lowerLimit);
+                smallest.invoke(lowerLimit);
+            }
+        }
+
+        BigDecimal upperLimit = this.getUpperLimit();
+        if (upperLimit != null) {
+            if (upperLimit.signum() == 0) {
+                largest.invoke(ONE);
+                smallest.invoke(ONE);
+            } else {
+                largest.invoke(upperLimit);
+                smallest.invoke(upperLimit);
+            }
+        }
+
+        return ModelEntity.deriveAdjustmentExponent(largest, smallest, RANGE);
+    }
+
+    @Override
+    void doIntegerRounding() {
+        if (myInteger) {
+            BigDecimal limit;
+            if ((limit = this.getUpperLimit()) != null && limit.scale() > 0) {
+                this.upper(limit.setScale(0, RoundingMode.FLOOR));
+            }
+            if ((limit = this.getLowerLimit()) != null && limit.scale() > 0) {
+                this.lower(limit.setScale(0, RoundingMode.CEILING));
+            }
+        }
+    }
+
+    IntIndex getIndex() {
+        return myIndex;
+    }
+
+    boolean isFixed() {
+        return this.isEqualityConstraint();
+    }
+
+    boolean isUnbounded() {
+        return myUnbounded;
+    }
+
+    void setFixed(final BigDecimal value) {
+        this.level(value).setValue(value);
+    }
+
+    void setIndex(final IntIndex index) {
+        Objects.requireNonNull(index, "The index cannot be null!");
+        if (myIndex != null && myIndex.index != index.index) {
+            throw new IllegalStateException("Cannot change a variable's index, or add a variable to more than one model!");
+        }
+        myIndex = index;
+    }
+
+    void setUnbounded(final boolean uncorrelated) {
+        myUnbounded = uncorrelated;
+    }
+
+    boolean validate(final BigDecimal value, final NumberContext context, final BasicLogger appender, final boolean relaxed) {
 
         boolean retVal = super.validate(value, context, appender);
 
-        if (retVal && myInteger) {
+        if (retVal && !relaxed && myInteger) {
             try {
                 context.enforce(value).longValueExact();
             } catch (final ArithmeticException ex) {
@@ -219,31 +405,6 @@ public final class Variable extends ModelEntity<Variable> {
         }
 
         return retVal;
-    }
-
-    protected boolean validate(final NumberContext context, final BasicLogger.Printer appender) {
-
-        if (myValue != null) {
-
-            return this.validate(myValue, context, appender);
-
-        } else {
-
-            return false;
-        }
-    }
-
-    IntIndex getIndex() {
-        return myIndex;
-    }
-
-    void setIndex(final IntIndex index) {
-        if (index == null) {
-            throw new IllegalArgumentException("The index cannot be null!");
-        } else if ((myIndex != null) && (myIndex.index != index.index)) {
-            throw new IllegalStateException("Cannot change a variable's index, or add a variable to more than one model!");
-        }
-        myIndex = index;
     }
 
 }

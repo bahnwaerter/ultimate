@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,7 +21,8 @@
  */
 package org.ojalgo.optimisation.convex;
 
-import org.ojalgo.matrix.decomposition.DecompositionStore;
+import static org.ojalgo.function.constant.PrimitiveMath.ZERO;
+
 import org.ojalgo.matrix.store.MatrixStore;
 import org.ojalgo.optimisation.Optimisation;
 
@@ -33,27 +34,20 @@ import org.ojalgo.optimisation.Optimisation;
  *
  * @author apete
  */
-final class UnconstrainedSolver extends ConvexSolver {
+final class UnconstrainedSolver extends BasePrimitiveSolver {
 
-    UnconstrainedSolver(final ConvexSolver.Builder matrices, final Optimisation.Options solverOptions) {
-        super(matrices, solverOptions);
+    UnconstrainedSolver(final ConvexData<Double> convexSolverBuilder, final Optimisation.Options optimisationOptions) {
+        super(convexSolverBuilder, optimisationOptions);
     }
 
     @Override
     protected MatrixStore<Double> getIterationKKT() {
-        return this.getIterationQ();
+        return this.getMatrixQ();
     }
 
     @Override
     protected MatrixStore<Double> getIterationRHS() {
-        return this.getIterationC();
-    }
-
-    @Override
-    protected boolean initialise(final Result kickStarter) {
-        super.initialise(kickStarter);
-        this.resetX();
-        return true;
+        return this.getMatrixC();
     }
 
     @Override
@@ -64,41 +58,25 @@ final class UnconstrainedSolver extends ConvexSolver {
     @Override
     protected void performIteration() {
 
-        final MatrixStore<Double> tmpQ = this.getIterationQ();
-        final MatrixStore<Double> tmpC = this.getIterationC();
-        final DecompositionStore<Double> tmpX = this.getX();
+        boolean solved = false;
 
-        boolean tmpSolvable = true;
-
-        if (tmpSolvable = myCholesky.isSolvable()) {
+        if (solved = this.isSolvableQ()) {
             // Q is SPD
 
-            myCholesky.solve(tmpC, tmpX);
+            this.getSolutionQ(this.getMatrixC(), this.getSolutionX());
 
-        } else if (tmpSolvable = myLU.compute(tmpQ)) {
-            // The above failed, but the KKT system is solvable
-            // Try solving the full KKT system instaed
-
-            myLU.solve(tmpC, tmpX);
+        } else if (solved = this.solveFullKKT(this.getSolutionX())) {
+            // Q not SPD, but the KKT system is solvable
         }
 
-        if (!tmpSolvable && this.isDebug()) {
-            options.debug_appender.println("KKT system unsolvable!");
-            options.debug_appender.printmtrx("KKT", this.getIterationKKT());
-            options.debug_appender.printmtrx("RHS", this.getIterationRHS());
-        }
-
-        if (tmpSolvable) {
+        if (solved) {
             this.setState(State.DISTINCT);
         } else {
             this.setState(State.UNBOUNDED);
-            this.resetX();
+            this.getSolutionX().fillAll(ZERO);
         }
-    }
 
-    @Override
-    final MatrixStore<Double> getIterationC() {
-        return this.getC();
+        this.incrementIterationsCount();
     }
 
 }

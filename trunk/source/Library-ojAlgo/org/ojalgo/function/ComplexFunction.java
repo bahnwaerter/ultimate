@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,451 +21,88 @@
  */
 package org.ojalgo.function;
 
-import org.ojalgo.constant.PrimitiveMath;
+import org.ojalgo.function.aggregator.AggregatorSet;
+import org.ojalgo.function.aggregator.ComplexAggregator;
+import org.ojalgo.function.constant.ComplexMath;
 import org.ojalgo.scalar.ComplexNumber;
-import org.ojalgo.type.TypeUtils;
+import org.ojalgo.type.context.NumberContext;
 
 public final class ComplexFunction extends FunctionSet<ComplexNumber> {
 
     @FunctionalInterface
-    public static interface Binary extends BinaryFunction<ComplexNumber> {
+    public interface Binary extends BinaryFunction<ComplexNumber> {
 
         default double invoke(final double arg1, final double arg2) {
             return this.invoke(ComplexNumber.valueOf(arg1), ComplexNumber.valueOf(arg2)).doubleValue();
         }
 
+        default ComplexNumber invoke(final ComplexNumber arg1, final double arg2) {
+            return this.invoke(arg1, ComplexNumber.valueOf(arg2));
+        }
+
+        default float invoke(final float arg1, final float arg2) {
+            return this.invoke(ComplexNumber.valueOf(arg1), ComplexNumber.valueOf(arg2)).floatValue();
+        }
+
     }
 
     @FunctionalInterface
-    public static interface Parameter extends ParameterFunction<ComplexNumber> {
+    public interface Consumer extends VoidFunction<ComplexNumber> {
+
+        default void invoke(final double arg) {
+            this.invoke(ComplexNumber.valueOf(arg));
+        }
+
+        default void invoke(final float arg) {
+            this.invoke(ComplexNumber.valueOf(arg));
+        }
+
+    }
+
+    @FunctionalInterface
+    public interface Parameter extends ParameterFunction<ComplexNumber> {
 
         default double invoke(final double arg, final int param) {
             return this.invoke(ComplexNumber.valueOf(arg), param).doubleValue();
         }
 
+        default float invoke(final float arg, final int param) {
+            return this.invoke(ComplexNumber.valueOf(arg), param).floatValue();
+        }
+
     }
 
     @FunctionalInterface
-    public static interface Unary extends UnaryFunction<ComplexNumber> {
+    public interface Predicate extends PredicateFunction<ComplexNumber> {
+
+        default boolean invoke(final double arg) {
+            return this.invoke(ComplexNumber.valueOf(arg));
+        }
+
+        default boolean invoke(final float arg) {
+            return this.invoke(ComplexNumber.valueOf(arg));
+        }
+
+    }
+
+    @FunctionalInterface
+    public interface Unary extends UnaryFunction<ComplexNumber> {
 
         default double invoke(final double arg) {
             return this.invoke(ComplexNumber.valueOf(arg)).doubleValue();
         }
 
+        default float invoke(final float arg) {
+            return this.invoke(ComplexNumber.valueOf(arg)).floatValue();
+        }
+
     }
+
+    private static final ComplexFunction SET = new ComplexFunction();
 
     public static ComplexFunction getSet() {
         return SET;
     }
-
-    public static final UnaryFunction<ComplexNumber> ABS = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-            return ComplexNumber.valueOf(arg.norm());
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> ACOS = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-
-            final ComplexNumber tmpSqrt = SQRT.invoke(ComplexNumber.ONE.subtract(arg.multiply(arg)));
-
-            final ComplexNumber tmpNmbr = arg.add(ComplexNumber.I.multiply(tmpSqrt));
-
-            final ComplexNumber tmpLog = LOG.invoke(tmpNmbr);
-
-            return tmpLog.multiply(ComplexNumber.I).negate();
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> ACOSH = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-            return LOG.invoke(arg.add(SQRT.invoke(arg.multiply(arg).subtract(PrimitiveMath.ONE))));
-        }
-
-    };
-
-    public static final BinaryFunction<ComplexNumber> ADD = new Binary() {
-
-        @Override
-        public final ComplexNumber invoke(final ComplexNumber arg1, final ComplexNumber arg2) {
-            return arg1.add(arg2);
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> ASIN = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-
-            ComplexNumber tmpNmbr = SQRT.invoke(ComplexNumber.ONE.subtract(POWER.invoke(arg, 2)));
-
-            tmpNmbr = ComplexNumber.I.multiply(arg).add(tmpNmbr);
-            final ComplexNumber aNumber = tmpNmbr;
-
-            return LOG.invoke(aNumber).multiply(ComplexNumber.I).negate();
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> ASINH = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-
-            final ComplexNumber tmpNmbr = arg.multiply(arg).add(PrimitiveMath.ONE);
-
-            return LOG.invoke(arg.add(SQRT.invoke(tmpNmbr)));
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> ATAN = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-
-            final ComplexNumber tmpNmbr = ComplexNumber.I.add(arg).divide(ComplexNumber.I.subtract(arg));
-
-            return LOG.invoke(tmpNmbr).multiply(ComplexNumber.I).divide(PrimitiveMath.TWO);
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> ATANH = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-
-            final ComplexNumber tmpNmbr = arg.add(PrimitiveMath.ONE).divide(ComplexNumber.ONE.subtract(arg));
-
-            return LOG.invoke(tmpNmbr).divide(PrimitiveMath.TWO);
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> CARDINALITY = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-            return TypeUtils.isZero(arg.norm()) ? ComplexNumber.ZERO : ComplexNumber.ONE;
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> CONJUGATE = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-            return arg.conjugate();
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> COS = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-            return COSH.invoke(arg.multiply(ComplexNumber.I));
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> COSH = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-            return (EXP.invoke(arg).add(EXP.invoke(arg.negate()))).divide(PrimitiveMath.TWO);
-        }
-
-    };
-
-    public static final BinaryFunction<ComplexNumber> DIVIDE = new Binary() {
-
-        @Override
-        public final ComplexNumber invoke(final ComplexNumber arg1, final ComplexNumber arg2) {
-            return arg1.divide(arg2);
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> EXP = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-
-            final double tmpNorm = Math.exp(arg.doubleValue());
-            final double tmpPhase = arg.i;
-
-            return ComplexNumber.makePolar(tmpNorm, tmpPhase);
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> EXPM1 = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-
-            final double retMod = Math.expm1(arg.doubleValue());
-            final double retArg = arg.i;
-
-            return ComplexNumber.makePolar(retMod, retArg);
-        }
-
-    };
-
-    public static final BinaryFunction<ComplexNumber> HYPOT = new Binary() {
-
-        @Override
-        public final ComplexNumber invoke(final ComplexNumber arg1, final ComplexNumber arg2) {
-            return ComplexNumber.valueOf(Math.hypot(arg1.norm(), arg2.norm()));
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> INVERT = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-            return POWER.invoke(arg, -1);
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> LOG = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-
-            final double tmpRe = Math.log(arg.norm());
-            final double tmpIm = arg.phase();
-
-            return ComplexNumber.of(tmpRe, tmpIm);
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> LOG10 = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-
-            final double retRe = Math.log10(arg.norm());
-            final double retIm = arg.phase();
-
-            return ComplexNumber.of(retRe, retIm);
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> LOG1P = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-
-            final double retRe = Math.log1p(arg.norm());
-            final double retIm = arg.phase();
-
-            return ComplexNumber.of(retRe, retIm);
-        }
-
-    };
-
-    public static final BinaryFunction<ComplexNumber> MAX = new Binary() {
-
-        @Override
-        public final ComplexNumber invoke(final ComplexNumber arg1, final ComplexNumber arg2) {
-
-            ComplexNumber retVal = null;
-
-            if (arg1.norm() >= arg2.norm()) {
-                retVal = arg1;
-            } else {
-                retVal = arg2;
-            }
-
-            return retVal;
-        }
-
-    };
-
-    public static final BinaryFunction<ComplexNumber> MIN = new Binary() {
-
-        @Override
-        public final ComplexNumber invoke(final ComplexNumber arg1, final ComplexNumber arg2) {
-
-            ComplexNumber retVal = null;
-
-            if (arg1.norm() <= arg2.norm()) {
-                retVal = arg1;
-            } else {
-                retVal = arg2;
-            }
-
-            return retVal;
-        }
-
-    };
-
-    public static final BinaryFunction<ComplexNumber> MULTIPLY = new Binary() {
-
-        @Override
-        public final ComplexNumber invoke(final ComplexNumber arg1, final ComplexNumber arg2) {
-            return arg1.multiply(arg2);
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> NEGATE = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-            return arg.negate();
-        }
-
-    };
-
-    public static final BinaryFunction<ComplexNumber> POW = new Binary() {
-
-        @Override
-        public final ComplexNumber invoke(final ComplexNumber arg1, final ComplexNumber arg2) {
-            return EXP.invoke(LOG.invoke(arg1).multiply(arg2));
-        }
-
-    };
-
-    public static final ParameterFunction<ComplexNumber> POWER = new Parameter() {
-
-        @Override
-        public final ComplexNumber invoke(final ComplexNumber arg, final int param) {
-
-            final double retMod = PrimitiveFunction.POWER.invoke(arg.norm(), param);
-            final double retArg = arg.phase() * param;
-
-            return ComplexNumber.makePolar(retMod, retArg);
-        }
-
-    };
-
-    public static final ParameterFunction<ComplexNumber> ROOT = new Parameter() {
-
-        @Override
-        public final ComplexNumber invoke(final ComplexNumber arg, final int param) {
-
-            if (param != 0) {
-
-                final double tmpExp = PrimitiveMath.ONE / param;
-
-                final double retMod = Math.pow(arg.norm(), tmpExp);
-                final double retArg = arg.phase() * tmpExp;
-
-                return ComplexNumber.makePolar(retMod, retArg);
-
-            } else {
-
-                throw new IllegalArgumentException();
-            }
-        }
-
-    };
-
-    public static final ParameterFunction<ComplexNumber> SCALE = new Parameter() {
-
-        @Override
-        public final ComplexNumber invoke(final ComplexNumber arg, final int param) {
-            final double tmpRe = PrimitiveFunction.SCALE.invoke(arg.doubleValue(), param);
-            final double tmpIm = PrimitiveFunction.SCALE.invoke(arg.i, param);
-            return ComplexNumber.of(tmpRe, tmpIm);
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> SIGNUM = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-            return arg.signum();
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> SIN = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-            return SINH.invoke(arg.multiply(ComplexNumber.I)).multiply(ComplexNumber.I.negate());
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> SINH = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-            return (EXP.invoke(arg).subtract(EXP.invoke(arg.negate()))).divide(PrimitiveMath.TWO);
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> SQRT = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-
-            final double retMod = Math.sqrt(arg.norm());
-            final double retArg = arg.phase() * PrimitiveMath.HALF;
-
-            return ComplexNumber.makePolar(retMod, retArg);
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> SQRT1PX2 = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-            return SQRT.invoke(ComplexNumber.ONE.add(arg.multiply(arg)));
-        }
-
-    };
-
-    public static final BinaryFunction<ComplexNumber> SUBTRACT = new Binary() {
-
-        @Override
-        public final ComplexNumber invoke(final ComplexNumber arg1, final ComplexNumber arg2) {
-            return arg1.subtract(arg2);
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> TAN = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-            return TANH.invoke(arg.multiply(ComplexNumber.I)).multiply(ComplexNumber.I.negate());
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> TANH = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-
-            ComplexNumber retVal;
-
-            final ComplexNumber tmpPlus = EXP.invoke(arg);
-            final ComplexNumber tmpMinus = EXP.invoke(arg.negate());
-
-            final ComplexNumber tmpDividend = tmpPlus.subtract(tmpMinus);
-            final ComplexNumber tmpDivisor = tmpPlus.add(tmpMinus);
-
-            if (tmpDividend.equals(tmpDivisor)) {
-                retVal = ComplexNumber.ONE;
-            } else if (tmpDividend.equals(tmpDivisor.negate())) {
-                retVal = ComplexNumber.ONE.negate();
-            } else {
-                retVal = tmpDividend.divide(tmpDivisor);
-            }
-
-            return retVal;
-        }
-
-    };
-
-    public static final UnaryFunction<ComplexNumber> VALUE = new Unary() {
-
-        public final ComplexNumber invoke(final ComplexNumber arg) {
-            return arg;
-        }
-
-    };
-
-    private static final ComplexFunction SET = new ComplexFunction();
 
     private ComplexFunction() {
         super();
@@ -473,187 +110,232 @@ public final class ComplexFunction extends FunctionSet<ComplexNumber> {
 
     @Override
     public UnaryFunction<ComplexNumber> abs() {
-        return ABS;
+        return ComplexMath.ABS;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> acos() {
-        return ACOS;
+        return ComplexMath.ACOS;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> acosh() {
-        return ACOSH;
+        return ComplexMath.ACOSH;
     }
 
     @Override
     public BinaryFunction<ComplexNumber> add() {
-        return ADD;
+        return ComplexMath.ADD;
+    }
+
+    @Override
+    public AggregatorSet<ComplexNumber> aggregator() {
+        return ComplexAggregator.getSet();
     }
 
     @Override
     public UnaryFunction<ComplexNumber> asin() {
-        return ASIN;
+        return ComplexMath.ASIN;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> asinh() {
-        return ASINH;
+        return ComplexMath.ASINH;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> atan() {
-        return ATAN;
+        return ComplexMath.ATAN;
+    }
+
+    @Override
+    public BinaryFunction<ComplexNumber> atan2() {
+        return ComplexMath.ATAN2;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> atanh() {
-        return ATANH;
+        return ComplexMath.ATANH;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> cardinality() {
-        return CARDINALITY;
+        return ComplexMath.CARDINALITY;
+    }
+
+    @Override
+    public UnaryFunction<ComplexNumber> cbrt() {
+        return ComplexMath.CBRT;
+    }
+
+    @Override
+    public UnaryFunction<ComplexNumber> ceil() {
+        return ComplexMath.CEIL;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> conjugate() {
-        return CONJUGATE;
+        return ComplexMath.CONJUGATE;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> cos() {
-        return COS;
+        return ComplexMath.COS;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> cosh() {
-        return COSH;
+        return ComplexMath.COSH;
     }
 
     @Override
     public BinaryFunction<ComplexNumber> divide() {
-        return DIVIDE;
+        return ComplexMath.DIVIDE;
+    }
+
+    @Override
+    public Unary enforce(final NumberContext context) {
+        return t -> ComplexNumber.valueOf(context.enforce(t));
     }
 
     @Override
     public UnaryFunction<ComplexNumber> exp() {
-        return EXP;
+        return ComplexMath.EXP;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> expm1() {
-        return EXPM1;
+        return ComplexMath.EXPM1;
+    }
+
+    @Override
+    public UnaryFunction<ComplexNumber> floor() {
+        return ComplexMath.FLOOR;
     }
 
     @Override
     public BinaryFunction<ComplexNumber> hypot() {
-        return HYPOT;
+        return ComplexMath.HYPOT;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> invert() {
-        return INVERT;
+        return ComplexMath.INVERT;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> log() {
-        return LOG;
+        return ComplexMath.LOG;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> log10() {
-        return LOG10;
+        return ComplexMath.LOG10;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> log1p() {
-        return LOG1P;
+        return ComplexMath.LOG1P;
+    }
+
+    @Override
+    public UnaryFunction<ComplexNumber> logistic() {
+        return ComplexMath.LOGISTIC;
+    }
+
+    @Override
+    public UnaryFunction<ComplexNumber> logit() {
+        return ComplexMath.LOGIT;
     }
 
     @Override
     public BinaryFunction<ComplexNumber> max() {
-        return MAX;
+        return ComplexMath.MAX;
     }
 
     @Override
     public BinaryFunction<ComplexNumber> min() {
-        return MIN;
+        return ComplexMath.MIN;
     }
 
     @Override
     public BinaryFunction<ComplexNumber> multiply() {
-        return MULTIPLY;
+        return ComplexMath.MULTIPLY;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> negate() {
-        return NEGATE;
+        return ComplexMath.NEGATE;
     }
 
     @Override
     public BinaryFunction<ComplexNumber> pow() {
-        return POW;
+        return ComplexMath.POW;
     }
 
     @Override
     public ParameterFunction<ComplexNumber> power() {
-        return POWER;
+        return ComplexMath.POWER;
+    }
+
+    @Override
+    public UnaryFunction<ComplexNumber> rint() {
+        return ComplexMath.RINT;
     }
 
     @Override
     public ParameterFunction<ComplexNumber> root() {
-        return ROOT;
+        return ComplexMath.ROOT;
     }
 
     @Override
     public ParameterFunction<ComplexNumber> scale() {
-        return SCALE;
+        return ComplexMath.SCALE;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> signum() {
-        return SIGNUM;
+        return ComplexMath.SIGNUM;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> sin() {
-        return SIN;
+        return ComplexMath.SIN;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> sinh() {
-        return SINH;
+        return ComplexMath.SINH;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> sqrt() {
-        return SQRT;
+        return ComplexMath.SQRT;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> sqrt1px2() {
-        return SQRT1PX2;
+        return ComplexMath.SQRT1PX2;
     }
 
     @Override
     public BinaryFunction<ComplexNumber> subtract() {
-        return SUBTRACT;
+        return ComplexMath.SUBTRACT;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> tan() {
-        return TAN;
+        return ComplexMath.TAN;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> tanh() {
-        return TANH;
+        return ComplexMath.TANH;
     }
 
     @Override
     public UnaryFunction<ComplexNumber> value() {
-        return VALUE;
+        return ComplexMath.VALUE;
     }
 
 }

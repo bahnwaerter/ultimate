@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,98 +21,208 @@
  */
 package org.ojalgo.matrix.task;
 
-import java.math.BigDecimal;
+import java.util.Optional;
+import java.util.function.Supplier;
 
-import org.ojalgo.access.Access2D;
-import org.ojalgo.access.Structure2D;
-import org.ojalgo.matrix.BasicMatrix;
-import org.ojalgo.matrix.MatrixUtils;
+import org.ojalgo.RecoverableCondition;
+import org.ojalgo.matrix.Provider2D;
 import org.ojalgo.matrix.decomposition.Cholesky;
-import org.ojalgo.matrix.decomposition.DecompositionStore;
 import org.ojalgo.matrix.decomposition.LU;
+import org.ojalgo.matrix.decomposition.QR;
+import org.ojalgo.matrix.decomposition.SingularValue;
+import org.ojalgo.matrix.store.ElementsSupplier;
 import org.ojalgo.matrix.store.MatrixStore;
+import org.ojalgo.matrix.store.PhysicalStore;
 import org.ojalgo.scalar.ComplexNumber;
+import org.ojalgo.scalar.Quadruple;
+import org.ojalgo.scalar.Quaternion;
+import org.ojalgo.scalar.RationalNumber;
+import org.ojalgo.structure.Access2D;
+import org.ojalgo.structure.Structure2D;
 
-public interface InverterTask<N extends Number> extends MatrixTask<N> {
+public interface InverterTask<N extends Comparable<N>> extends MatrixTask<N> {
 
-    public static abstract class Factory<N extends Number> {
+    public static abstract class Factory<N extends Comparable<N>> {
 
-        public final InverterTask<N> make(final MatrixStore<N> template) {
-            return this.make(template, MatrixUtils.isHermitian(template));
+        public MatrixStore<N> invert(final Access2D<?> original) throws RecoverableCondition {
+            return this.make(original, false, false).invert(original);
         }
 
-        public abstract InverterTask<N> make(MatrixStore<N> template, boolean symmetric);
+        public InverterTask<N> make(final int dim, final boolean spd) {
 
+            Structure2D template = new Structure2D() {
+
+                public long countColumns() {
+                    return dim;
+                }
+
+                public long countRows() {
+                    return dim;
+                }
+            };
+
+            return this.make(template, spd, spd);
+        }
+
+        public InverterTask<N> make(final MatrixStore<N> template) {
+            return this.make(template, template.isHermitian(), false);
+        }
+
+        public abstract InverterTask<N> make(Structure2D template, boolean symmetric, boolean positiveDefinite);
     }
 
-    public static final Factory<BigDecimal> BIG = new Factory<BigDecimal>() {
+    Factory<ComplexNumber> C128 = new Factory<>() {
 
         @Override
-        public InverterTask<BigDecimal> make(final MatrixStore<BigDecimal> template, final boolean symmetric) {
-            if (symmetric) {
-                return Cholesky.make(template);
+        public InverterTask<ComplexNumber> make(final Structure2D template, final boolean symmetric, final boolean positiveDefinite) {
+            if (symmetric && positiveDefinite) {
+                return Cholesky.C128.make(template);
+            } else if (template.isSquare()) {
+                return LU.C128.make(template);
+            } else if (template.isTall()) {
+                return QR.C128.make(template);
             } else {
-                return LU.make(template);
-            }
-        }
-
-    };
-
-    public static final Factory<ComplexNumber> COMPLEX = new Factory<ComplexNumber>() {
-
-        @Override
-        public InverterTask<ComplexNumber> make(final MatrixStore<ComplexNumber> template, final boolean symmetric) {
-            if (symmetric) {
-                return Cholesky.make(template);
-            } else {
-                return LU.make(template);
-            }
-        }
-
-    };
-
-    public static final Factory<Double> PRIMITIVE = new Factory<Double>() {
-
-        @Override
-        public InverterTask<Double> make(final MatrixStore<Double> template, final boolean symmetric) {
-            final long tmpDim = template.countRows();
-            if (tmpDim == 1L) {
-                return AbstractInverter.FULL_1X1;
-            } else if (symmetric) {
-                if (tmpDim == 2L) {
-                    return AbstractInverter.SYMMETRIC_2X2;
-                } else if (tmpDim == 3L) {
-                    return AbstractInverter.SYMMETRIC_3X3;
-                } else if (tmpDim == 4L) {
-                    return AbstractInverter.SYMMETRIC_4X4;
-                } else if (tmpDim == 5L) {
-                    return AbstractInverter.SYMMETRIC_5X5;
-                } else {
-                    return Cholesky.make(template);
-                }
-            } else {
-                if (tmpDim == 2L) {
-                    return AbstractInverter.FULL_2X2;
-                } else if (tmpDim == 3L) {
-                    return AbstractInverter.FULL_3X3;
-                } else if (tmpDim == 4L) {
-                    return AbstractInverter.FULL_4X4;
-                } else if (tmpDim == 5L) {
-                    return AbstractInverter.FULL_5X5;
-                } else {
-                    return LU.make(template);
-                }
+                return SingularValue.C128.make(template);
             }
         }
 
     };
 
     /**
-     * The output must be a "right inverse" and a "generalised inverse".
-     *
-     * @see BasicMatrix#invert()
+     * @deprecated Use {@link #C128} instead.
      */
-    default MatrixStore<N> invert(final Access2D<?> original) throws TaskException {
+    @Deprecated
+    Factory<ComplexNumber> COMPLEX = C128;
+
+    Factory<Double> R064 = new Factory<>() {
+
+        @Override
+        public InverterTask<Double> make(final Structure2D template, final boolean symmetric, final boolean positiveDefinite) {
+
+            long nbRows = template.countRows();
+
+            if (symmetric) {
+                if (nbRows == 1L) {
+                    return AbstractInverter.FULL_1X1;
+                } else if (nbRows == 2L) {
+                    return AbstractInverter.SYMMETRIC_2X2;
+                } else if (nbRows == 3L) {
+                    return AbstractInverter.SYMMETRIC_3X3;
+                } else if (nbRows == 4L) {
+                    return AbstractInverter.SYMMETRIC_4X4;
+                } else if (nbRows == 5L) {
+                    return AbstractInverter.SYMMETRIC_5X5;
+                } else {
+                    return positiveDefinite ? Cholesky.R064.make(template) : LU.R064.make(template);
+                }
+            } else if (template.isSquare()) {
+                if (nbRows == 1L) {
+                    return AbstractInverter.FULL_1X1;
+                } else if (nbRows == 2L) {
+                    return AbstractInverter.FULL_2X2;
+                } else if (nbRows == 3L) {
+                    return AbstractInverter.FULL_3X3;
+                } else if (nbRows == 4L) {
+                    return AbstractInverter.FULL_4X4;
+                } else if (nbRows == 5L) {
+                    return AbstractInverter.FULL_5X5;
+                } else {
+                    return LU.R064.make(template);
+                }
+            } else if (template.isTall()) {
+                return QR.R064.make(template);
+            } else {
+                return SingularValue.R064.make(template);
+            }
+        }
+
+    };
+
+    /**
+     * @deprecated Use {@link #R064} instead.
+     */
+    @Deprecated
+    Factory<Double> PRIMITIVE = R064;
+
+    Factory<Quadruple> R128 = new Factory<>() {
+
+        @Override
+        public InverterTask<Quadruple> make(final Structure2D template, final boolean symmetric, final boolean positiveDefinite) {
+            if (template.isSquare()) {
+                if (symmetric && positiveDefinite) {
+                    return Cholesky.R128.make(template);
+                } else {
+                    return LU.R128.make(template);
+                }
+            } else if (template.isTall()) {
+                return QR.R128.make(template);
+            } else {
+                return SingularValue.R128.make(template);
+            }
+        }
+
+    };
+
+    /**
+     * @deprecated Use {@link #R128} instead.
+     */
+    @Deprecated
+    Factory<Quadruple> QUADRUPLE = R128;
+
+    Factory<Quaternion> H256 = new Factory<>() {
+
+        @Override
+        public InverterTask<Quaternion> make(final Structure2D template, final boolean symmetric, final boolean positiveDefinite) {
+            if (template.isSquare()) {
+                if (symmetric && positiveDefinite) {
+                    return Cholesky.H256.make(template);
+                } else {
+                    return LU.H256.make(template);
+                }
+            } else if (template.isTall()) {
+                return QR.H256.make(template);
+            } else {
+                return SingularValue.H256.make(template);
+            }
+        }
+
+    };
+
+    /**
+     * @deprecated Use {@link #H256} instead.
+     */
+    @Deprecated
+    Factory<Quaternion> QUATERNION = H256;
+
+    Factory<RationalNumber> Q128 = new Factory<>() {
+
+        @Override
+        public InverterTask<RationalNumber> make(final Structure2D template, final boolean symmetric, final boolean positiveDefinite) {
+            if (template.isSquare()) {
+                if (symmetric && positiveDefinite) {
+                    return Cholesky.Q128.make(template);
+                } else {
+                    return LU.Q128.make(template);
+                }
+            } else if (template.isTall()) {
+                return QR.Q128.make(template);
+            } else {
+                return SingularValue.Q128.make(template);
+            }
+        }
+
+    };
+
+    /**
+     * @deprecated Use {@link #Q128} instead.
+     */
+    @Deprecated
+    Factory<RationalNumber> RATIONAL = Q128;
+
+    /**
+     * The output must be a "right inverse" and a "generalised inverse".
+     */
+    default MatrixStore<N> invert(final Access2D<?> original) throws RecoverableCondition {
         return this.invert(original, this.preallocate(original));
     }
 
@@ -124,19 +234,51 @@ public interface InverterTask<N extends Number> extends MatrixTask<N> {
      * <p>
      * Should produce the same results as calling {@link #invert(Access2D)}.
      * </p>
+     * <p>
+     * Use {@link #preallocate(Structure2D)} to obtain a suitbale <code>preallocated</code>.
+     * </p>
      *
      * @param preallocated Preallocated memory for the results, possibly some intermediate results. You must
-     *        assume this is modified, but you cannot assume it will contain the full/final/correct solution.
+     *        assume this is modified, but you cannot assume it will contain the full/ /correct solution.
      * @return The inverse
+     * @throws RecoverableCondition TODO
      */
-    MatrixStore<N> invert(Access2D<?> original, DecompositionStore<N> preallocated) throws TaskException;
+    MatrixStore<N> invert(Access2D<?> original, PhysicalStore<N> preallocated) throws RecoverableCondition;
+
+    default PhysicalStore<N> preallocate(final int numberOfRows, final int numberOfColumns) {
+        return this.preallocate(new Structure2D() {
+
+            public long countColumns() {
+                return numberOfColumns;
+            }
+
+            public long countRows() {
+                return numberOfRows;
+            }
+
+        });
+    }
 
     /**
-     * Will create a {@linkplain DecompositionStore} instance suitable for use with
-     * {@link #invert(Access2D, DecompositionStore)}. When solving an equation system [A][X]=[B]
-     * ([mxn][nxb]=[mxb]) the preallocated memory/matrix will typically be either mxb or nxb (if A is square
-     * then there is no doubt).
+     * <p>
+     * Will create a {@linkplain PhysicalStore} instance suitable for use with
+     * {@link #invert(Access2D, PhysicalStore)}.
+     * </p>
+     * <p>
+     * When inverting a matrix (mxn) the preallocated memory/matrix will typically be nxm (and of course most
+     * of the time A is square).
+     * </p>
      */
-    DecompositionStore<N> preallocate(Structure2D template);
+    PhysicalStore<N> preallocate(Structure2D template);
+
+    default Provider2D.Inverse<Optional<MatrixStore<N>>> toInverseProvider(final ElementsSupplier<N> original,
+            final Supplier<MatrixStore<N>> alternativeOriginalSupplier) {
+        try {
+            MatrixStore<N> invert = this.invert(alternativeOriginalSupplier.get());
+            return () -> Optional.of(invert);
+        } catch (RecoverableCondition cause) {
+            return Optional::empty;
+        }
+    }
 
 }

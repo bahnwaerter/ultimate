@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,6 +20,8 @@
  * SOFTWARE.
  */
 package org.ojalgo.netio;
+
+import java.util.function.IntPredicate;
 
 /**
  * <table>
@@ -237,6 +239,24 @@ public abstract class ASCII {
     public static final char UNDERSCORE = (char) 95;
     public static final char UPPERCASE_A = 'A';
     public static final char UPPERCASE_Z = 'Z';
+
+    /**
+     * @param length The length of the random string
+     * @param predicate Need to pass this test
+     * @return A String of the specified length containing ASCII characters that pass the predicate test.
+     */
+    public static String generateRandom(final int length, final IntPredicate predicate) {
+        StringBuilder builder = new StringBuilder();
+        int soFar = 0;
+        while (soFar < length) {
+            int maybe = (int) (Double.doubleToRawLongBits(Math.random()) % 128L);
+            if (predicate.test(maybe)) {
+                builder.append((char) maybe);
+                soFar++;
+            }
+        }
+        return builder.toString();
+    }
 
     public static boolean isAlphabetic(final int aChar) {
         return ASCII.isLowercase(aChar) || ASCII.isUppercase(aChar);

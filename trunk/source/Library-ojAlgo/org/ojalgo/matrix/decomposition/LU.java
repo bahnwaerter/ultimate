@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,14 +21,14 @@
  */
 package org.ojalgo.matrix.decomposition;
 
-import java.math.BigDecimal;
-
-import org.ojalgo.access.Access2D;
-import org.ojalgo.array.BasicArray;
-import org.ojalgo.matrix.MatrixUtils;
-import org.ojalgo.matrix.store.ElementsSupplier;
+import org.ojalgo.array.PlainArray;
 import org.ojalgo.matrix.store.MatrixStore;
 import org.ojalgo.scalar.ComplexNumber;
+import org.ojalgo.scalar.Quadruple;
+import org.ojalgo.scalar.Quaternion;
+import org.ojalgo.scalar.RationalNumber;
+import org.ojalgo.structure.Access2D;
+import org.ojalgo.type.context.NumberContext;
 
 /**
  * LU: [A] = [L][U]
@@ -52,55 +52,68 @@ import org.ojalgo.scalar.ComplexNumber;
  *
  * @author apete
  */
-public interface LU<N extends Number> extends LDU<N> {
+public interface LU<N extends Comparable<N>> extends LDU<N>, MatrixDecomposition.Pivoting<N> {
 
-    @SuppressWarnings("unchecked")
-    public static <N extends Number> LU<N> make(final Access2D<N> typical) {
+    interface Factory<N extends Comparable<N>> extends MatrixDecomposition.Factory<LU<N>> {
 
-        final N tmpNumber = typical.get(0, 0);
+    }
 
-        if (tmpNumber instanceof BigDecimal) {
-            return (LU<N>) new LUDecomposition.Big();
-        } else if (tmpNumber instanceof ComplexNumber) {
-            return (LU<N>) new LUDecomposition.Complex();
-        } else if (tmpNumber instanceof Double) {
-            if ((16L < typical.countColumns()) && (typical.count() <= BasicArray.MAX_ARRAY_SIZE)) {
-                return (LU<N>) new LUDecomposition.Primitive();
-            } else {
-                return (LU<N>) new RawLU();
-            }
-        } else {
-            throw new IllegalArgumentException();
+    Factory<ComplexNumber> C128 = typical -> new LUDecomposition.C128();
+
+    Factory<Double> R064 = typical -> {
+
+        if (512L < typical.countColumns() && typical.count() <= PlainArray.MAX_SIZE) {
+            return new LUDecomposition.R064();
         }
-    }
+        return new RawLU();
+    };
 
-    public static LU<BigDecimal> makeBig() {
-        return new LUDecomposition.Big();
-    }
+    Factory<Quadruple> R128 = typical -> new LUDecomposition.R128();
 
-    public static LU<ComplexNumber> makeComplex() {
-        return new LUDecomposition.Complex();
-    }
+    Factory<Quaternion> H256 = typical -> new LUDecomposition.H256();
 
-    public static LU<Double> makePrimitive() {
-        return new LUDecomposition.Primitive();
-    }
+    Factory<RationalNumber> Q128 = typical -> new LUDecomposition.Q128();
 
     /**
-     * The normal {@link #decompose(ElementsSupplier)} method must handle cases where pivoting is required. If
-     * you know that pivoting is not needed you may call this method instead - it may be faster. Note that the
-     * algorithm implementation may still pivot. Pivoting is optional not forbidden (or required).
+     * @deprecated
      */
-    boolean computeWithoutPivoting(ElementsSupplier<N> matrix);
+    @Deprecated
+    Factory<ComplexNumber> COMPLEX = C128;
+
+    /**
+     * @deprecated
+     */
+    @Deprecated
+    Factory<Double> PRIMITIVE = R064;
+
+    /**
+     * @deprecated
+     */
+    @Deprecated
+    Factory<Quadruple> QUADRUPLE = R128;
+
+    /**
+     * @deprecated
+     */
+    @Deprecated
+    Factory<Quaternion> QUATERNION = H256;
+
+    /**
+     * @deprecated
+     */
+    @Deprecated
+    Factory<RationalNumber> RATIONAL = Q128;
+
+    static <N extends Comparable<N>> boolean equals(final MatrixStore<N> matrix, final LU<N> decomposition, final NumberContext context) {
+
+        MatrixStore<N> tmpL = decomposition.getL();
+        MatrixStore<N> tmpU = decomposition.getU();
+        int[] tmpPivotOrder = decomposition.getPivotOrder();
+
+        return Access2D.equals(matrix.rows(tmpPivotOrder), tmpL.multiply(tmpU), context);
+    }
 
     MatrixStore<N> getL();
-
-    /**
-     * This can be used to create a [P] matrix..
-     */
-    int[] getPivotOrder();
-
-    int getRank();
 
     /**
      * http://en.wikipedia.org/wiki/Row_echelon_form <br>
@@ -113,10 +126,11 @@ public interface LU<N extends Number> extends LDU<N> {
      */
     MatrixStore<N> getU();
 
-    boolean isSquareAndNotSingular();
-
     default MatrixStore<N> reconstruct() {
-        return MatrixUtils.reconstruct(this);
+        MatrixStore<N> mtrxL = this.getL();
+        MatrixStore<N> mtrxU = this.getU();
+        int[] reversePivotOrder = this.getReversePivotOrder();
+        return mtrxL.multiply(mtrxU).rows(reversePivotOrder);
     }
 
 }

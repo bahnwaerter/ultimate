@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,6 +21,6 @@
  */
 package org.ojalgo.matrix.task;
 
-public interface MatrixTask<N extends Number> {
+public interface MatrixTask<N extends Comparable<N>> {
 
 }

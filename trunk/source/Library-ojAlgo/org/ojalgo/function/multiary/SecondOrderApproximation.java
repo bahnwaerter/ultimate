@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,29 +21,27 @@
  */
 package org.ojalgo.function.multiary;
 
-import org.ojalgo.access.Access1D;
 import org.ojalgo.matrix.store.MatrixStore;
 import org.ojalgo.matrix.store.PhysicalStore;
-import org.ojalgo.matrix.store.PhysicalStore.Factory;
+import org.ojalgo.structure.Access1D;
 
-public final class SecondOrderApproximation<N extends Number> extends ApproximateFunction<N> {
+public final class SecondOrderApproximation<N extends Comparable<N>> extends ApproximateFunction<N> {
 
-    private final CompoundFunction<N> myDelegate;
+    private final QuadraticFunction<N> myDelegate;
 
     public SecondOrderApproximation(final MultiaryFunction.TwiceDifferentiable<N> function, final Access1D<N> point) {
 
         super(function, point);
 
-        final PhysicalStore<N> tmpHessian = function.getHessian(point).copy();
-        final MatrixStore<N> tmpGradient = function.getGradient(point).builder().transpose().build();
+        PhysicalStore<N> quadratic = function.getHessian(point).copy();
+        quadratic.modifyAll(quadratic.physical().function().multiply().first(0.5));
 
-        tmpHessian.modifyAll(tmpHessian.factory().function().multiply().first(0.5));
+        MatrixStore<N> linear = function.getGradient(point);
 
-        final QuadraticFunction<N> tmpQuadratic = new QuadraticFunction<N>(tmpHessian);
-        final LinearFunction<N> tmpLinear = new LinearFunction<N>(tmpGradient);
+        N constant = function.invoke(point);
 
-        myDelegate = new CompoundFunction<N>(tmpQuadratic, tmpLinear);
-        myDelegate.setConstant(function.invoke(point));
+        myDelegate = new QuadraticFunction<>(quadratic, linear);
+        myDelegate.setConstant(constant);
     }
 
     public int arity() {
@@ -55,10 +53,7 @@ public final class SecondOrderApproximation<N extends Number> extends Approximat
         if (this == obj) {
             return true;
         }
-        if (!super.equals(obj)) {
-            return false;
-        }
-        if (!(obj instanceof SecondOrderApproximation)) {
+        if (!super.equals(obj) || !(obj instanceof SecondOrderApproximation)) {
             return false;
         }
         final SecondOrderApproximation<?> other = (SecondOrderApproximation<?>) obj;
@@ -72,11 +67,11 @@ public final class SecondOrderApproximation<N extends Number> extends Approximat
         return true;
     }
 
-    public MatrixStore<N> getGradient(final Access1D<N> arg) {
-        return myDelegate.getGradient(this.shift(arg));
+    public MatrixStore<N> getGradient(final Access1D<N> point) {
+        return myDelegate.getGradient(this.shift(point));
     }
 
-    public MatrixStore<N> getHessian(final Access1D<N> arg) {
+    public MatrixStore<N> getHessian(final Access1D<N> point) {
         return myDelegate.getHessian(null);
     }
 
@@ -84,8 +79,7 @@ public final class SecondOrderApproximation<N extends Number> extends Approximat
     public int hashCode() {
         final int prime = 31;
         int result = super.hashCode();
-        result = (prime * result) + ((myDelegate == null) ? 0 : myDelegate.hashCode());
-        return result;
+        return (prime * result) + ((myDelegate == null) ? 0 : myDelegate.hashCode());
     }
 
     public N invoke(final Access1D<N> arg) {
@@ -98,7 +92,7 @@ public final class SecondOrderApproximation<N extends Number> extends Approximat
     }
 
     @Override
-    protected Factory<N, ?> factory() {
+    PhysicalStore.Factory<N, ?> factory() {
         return myDelegate.factory();
     }
 

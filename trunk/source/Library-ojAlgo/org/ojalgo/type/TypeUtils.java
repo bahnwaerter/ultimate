@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,22 +22,20 @@
 package org.ojalgo.type;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.Calendar;
-import java.util.Date;
 import java.util.GregorianCalendar;
 
-import org.ojalgo.constant.BigMath;
-import org.ojalgo.constant.PrimitiveMath;
+import org.ojalgo.function.constant.BigMath;
+import org.ojalgo.function.constant.PrimitiveMath;
 import org.ojalgo.netio.ASCII;
-import org.ojalgo.scalar.ComplexNumber;
-import org.ojalgo.scalar.Quaternion;
-import org.ojalgo.scalar.RationalNumber;
 import org.ojalgo.scalar.Scalar;
+import org.ojalgo.structure.Access1D;
 import org.ojalgo.type.context.NumberContext;
 
 public abstract class TypeUtils {
 
-    public static final long HOURS_PER_CENTURY = 876582L; // 365.2425 * 24 * 100 = 876582)
+    public static final long HOURS_PER_CENTURY = 876582L; // 100 * 365.2425 * 24 = 876582
     public static final long MILLIS_PER_HOUR = 60L * 60L * 1000L;
 
     private static final String HEX = "#";
@@ -46,35 +44,59 @@ public abstract class TypeUtils {
     /**
      * Compatible with slf4j. {} in the message pattern will be replaced by the arguments.
      */
-    public static String format(final String aMessagePattern, final Object... someArgs) {
+    public static String format(final String messagePattern, final Object... args) {
 
-        if (aMessagePattern == null) {
+        if (messagePattern == null) {
             return null;
         }
 
-        final int tmpPatternSize = aMessagePattern.length();
-        final int tmpArgsCount = someArgs.length;
+        final int patternLength = messagePattern.length();
+        final int argsCount = args.length;
 
-        int tmpFirst = 0;
-        int tmpLimit = tmpPatternSize;
+        int first = 0;
+        int limit = patternLength;
 
-        final StringBuilder retVal = new StringBuilder(tmpPatternSize + (tmpArgsCount * 20));
+        final StringBuilder retVal = new StringBuilder(patternLength + argsCount * 20);
 
-        for (int a = 0; a < tmpArgsCount; a++) {
+        for (int a = 0; a < argsCount; a++) {
 
-            tmpLimit = aMessagePattern.indexOf(TypeUtils.START, tmpFirst);
+            limit = messagePattern.indexOf(TypeUtils.START, first);
 
-            if (tmpLimit == -1) {
+            if (limit == -1) {
                 retVal.append(ASCII.SP);
-                retVal.append(someArgs[a]);
+                if (args[a] instanceof Access1D) {
+                    retVal.append(Access1D.toString((Access1D<?>) args[a]));
+                } else if (args[a] instanceof double[]) {
+                    retVal.append(Arrays.toString((double[]) args[a]));
+                } else {
+                    retVal.append(args[a]);
+                }
             } else {
-                retVal.append(aMessagePattern.substring(tmpFirst, tmpLimit));
-                retVal.append(someArgs[a]);
-                tmpFirst = tmpLimit + 2;
+                retVal.append(messagePattern.substring(first, limit));
+                if (args[a] instanceof double[]) {
+                    retVal.append(Arrays.toString((double[]) args[a]));
+                } else if (args[a] instanceof float[]) {
+                    retVal.append(Arrays.toString((float[]) args[a]));
+                } else if (args[a] instanceof long[]) {
+                    retVal.append(Arrays.toString((long[]) args[a]));
+                } else if (args[a] instanceof int[]) {
+                    retVal.append(Arrays.toString((int[]) args[a]));
+                } else if (args[a] instanceof short[]) {
+                    retVal.append(Arrays.toString((short[]) args[a]));
+                } else if (args[a] instanceof byte[]) {
+                    retVal.append(Arrays.toString((byte[]) args[a]));
+                } else if (args[a] instanceof boolean[]) {
+                    retVal.append(Arrays.toString((boolean[]) args[a]));
+                } else if (args[a] instanceof char[]) {
+                    retVal.append(Arrays.toString((char[]) args[a]));
+                } else {
+                    retVal.append(args[a]);
+                }
+                first = limit + 2;
             }
         }
 
-        retVal.append(aMessagePattern.substring(tmpFirst, tmpPatternSize));
+        retVal.append(messagePattern.substring(first, patternLength));
 
         return retVal.toString();
     }
@@ -107,102 +129,58 @@ public abstract class TypeUtils {
     }
 
     /**
-     * @deprecated v37
-     */
-    @Deprecated
-    public static boolean isZero(final double value) {
-        return TypeUtils.isZero(value, PrimitiveMath.IS_ZERO);
-    }
-
-    /**
-     * @deprecated v37
-     */
-    @Deprecated
-    public static boolean isZero(final double value, final double tolerance) {
-        return (Math.abs(value) <= tolerance);
-    }
-
-    /**
-     * @deprecated v39
-     */
-    @Deprecated
-    public static Date makeSqlDate(final long aTimeInMillis) {
-        return new CalendarDate(aTimeInMillis).toSqlDate();
-    }
-
-    /**
-     * @deprecated v39
-     */
-    @Deprecated
-    public static Date makeSqlTime(final long aTimeInMillis) {
-        return new CalendarDate(aTimeInMillis).toSqlTime();
-    }
-
-    /**
-     * @deprecated v39
-     */
-    @Deprecated
-    public static Date makeSqlTimestamp(final long aTimeInMillis) {
-        return new CalendarDate(aTimeInMillis).toSqlTimestamp();
-    }
-
-    /**
-     * If the input {@linkplain java.lang.Number} is a {@linkplain java.math.BigDecimal} it is passed through
-     * unaltered. Otherwise an equivalent BigDecimal is created.
+     * If the input {@linkplain java.lang.Comparale} is a {@linkplain java.math.BigDecimal} it is passed
+     * through unaltered. Otherwise an equivalent BigDecimal is created. ALWAYS returns a valid
+     * {@link BigDecimal} instance - which, among other things, means that null and NaN are replaced by 0.0
+     * (zero).
      *
      * @param number Any Number
      * @return A corresponding BigDecimal
      */
-    public static BigDecimal toBigDecimal(final Number number) {
+    public static BigDecimal toBigDecimal(final Comparable<?> number) {
 
-        BigDecimal retVal = BigMath.ZERO;
+        if (number == null) {
+            return BigMath.ZERO;
+        }
 
-        if (number != null) {
+        if (number instanceof BigDecimal) {
 
-            if (number instanceof BigDecimal) {
+            return (BigDecimal) number;
 
-                retVal = (BigDecimal) number;
+        } else if (number instanceof Scalar<?>) {
 
-            } else if (number instanceof Scalar<?>) {
+            return ((Scalar<?>) number).toBigDecimal();
 
-                retVal = ((Scalar<?>) number).toBigDecimal();
+        } else {
 
-            } else {
+            try {
 
-                try {
+                return new BigDecimal(number.toString());
 
-                    retVal = new BigDecimal(number.toString());
+            } catch (final NumberFormatException cause) {
 
-                } catch (final NumberFormatException exception) {
+                double value = PrimitiveMath.NaN;
+                if (number instanceof NumberDefinition) {
+                    value = ((NumberDefinition) number).doubleValue();
+                } else if (number instanceof Number) {
+                    value = ((Number) number).doubleValue();
+                }
 
-                    final double tmpVal = number.doubleValue();
-
-                    if (Double.isNaN(tmpVal)) {
-                        retVal = BigMath.ZERO;
-                    } else if (Double.isInfinite(tmpVal) && (tmpVal > PrimitiveMath.ZERO)) {
-                        retVal = BigMath.VERY_POSITIVE;
-                    } else if (Double.isInfinite(tmpVal) && (tmpVal < PrimitiveMath.ZERO)) {
-                        retVal = BigMath.VERY_NEGATIVE;
-                    } else {
-                        retVal = BigDecimal.valueOf(tmpVal);
-                    }
+                if (Double.isNaN(value)) {
+                    return BigMath.ZERO;
+                } else if (value == Double.POSITIVE_INFINITY) {
+                    return BigMath.VERY_POSITIVE;
+                } else if (value == Double.NEGATIVE_INFINITY) {
+                    return BigMath.VERY_NEGATIVE;
+                } else {
+                    return BigDecimal.valueOf(value);
                 }
             }
         }
-
-        return retVal;
     }
 
-    public static BigDecimal toBigDecimal(final Number number, final NumberContext context) {
+    public static BigDecimal toBigDecimal(final Comparable<?> number, final NumberContext context) {
         return context.enforce(TypeUtils.toBigDecimal(number));
-    }
-
-    /**
-     * @deprecated v38 Use {@link ComplexNumber#valueOf(Number)} instead.
-     */
-    @Deprecated
-    public static ComplexNumber toComplexNumber(final Number number) {
-        return ComplexNumber.valueOf(number);
     }
 
     /**
@@ -212,42 +190,22 @@ public abstract class TypeUtils {
         return HEX + Integer.toHexString(colour).substring(2);
     }
 
-    /**
-     * @deprecated v38 Use {@link Quaternion#valueOf(Number)} instead.
-     */
-    @Deprecated
-    public static Quaternion toQuaternion(final Number number) {
-        return Quaternion.valueOf(number);
-    }
-
-    /**
-     * @deprecated v38 Use {@link RationalNumber#valueOf(Number)} instead.
-     */
-    @Deprecated
-    public static RationalNumber toRationalNumber(final Number number) {
-        return RationalNumber.valueOf(number);
-    }
-
     static boolean isSameDate(final Calendar aCal1, final Calendar aCal2) {
 
         boolean retVal = aCal1.get(Calendar.YEAR) == aCal2.get(Calendar.YEAR);
 
-        retVal = retVal && (aCal1.get(Calendar.MONTH) == aCal2.get(Calendar.MONTH));
+        retVal = retVal && aCal1.get(Calendar.MONTH) == aCal2.get(Calendar.MONTH);
 
-        retVal = retVal && (aCal1.get(Calendar.DAY_OF_MONTH) == aCal2.get(Calendar.DAY_OF_MONTH));
-
-        return retVal;
+        return retVal && aCal1.get(Calendar.DAY_OF_MONTH) == aCal2.get(Calendar.DAY_OF_MONTH);
     }
 
     static boolean isSameTime(final Calendar aCal1, final Calendar aCal2) {
 
         boolean retVal = aCal1.get(Calendar.HOUR_OF_DAY) == aCal2.get(Calendar.HOUR_OF_DAY);
 
-        retVal = retVal && (aCal1.get(Calendar.MINUTE) == aCal2.get(Calendar.MINUTE));
+        retVal = retVal && aCal1.get(Calendar.MINUTE) == aCal2.get(Calendar.MINUTE);
 
-        retVal = retVal && (aCal1.get(Calendar.SECOND) == aCal2.get(Calendar.SECOND));
-
-        return retVal;
+        return retVal && aCal1.get(Calendar.SECOND) == aCal2.get(Calendar.SECOND);
     }
 
     protected TypeUtils() {

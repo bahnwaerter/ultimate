@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,8 @@ import java.text.Format;
 import java.text.ParsePosition;
 
 public final class StringFormat extends Format {
+
+    private static final long serialVersionUID = 1L;
 
     public StringFormat() {
         super();

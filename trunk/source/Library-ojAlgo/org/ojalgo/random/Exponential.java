@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,7 +21,9 @@
  */
 package org.ojalgo.random;
 
-import static org.ojalgo.constant.PrimitiveMath.*;
+import static org.ojalgo.function.constant.PrimitiveMath.*;
+
+import org.ojalgo.function.constant.PrimitiveMath;
 
 /**
  * Distribution of length of life when no aging. Describes the time between events in a Poisson process, i.e.
@@ -32,7 +34,9 @@ import static org.ojalgo.constant.PrimitiveMath.*;
  */
 public class Exponential extends AbstractContinuous {
 
-    private static final long serialVersionUID = -720007692511649669L;
+    public static Exponential of(final double rate) {
+        return new Exponential(rate);
+    }
 
     private final double myRate; // lamda
 
@@ -40,18 +44,26 @@ public class Exponential extends AbstractContinuous {
         this(ONE);
     }
 
-    public Exponential(final double aRate) {
+    public Exponential(final double rate) {
 
         super();
 
-        myRate = aRate;
+        myRate = rate;
     }
 
-    public double getDistribution(final double aValue) {
-        if (aValue < ZERO) {
+    public double getDensity(final double value) {
+        if (value < ZERO) {
             return ZERO;
         } else {
-            return ONE - Math.exp(-myRate * aValue);
+            return myRate * PrimitiveMath.EXP.invoke(-myRate * value);
+        }
+    }
+
+    public double getDistribution(final double value) {
+        if (value < ZERO) {
+            return ZERO;
+        } else {
+            return ONE - PrimitiveMath.EXP.invoke(-myRate * value);
         }
     }
 
@@ -59,19 +71,11 @@ public class Exponential extends AbstractContinuous {
         return ONE / myRate;
     }
 
-    public double getProbability(final double aValue) {
-        if (aValue < ZERO) {
-            return ZERO;
-        } else {
-            return myRate * Math.exp(-myRate * aValue);
-        }
-    }
+    public double getQuantile(final double probability) {
 
-    public double getQuantile(final double aProbality) {
+        this.checkProbabilty(probability);
 
-        this.checkProbabilty(aProbality);
-
-        return Math.log(ONE - aProbality) / -myRate;
+        return PrimitiveMath.LOG.invoke(ONE - probability) / -myRate;
     }
 
     @Override
@@ -81,7 +85,7 @@ public class Exponential extends AbstractContinuous {
 
     @Override
     protected double generate() {
-        return -Math.log(this.random().nextDouble()) / myRate;
+        return -PrimitiveMath.LOG.invoke(this.random().nextDouble()) / myRate;
     }
 
 }

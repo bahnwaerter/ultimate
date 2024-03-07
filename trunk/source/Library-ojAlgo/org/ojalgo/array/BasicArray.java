@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,252 +21,199 @@
  */
 package org.ojalgo.array;
 
-import java.io.Serializable;
-import java.math.BigDecimal;
-import java.util.ArrayList;
-
-import org.ojalgo.OjAlgoUtils;
-import org.ojalgo.access.Access1D;
-import org.ojalgo.access.AccessUtils;
-import org.ojalgo.array.DenseArray.DenseFactory;
-import org.ojalgo.array.SegmentedArray.SegmentedFactory;
-import org.ojalgo.array.SparseArray.SparseFactory;
+import org.ojalgo.array.operation.AMAX;
+import org.ojalgo.array.operation.Exchange;
+import org.ojalgo.array.operation.FillAll;
+import org.ojalgo.array.operation.OperationBinary;
+import org.ojalgo.array.operation.OperationUnary;
+import org.ojalgo.array.operation.OperationVoid;
 import org.ojalgo.function.BinaryFunction;
+import org.ojalgo.function.FunctionSet;
 import org.ojalgo.function.NullaryFunction;
 import org.ojalgo.function.UnaryFunction;
 import org.ojalgo.function.VoidFunction;
-import org.ojalgo.netio.ASCII;
-import org.ojalgo.scalar.ComplexNumber;
-import org.ojalgo.scalar.Quaternion;
-import org.ojalgo.scalar.RationalNumber;
+import org.ojalgo.function.aggregator.Aggregator;
+import org.ojalgo.function.aggregator.AggregatorFunction;
+import org.ojalgo.function.aggregator.AggregatorSet;
+import org.ojalgo.function.special.PowerOf2;
+import org.ojalgo.scalar.Scalar;
+import org.ojalgo.structure.Access1D;
+import org.ojalgo.structure.Mutate1D;
+import org.ojalgo.structure.StructureAnyD;
+import org.ojalgo.type.math.MathType;
 
 /**
  * <p>
- * A BasicArray is one-dimensional, but designed to easily be extended or encapsulated, and then treated as
- * arbitrary-dimensional. It stores/handles (any subclass of) {@linkplain java.lang.Number} elements depending
- * on the subclass/implementation.
- * </p>
+ * A BasicArray is 1-dimensional, but designed to easily be extended or encapsulated, and then treated as
+ * arbitrary-dimensional. It stores/handles (any subclass of) {@linkplain java.lang.Comparable} elements
+ * depending on the subclass/implementation.
  * <p>
  * This abstract class defines a set of methods to access and modify array elements. It does not "know"
  * anything about linear algebra or similar.
- * </p>
  *
  * @author apete
  */
-public abstract class BasicArray<N extends Number>
-        implements Access1D<N>, Access1D.Elements, Access1D.IndexOf, Access1D.Fillable<N>, Access1D.Modifiable<N>, Access1D.Visitable<N>, Serializable {
+public abstract class BasicArray<N extends Comparable<N>> implements Access1D<N>, Access1D.Aggregatable<N>, Access1D.Visitable<N>, Mutate1D,
+        Mutate1D.Fillable<N>, Mutate1D.Modifiable<N>, Access1D.Collectable<N, Mutate1D> {
 
-    static abstract class BasicFactory<N extends Number> extends ArrayFactory<N> {
+    public static final class Factory<N extends Comparable<N>> extends ArrayFactory<N, BasicArray<N>> {
 
-        abstract DenseArray.DenseFactory<N> getDenseFactory();
+        private static final long SPARSE_SEGMENTATION_LIMIT = PowerOf2.powerOfLong2(46);
 
-        abstract SegmentedArray.SegmentedFactory<N> getSegmentedFactory();
+        private final DenseArray.Factory<N> myDenseFactory;
+        private final GrowthStrategy myGrowthStrategy;
 
-        abstract SparseArray.SparseFactory<N> getSparseFactory();
+        Factory(final org.ojalgo.array.DenseArray.Factory<N> denseFactory) {
+            super();
+            myDenseFactory = denseFactory;
+            myGrowthStrategy = GrowthStrategy.newInstance(denseFactory);
+        }
+
+        @Override
+        public AggregatorSet<N> aggregator() {
+            return myDenseFactory.aggregator();
+        }
+
+        @Override
+        public FunctionSet<N> function() {
+            return myDenseFactory.function();
+        }
+
+        @Override
+        public Scalar.Factory<N> scalar() {
+            return myDenseFactory.scalar();
+        }
+
+        @Override
+        long getCapacityLimit() {
+            return Long.MAX_VALUE;
+        }
+
+        @Override
+        public MathType getMathType() {
+            return myDenseFactory.getMathType();
+        }
 
         @Override
         BasicArray<N> makeStructuredZero(final long... structure) {
 
-            final long tmpTotal = AccessUtils.count(structure);
+            long total = StructureAnyD.count(structure);
 
-            if (tmpTotal > MAX_ARRAY_SIZE) {
-                return this.getSegmentedFactory().makeStructuredZero(structure);
-            } else if (tmpTotal > OjAlgoUtils.ENVIRONMENT.getCacheDim1D(this.getDenseFactory().getElementSize())) {
-                return new SparseArray<N>(tmpTotal, this.getDenseFactory());
+            if (total > SPARSE_SEGMENTATION_LIMIT) {
+
+                return this.makeSegmented(structure);
+
+            } else if (myGrowthStrategy.isChunked(total)) {
+
+                return new SparseArray<>(myDenseFactory, myGrowthStrategy, total);
+
             } else {
-                return this.getDenseFactory().makeStructuredZero(structure);
+
+                return myDenseFactory.make(total);
             }
         }
 
         @Override
         BasicArray<N> makeToBeFilled(final long... structure) {
 
-            final long tmpTotal = AccessUtils.count(structure);
+            long total = StructureAnyD.count(structure);
 
-            if (tmpTotal > MAX_ARRAY_SIZE) {
-                return this.getSegmentedFactory().makeToBeFilled(structure);
+            if (myGrowthStrategy.isSegmented(total)) {
+                return myDenseFactory.makeSegmented(total);
             } else {
-                return this.getDenseFactory().makeToBeFilled(structure);
+                return myDenseFactory.make(total);
             }
-
         }
 
     }
 
-    /**
-     * Exists as a private constant in {@link ArrayList}. The Oracle JVM seems to actually be limited at
-     * Integer.MAX_VALUE - 2 but other JVM:s may have different limits.
-     */
-    public static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
+    private final ArrayFactory<N, ?> myFactory;
 
-    static final BasicFactory<BigDecimal> BIG = new BasicFactory<BigDecimal>() {
+    @SuppressWarnings("unused")
+    private BasicArray() {
+        this(null);
+    }
 
-        @Override
-        DenseFactory<BigDecimal> getDenseFactory() {
-            return BigArray.FACTORY;
-        }
-
-        @Override
-        long getElementSize() {
-            return BigArray.ELEMENT_SIZE;
-        }
-
-        @Override
-        SegmentedFactory<BigDecimal> getSegmentedFactory() {
-            return SegmentedArray.BIG;
-        }
-
-        @Override
-        SparseFactory<BigDecimal> getSparseFactory() {
-            return SparseArray.BIG;
-        }
-
-    };
-
-    static final BasicFactory<ComplexNumber> COMPLEX = new BasicFactory<ComplexNumber>() {
-
-        @Override
-        DenseFactory<ComplexNumber> getDenseFactory() {
-            return ComplexArray.FACTORY;
-        }
-
-        @Override
-        long getElementSize() {
-            return ComplexArray.ELEMENT_SIZE;
-        }
-
-        @Override
-        SegmentedFactory<ComplexNumber> getSegmentedFactory() {
-            return SegmentedArray.COMPLEX;
-        }
-
-        @Override
-        SparseFactory<ComplexNumber> getSparseFactory() {
-            return SparseArray.COMPLEX;
-        }
-
-    };
-
-    static final BasicFactory<Double> PRIMITIVE = new BasicFactory<Double>() {
-
-        @Override
-        DenseFactory<Double> getDenseFactory() {
-            return PrimitiveArray.FACTORY;
-        }
-
-        @Override
-        long getElementSize() {
-            return PrimitiveArray.ELEMENT_SIZE;
-        }
-
-        @Override
-        SegmentedFactory<Double> getSegmentedFactory() {
-            return SegmentedArray.PRIMITIVE;
-        }
-
-        @Override
-        SparseFactory<Double> getSparseFactory() {
-            return SparseArray.PRIMITIVE;
-        }
-
-    };
-
-    static final BasicFactory<Quaternion> QUATERNION = new BasicFactory<Quaternion>() {
-
-        @Override
-        DenseFactory<Quaternion> getDenseFactory() {
-            return QuaternionArray.FACTORY;
-        }
-
-        @Override
-        long getElementSize() {
-            return QuaternionArray.ELEMENT_SIZE;
-        }
-
-        @Override
-        SegmentedFactory<Quaternion> getSegmentedFactory() {
-            return SegmentedArray.QUATERNION;
-        }
-
-        @Override
-        SparseFactory<Quaternion> getSparseFactory() {
-            return SparseArray.QUATERNION;
-        }
-
-    };
-
-    static final BasicFactory<RationalNumber> RATIONAL = new BasicFactory<RationalNumber>() {
-
-        @Override
-        DenseFactory<RationalNumber> getDenseFactory() {
-            return RationalArray.FACTORY;
-        }
-
-        @Override
-        long getElementSize() {
-            return RationalArray.ELEMENT_SIZE;
-        }
-
-        @Override
-        SegmentedFactory<RationalNumber> getSegmentedFactory() {
-            return SegmentedArray.RATIONAL;
-        }
-
-        @Override
-        SparseFactory<RationalNumber> getSparseFactory() {
-            return SparseArray.RATIONAL;
-        }
-
-    };
-
-    protected BasicArray() {
+    protected BasicArray(final ArrayFactory<N, ?> factory) {
         super();
+        myFactory = factory;
+    }
+
+    public N aggregateRange(final long first, final long limit, final Aggregator aggregator) {
+
+        AggregatorFunction<N> visitor = aggregator.getFunction(myFactory.aggregator());
+
+        this.visitRange(first, limit, visitor);
+
+        return visitor.get();
+    }
+
+    @Override
+    public boolean equals(final Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (!(obj instanceof BasicArray)) {
+            return false;
+        }
+        BasicArray<?> other = (BasicArray<?>) obj;
+        if (myFactory == null) {
+            if (other.myFactory != null) {
+                return false;
+            }
+        } else if (!myFactory.equals(other.myFactory)) {
+            return false;
+        }
+        return true;
+    }
+
+    public final MathType getMathType() {
+        return myFactory.getMathType();
+    }
+
+    @Override
+    public int hashCode() {
+        int prime = 31;
+        int result = 1;
+        return prime * result + (myFactory == null ? 0 : myFactory.hashCode());
     }
 
     public long indexOfLargest() {
         return this.indexOfLargest(0L, this.count(), 1L);
     }
 
-    public long indexOfLargestInRange(final long first, final long limit) {
-        return this.indexOfLargest(first, limit, 1L);
+    public final boolean isPrimitive() {
+        return myFactory.getMathType().isPrimitive();
     }
 
-    public void modifyAll(final UnaryFunction<N> function) {
-        this.modify(0L, this.count(), 1L, function);
+    public void modifyAll(final UnaryFunction<N> modifier) {
+        this.modify(0L, this.count(), 1L, modifier);
     }
 
     public void modifyMatching(final Access1D<N> left, final BinaryFunction<N> function) {
-        this.fillMatching(left, function, this);
+        long limit = Math.min(left.count(), this.count());
+        this.modify(0L, limit, 1L, left, function);
     }
 
     public void modifyMatching(final BinaryFunction<N> function, final Access1D<N> right) {
-        this.fillMatching(this, function, right);
+        long limit = Math.min(this.count(), right.count());
+        this.modify(0L, limit, 1L, function, right);
     }
 
-    public void modifyRange(final long first, final long limit, final UnaryFunction<N> function) {
-        this.modify(first, limit, 1L, function);
+    public void modifyRange(final long first, final long limit, final UnaryFunction<N> modifier) {
+        this.modify(first, limit, 1L, modifier);
+    }
+
+    public void supplyTo(final Mutate1D receiver) {
+        long limit = Math.min(this.count(), receiver.count());
+        for (long i = 0; i < limit; i++) {
+            receiver.set(i, this.get(i));
+        }
     }
 
     @Override
     public String toString() {
-
-        final StringBuilder retVal = new StringBuilder();
-
-        retVal.append(ASCII.LCB);
-        retVal.append(ASCII.SP);
-        final int tmpLength = (int) this.count();
-        if (tmpLength >= 1) {
-            retVal.append(this.get(0).toString());
-            for (int i = 1; i < tmpLength; i++) {
-                retVal.append(ASCII.COMMA);
-                retVal.append(ASCII.SP);
-                retVal.append(this.get(i).toString());
-            }
-            retVal.append(ASCII.SP);
-        }
-        retVal.append(ASCII.RCB);
-
-        return retVal.toString();
+        return Access1D.toString(this);
     }
 
     public void visitAll(final VoidFunction<N> visitor) {
@@ -277,89 +224,67 @@ public abstract class BasicArray<N extends Number>
         this.visit(first, limit, 1L, visitor);
     }
 
+    protected void exchange(final long firstA, final long firstB, final long step, final long count) {
+        Exchange.exchange(this, firstA, firstB, step, count);
+    }
+
+    protected void fill(final long first, final long limit, final long step, final N value) {
+        FillAll.fill(this, first, limit, step, value);
+    }
+
+    protected void fill(final long first, final long limit, final long step, final NullaryFunction<?> supplier) {
+        FillAll.fill(this, first, limit, step, supplier);
+    }
+
+    protected long indexOfLargest(final long first, final long limit, final long step) {
+        return AMAX.invoke(this, first, limit, step);
+    }
+
+    protected void modify(final long first, final long limit, final long step, final Access1D<N> left, final BinaryFunction<N> function) {
+        OperationBinary.invoke(this, first, limit, step, left, function, this);
+    }
+
+    protected void modify(final long first, final long limit, final long step, final BinaryFunction<N> function, final Access1D<N> right) {
+        OperationBinary.invoke(this, first, limit, step, this, function, right);
+    }
+
+    protected void modify(final long first, final long limit, final long step, final UnaryFunction<N> function) {
+        OperationUnary.invoke(this, first, limit, step, this, function);
+    }
+
+    protected void visit(final long first, final long limit, final long step, final VoidFunction<N> visitor) {
+        OperationVoid.invoke(this, first, limit, step, visitor);
+    }
+
     /**
-     * <p>
      * A utility facade that conveniently/consistently presents the {@linkplain org.ojalgo.array.BasicArray}
      * as a one-dimensional array. Note that you will modify the actual array by accessing it through this
      * facade.
-     * </p>
-     * <p>
-     * Disregards the array structure, and simply treats it as one-domensional.
-     * </p>
      */
-    protected final Array1D<N> asArray1D() {
-        return new Array1D<N>(this);
+    protected final Array1D<N> wrapInArray1D() {
+        return new Array1D<>(this);
     }
 
     /**
-     * <p>
      * A utility facade that conveniently/consistently presents the {@linkplain org.ojalgo.array.BasicArray}
      * as a two-dimensional array. Note that you will modify the actual array by accessing it through this
      * facade.
-     * </p>
-     * <p>
-     * If "this" has more than two dimensions then only the first plane of the first cube of the first... is
-     * used/accessed. If this only has one dimension then everything is assumed to be in the first column of
-     * the first plane of the first cube...
-     * </p>
      */
-    protected final Array2D<N> asArray2D(final long structure) {
-        return new Array2D<N>(this, structure);
+    protected final Array2D<N> wrapInArray2D(final long structure) {
+        return new Array2D<>(this, structure);
     }
 
     /**
-     * <p>
      * A utility facade that conveniently/consistently presents the {@linkplain org.ojalgo.array.BasicArray}
      * as a multi-dimensional array. Note that you will modify the actual array by accessing it through this
      * facade.
-     * </p>
      */
-    protected final ArrayAnyD<N> asArrayAnyD(final long[] structure) {
-        return new ArrayAnyD<N>(this, structure);
+    protected final ArrayAnyD<N> wrapInArrayAnyD(final long[] structure) {
+        return new ArrayAnyD<>(this, structure);
     }
 
-    protected abstract void exchange(long firstA, long firstB, long step, long count);
-
-    protected abstract void fill(long first, long limit, long step, N value);
-
-    protected abstract void fill(long first, long limit, long step, NullaryFunction<N> supplier);
-
-    protected abstract long indexOfLargest(long first, long limit, long step);
-
-    protected abstract boolean isSmall(long first, long limit, long step, double comparedTo);
-
-    protected abstract void modify(long first, long limit, long step, Access1D<N> left, BinaryFunction<N> function);
-
-    protected abstract void modify(long first, long limit, long step, BinaryFunction<N> function, Access1D<N> right);
-
-    protected abstract void modify(long first, long limit, long step, UnaryFunction<N> function);
-
-    protected abstract void visit(long first, long limit, long step, VoidFunction<N> visitor);
-
-    /**
-     * Safe to cast as DenseArray.
-     */
-    final boolean isDense() {
-        return this instanceof DenseArray;
-    }
-
-    /**
-     * Primitive (double) elements
-     */
-    abstract boolean isPrimitive();
-
-    /**
-     * Safe to cast as SegmentedArray.
-     */
-    final boolean isSegmented() {
-        return this instanceof SegmentedArray;
-    }
-
-    /**
-     * Safe to cast as SparseArray.
-     */
-    final boolean isSparse() {
-        return this instanceof SparseArray;
+    final ArrayFactory<N, ?> factory() {
+        return myFactory;
     }
 
 }

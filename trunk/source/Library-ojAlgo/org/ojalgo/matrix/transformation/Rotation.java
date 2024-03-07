@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,31 +21,29 @@
  */
 package org.ojalgo.matrix.transformation;
 
-import java.math.BigDecimal;
-
 import org.ojalgo.ProgrammingError;
-import org.ojalgo.constant.PrimitiveMath;
-import org.ojalgo.function.BigFunction;
-import org.ojalgo.function.ComplexFunction;
-import org.ojalgo.function.PrimitiveFunction;
-import org.ojalgo.scalar.ComplexNumber;
+import org.ojalgo.function.FunctionSet;
+import org.ojalgo.function.constant.PrimitiveMath;
+import org.ojalgo.matrix.store.PhysicalStore;
+import org.ojalgo.scalar.PrimitiveScalar;
+import org.ojalgo.scalar.Scalar;
 
-public abstract class Rotation<N extends Number> extends Object {
+public abstract class Rotation<N extends Comparable<N>> {
 
-    public static final class Big extends Rotation<BigDecimal> {
+    public static final class Generic<N extends Scalar<N>> extends Rotation<N> {
 
-        public final BigDecimal cos;
-        public final BigDecimal sin;
+        public final N cos;
+        public final N sin;
 
-        public Big(final int index) {
+        public Generic(final int index) {
             this(index, index, null, null);
         }
 
-        public Big(final int aLowerIndex, final int aHigherIndex) {
+        public Generic(final int aLowerIndex, final int aHigherIndex) {
             this(aLowerIndex, aHigherIndex, null, null);
         }
 
-        public Big(final int aLowerIndex, final int aHigherIndex, final BigDecimal aCosine, final BigDecimal aSine) {
+        public Generic(final int aLowerIndex, final int aHigherIndex, final N aCosine, final N aSine) {
 
             super(aLowerIndex, aHigherIndex);
 
@@ -53,7 +51,7 @@ public abstract class Rotation<N extends Number> extends Object {
             sin = aSine;
         }
 
-        public Big(final Rotation<BigDecimal> aRotation) {
+        public Generic(final Rotation<N> aRotation) {
 
             super(aRotation.low, aRotation.high);
 
@@ -72,74 +70,18 @@ public abstract class Rotation<N extends Number> extends Object {
         }
 
         @Override
-        public BigDecimal getCosine() {
+        public N getCosine() {
             return cos;
         }
 
         @Override
-        public BigDecimal getSine() {
+        public N getSine() {
             return sin;
         }
 
         @Override
-        public Big invert() {
-            return new Big(high, low, cos, sin);
-        }
-
-    }
-
-    public static final class Complex extends Rotation<ComplexNumber> {
-
-        public final ComplexNumber cos;
-        public final ComplexNumber sin;
-
-        public Complex(final int index) {
-            this(index, index, null, null);
-        }
-
-        public Complex(final int aLowerIndex, final int aHigherIndex) {
-            this(aLowerIndex, aHigherIndex, null, null);
-        }
-
-        public Complex(final int aLowerIndex, final int aHigherIndex, final ComplexNumber aCosine, final ComplexNumber aSine) {
-
-            super(aLowerIndex, aHigherIndex);
-
-            cos = aCosine;
-            sin = aSine;
-        }
-
-        public Complex(final Rotation<ComplexNumber> aRotation) {
-
-            super(aRotation.low, aRotation.high);
-
-            cos = aRotation.getCosine();
-            sin = aRotation.getSine();
-        }
-
-        @Override
-        public double doubleCosineValue() {
-            return cos.doubleValue();
-        }
-
-        @Override
-        public double doubleSineValue() {
-            return sin.doubleValue();
-        }
-
-        @Override
-        public ComplexNumber getCosine() {
-            return cos;
-        }
-
-        @Override
-        public ComplexNumber getSine() {
-            return sin;
-        }
-
-        @Override
-        public Complex invert() {
-            return new Complex(high, low, cos, sin);
+        public Generic<N> invert() {
+            return new Generic<>(high, low, cos, sin);
         }
 
     }
@@ -209,19 +151,65 @@ public abstract class Rotation<N extends Number> extends Object {
 
     }
 
-    public static Big makeBig(final int aLowerIndex, final int aHigherIndex, final BigDecimal anAngle) {
-        return new Big(aLowerIndex, aHigherIndex, BigFunction.COS.invoke(anAngle), BigFunction.SIN.invoke(anAngle));
-    }
-
-    public static Complex makeComplex(final int aLowerIndex, final int aHigherIndex, final ComplexNumber anAngle) {
-        return new Complex(aLowerIndex, aHigherIndex, ComplexFunction.COS.invoke(anAngle), ComplexFunction.SIN.invoke(anAngle));
+    public static <N extends Scalar<N>> Generic<N> makeGeneric(final FunctionSet<N> functions, final int aLowerIndex, final int aHigherIndex, final N anAngle) {
+        return new Generic<>(aLowerIndex, aHigherIndex, functions.cos().invoke(anAngle), functions.sin().invoke(anAngle));
     }
 
     public static Primitive makePrimitive(final int aLowerIndex, final int aHigherIndex, final double anAngle) {
-        return new Primitive(aLowerIndex, aHigherIndex, PrimitiveFunction.COS.invoke(anAngle), PrimitiveFunction.SIN.invoke(anAngle));
+        return new Primitive(aLowerIndex, aHigherIndex, PrimitiveMath.COS.invoke(anAngle), PrimitiveMath.SIN.invoke(anAngle));
+    }
+
+    static Rotation<Double>[] rotationsP(final PhysicalStore<Double> matrix, final int low, final int high, final Rotation<Double>[] results) {
+
+        final double a00 = matrix.doubleValue(low, low);
+        final double a01 = matrix.doubleValue(low, high);
+        final double a10 = matrix.doubleValue(high, low);
+        final double a11 = matrix.doubleValue(high, high);
+
+        final double x = a00 + a11;
+        final double y = a10 - a01;
+
+        double t; // tan, cot or something temporary
+
+        // Symmetrise - Givens
+        final double cg; // cos Givens
+        final double sg; // sin Givens
+
+        if (PrimitiveScalar.isSmall(PrimitiveMath.ONE, y)) {
+            cg = PrimitiveMath.SIGNUM.invoke(x);
+            sg = PrimitiveMath.ZERO;
+        } else if (PrimitiveScalar.isSmall(PrimitiveMath.ONE, x)) {
+            sg = PrimitiveMath.SIGNUM.invoke(y);
+            cg = PrimitiveMath.ZERO;
+        } else if (PrimitiveMath.ABS.invoke(y) > PrimitiveMath.ABS.invoke(x)) {
+            t = x / y; // cot
+            sg = PrimitiveMath.SIGNUM.invoke(y) / PrimitiveMath.SQRT1PX2.invoke(t);
+            cg = sg * t;
+        } else {
+            t = y / x; // tan
+            cg = PrimitiveMath.SIGNUM.invoke(x) / PrimitiveMath.SQRT1PX2.invoke(t);
+            sg = cg * t;
+        }
+
+        final double b00 = (cg * a00) + (sg * a10);
+        final double b11 = (cg * a11) - (sg * a01);
+        final double b2 = (cg * (a01 + a10)) + (sg * (a11 - a00)); // b01 + b10
+
+        t = (b11 - b00) / b2;
+        t = PrimitiveMath.SIGNUM.invoke(t) / (PrimitiveMath.SQRT1PX2.invoke(t) + PrimitiveMath.ABS.invoke(t)); // tan Jacobi
+
+        // Annihilate - Jacobi
+        final double cj = PrimitiveMath.ONE / PrimitiveMath.SQRT1PX2.invoke(t); // cos Jacobi
+        final double sj = cj * t; // sin Jacobi
+
+        results[1] = new Rotation.Primitive(low, high, cj, sj); // Jacobi
+        results[0] = new Rotation.Primitive(low, high, ((cj * cg) + (sj * sg)), ((cj * sg) - (sj * cg))); // Givens - Jacobi
+
+        return results;
     }
 
     public final int high;
+
     public final int low;
 
     @SuppressWarnings("unused")
@@ -253,6 +241,10 @@ public abstract class Rotation<N extends Number> extends Object {
     @Override
     public String toString() {
         return "low=" + low + ", high=" + high + ", cos=" + this.getCosine() + ", sin=" + this.getSine();
+    }
+
+    public void transform(final PhysicalStore<N> matrix) {
+        matrix.transformLeft(this);
     }
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,7 +21,9 @@
  */
 package org.ojalgo.random;
 
-import static org.ojalgo.constant.PrimitiveMath.*;
+import static org.ojalgo.function.constant.PrimitiveMath.*;
+
+import org.ojalgo.function.constant.PrimitiveMath;
 
 /**
  * Certain waiting times. Rounding errors.
@@ -30,17 +32,19 @@ import static org.ojalgo.constant.PrimitiveMath.*;
  */
 public class Uniform extends AbstractContinuous {
 
-    private static final long serialVersionUID = -8198257914507986404L;
-
-    /**
-     * @return An integer: 0 &lt;= ? &lt; limit
-     */
-    public static int randomInteger(final int limit) {
-        return (int) Math.floor(limit * Math.random());
+    public static Uniform of(final double lower, final double range) {
+        return new Uniform(lower, range);
     }
 
     /**
-     * @return An integer: lower &lt;= ? &lt; higher
+     * @return An integer: 0 <= ? < limit
+     */
+    public static int randomInteger(final int limit) {
+        return (int) PrimitiveMath.FLOOR.invoke(limit * Math.random());
+    }
+
+    /**
+     * @return An integer: lower <= ? < higher
      */
     public static int randomInteger(final int lower, final int higher) {
         return lower + Uniform.randomInteger(higher - lower);
@@ -50,7 +54,11 @@ public class Uniform extends AbstractContinuous {
      * @return An integer: 0 &lt;= ? &lt; limit
      */
     public static long randomInteger(final long limit) {
-        return (long) Math.floor(limit * Math.random());
+        return (long) PrimitiveMath.FLOOR.invoke(limit * Math.random());
+    }
+
+    public static Uniform standard() {
+        return new Uniform();
     }
 
     private final double myLower;
@@ -72,13 +80,24 @@ public class Uniform extends AbstractContinuous {
         myRange = range;
     }
 
-    public double getDistribution(final double aValue) {
+    public double getDensity(final double value) {
 
         double retVal = ZERO;
 
-        if ((aValue <= (myLower + myRange)) && (myLower <= aValue)) {
-            retVal = (aValue - myLower) / myRange;
-        } else if (myLower <= aValue) {
+        if ((myLower <= value) && (value <= (myLower + myRange))) {
+            retVal = ONE / myRange;
+        }
+
+        return retVal;
+    }
+
+    public double getDistribution(final double value) {
+
+        double retVal = ZERO;
+
+        if ((value <= (myLower + myRange)) && (myLower <= value)) {
+            retVal = (value - myLower) / myRange;
+        } else if (myLower <= value) {
             retVal = ONE;
         }
 
@@ -89,22 +108,11 @@ public class Uniform extends AbstractContinuous {
         return myLower + (myRange / TWO);
     }
 
-    public double getProbability(final double aValue) {
+    public double getQuantile(final double probability) {
 
-        double retVal = ZERO;
+        this.checkProbabilty(probability);
 
-        if ((myLower <= aValue) && (aValue <= (myLower + myRange))) {
-            retVal = ONE / myRange;
-        }
-
-        return retVal;
-    }
-
-    public double getQuantile(final double aProbality) {
-
-        this.checkProbabilty(aProbality);
-
-        return myLower + (aProbality * myRange);
+        return myLower + (probability * myRange);
     }
 
     @Override

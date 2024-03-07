@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,6 +37,6 @@ package org.ojalgo.algebra;
  * @see <a href="https://en.wikipedia.org/wiki/Field_(mathematics)">Field</a>
  * @see <a href="https://en.wikipedia.org/wiki/Division_ring">Division ring</a>
  */
-public interface Field<S> extends Ring<S>, Group.Multiplicative<S>, Operation.Subtraction<S>, Operation.Division<S> {
+public interface Field<T> extends Ring<T>, Group.Multiplicative<T>, Operation.Subtraction<T>, Operation.Division<T> {
 
 }

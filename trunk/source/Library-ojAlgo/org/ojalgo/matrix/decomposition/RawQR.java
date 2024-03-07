@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,22 +21,27 @@
  */
 package org.ojalgo.matrix.decomposition;
 
-import static org.ojalgo.constant.PrimitiveMath.*;
+import static org.ojalgo.function.constant.PrimitiveMath.*;
 
-import org.ojalgo.access.Access2D;
+import org.ojalgo.RecoverableCondition;
+import org.ojalgo.array.operation.AXPY;
+import org.ojalgo.array.operation.DOT;
+import org.ojalgo.array.operation.NRM2;
+import org.ojalgo.array.operation.NRMINF;
+import org.ojalgo.array.operation.VisitAll;
 import org.ojalgo.function.aggregator.AggregatorFunction;
 import org.ojalgo.function.aggregator.PrimitiveAggregator;
-import org.ojalgo.matrix.MatrixUtils;
+import org.ojalgo.matrix.operation.HouseholderLeft;
 import org.ojalgo.matrix.store.ElementsSupplier;
 import org.ojalgo.matrix.store.MatrixStore;
-import org.ojalgo.matrix.store.PrimitiveDenseStore;
+import org.ojalgo.matrix.store.PhysicalStore;
+import org.ojalgo.matrix.store.Primitive64Store;
 import org.ojalgo.matrix.store.RawStore;
-import org.ojalgo.matrix.store.operation.DotProduct;
-import org.ojalgo.matrix.store.operation.SubtractScaledVector;
-import org.ojalgo.type.context.NumberContext;
+import org.ojalgo.structure.Access2D;
+import org.ojalgo.structure.Access2D.Collectable;
+import org.ojalgo.structure.Structure2D;
 
 /**
- * This class adapts JAMA's QRDecomposition to ojAlgo's {@linkplain QR} interface. QR Decomposition.
  * <P>
  * For an m-by-n matrix A with m &gt;= n, the QR decomposition is an m-by-n orthogonal matrix Q and an n-by-n
  * upper triangular matrix R so that A = Q*R.
@@ -53,8 +58,7 @@ final class RawQR extends RawDecomposition implements QR<Double> {
      * @serial diagonal of R.
      */
     private double[] myDiagonalR;
-
-    private boolean myFullSize = false;
+    private int myNumberOfHouseholderTransformations = 0;
 
     /**
      * Not recommended to use this constructor directly. Consider using the static factory method
@@ -64,43 +68,114 @@ final class RawQR extends RawDecomposition implements QR<Double> {
         super();
     }
 
+    public void btran(final PhysicalStore<Double> arg) {
+
+        Primitive64Store preallocated = (Primitive64Store) arg;
+
+        double[] dataRHS = preallocated.data;
+
+        int m = this.getRowDim();
+        int n = this.getColDim();
+
+        if (m != n) {
+            throw new IllegalArgumentException("Only square matrices!");
+        }
+        if (preallocated.getRowDim() != m) {
+            throw new IllegalArgumentException("Row dimensions must agree!");
+        }
+        if (!this.isFullRank()) {
+            throw new RuntimeException("Rank deficient!");
+        }
+
+        double[][] dataInternal = this.getInternalData();
+
+        double[] colK;
+        double beta;
+
+        // Solve Rt*y = b;
+        for (int k = 0; k < n; k++) {
+
+            colK = dataInternal[k];
+            double tmpDiagK = myDiagonalR[k];
+
+            dataRHS[k] -= DOT.invoke(dataRHS, 0, colK, 0, 0, k);
+            dataRHS[k] /= tmpDiagK;
+        }
+
+        // Compute Y = transpose(Q)*B
+        for (int k = n - 1; k >= 0; k--) {
+
+            colK = dataInternal[k];
+            beta = ONE / colK[k];
+
+            HouseholderLeft.call(dataRHS, m, 0, colK, k, beta);
+        }
+    }
+
     public Double calculateDeterminant(final Access2D<?> matrix) {
 
-        final double[][] retVal = this.reset(matrix, true);
+        double[][] retVal = this.reset(matrix, true);
 
-        MatrixStore.PRIMITIVE.makeWrapper(matrix).transpose().supplyTo(this.getRawInPlaceStore());
+        Primitive64Store.FACTORY.makeWrapper(matrix).transpose().supplyTo(this.getInternalStore());
 
         this.doDecompose(retVal);
 
         return this.getDeterminant();
     }
 
+    public int countSignificant(final double threshold) {
+
+        int significant = 0;
+        for (int ij = 0, limit = myDiagonalR.length; ij < limit; ij++) {
+            if (Math.abs(myDiagonalR[ij]) > threshold) {
+                significant++;
+            }
+        }
+
+        return significant;
+    }
+
     /**
      * QR Decomposition, computed by Householder reflections. Structure to access R and the Householder
      * vectors and compute Q.
      *
-     * @param A Rectangular matrix
+     * @param matrix Rectangular matrix
      */
-    public boolean decompose(final ElementsSupplier<Double> matrix) {
+    @SuppressWarnings({ "rawtypes" })
+    public boolean decompose(final Access2D.Collectable<Double, ? super PhysicalStore<Double>> matrix) {
 
-        final double[][] retVal = this.reset(matrix, true);
+        double[][] retVal = this.reset(matrix, true);
 
-        matrix.transpose().supplyTo(this.getRawInPlaceStore());
+        if (matrix instanceof ElementsSupplier) {
+            ((ElementsSupplier) matrix).transpose().supplyTo(this.getInternalStore());
+        } else {
+            // TODO Find a better solution
+            matrix.collect(RawStore.FACTORY).transpose().supplyTo(this.getInternalStore());
+        }
 
         return this.doDecompose(retVal);
     }
 
-    public boolean equals(final MatrixStore<Double> aStore, final NumberContext context) {
-        return MatrixUtils.equals(aStore, this, context);
-    }
-
     public Double getDeterminant() {
 
-        final AggregatorFunction<Double> tmpAggrFunc = PrimitiveAggregator.getSet().product();
+        AggregatorFunction<Double> aggregator = PrimitiveAggregator.getSet().product();
 
-        this.getR().visitDiagonal(0, 0, tmpAggrFunc);
+        VisitAll.visit(myDiagonalR, aggregator);
 
-        return tmpAggrFunc.getNumber();
+        if (myNumberOfHouseholderTransformations % 2 != 0) {
+            return Double.valueOf(-aggregator.get().doubleValue());
+        }
+
+        return aggregator.get();
+    }
+
+    public MatrixStore<Double> getInverse() {
+        int tmpRowDim = this.getRowDim();
+        return this.doGetInverse(this.allocate(tmpRowDim, tmpRowDim));
+    }
+
+    public MatrixStore<Double> getInverse(final PhysicalStore<Double> preallocated) {
+        return this.doGetInverse((Primitive64Store) preallocated);
     }
 
     /**
@@ -110,28 +185,28 @@ final class RawQR extends RawDecomposition implements QR<Double> {
      */
     public RawStore getQ() {
 
-        final int m = this.getRowDim();
-        final int n = this.getColDim();
+        int m = this.getRowDim();
+        int r = this.getMinDim();
 
-        final double[][] tmpData = this.getRawInPlaceData();
+        double[][] internalData = this.getInternalData();
 
-        final RawStore retVal = new RawStore(m, n);
-        final double[][] retData = retVal.data;
+        RawStore retVal = RawDecomposition.make(m, r);
+        double[][] retData = retVal.data;
 
-        for (int k = n - 1; k >= 0; k--) {
+        for (int k = r - 1; k >= 0; k--) {
             for (int i = 0; i < m; i++) {
                 retData[i][k] = ZERO;
             }
             retData[k][k] = ONE;
-            for (int j = k; j < n; j++) {
-                if (tmpData[k][k] != 0) {
+            for (int j = k; j < r; j++) {
+                if (internalData[k][k] != 0) {
                     double s = ZERO;
                     for (int i = k; i < m; i++) {
-                        s += tmpData[k][i] * retData[i][j];
+                        s += internalData[k][i] * retData[i][j];
                     }
-                    s = -s / tmpData[k][k];
+                    s = -s / internalData[k][k];
                     for (int i = k; i < m; i++) {
-                        retData[i][j] += s * tmpData[k][i];
+                        retData[i][j] += s * internalData[k][i];
                     }
                 }
             }
@@ -146,215 +221,212 @@ final class RawQR extends RawDecomposition implements QR<Double> {
      */
     public MatrixStore<Double> getR() {
 
-        final int tmpColDim = this.getColDim();
+        int n = this.getColDim();
+        int r = this.getMinDim();
 
-        final double[][] tmpData = this.getRawInPlaceData();
+        double[][] internalData = this.getInternalData();
 
-        final RawStore retVal = new RawStore(tmpColDim, tmpColDim);
-        final double[][] retData = retVal.data;
+        RawStore retVal = RawDecomposition.make(r, n);
+        double[][] retData = retVal.data;
 
         double[] tmpRow;
-        for (int i = 0; i < tmpColDim; i++) {
+        for (int i = 0; i < r; i++) {
             tmpRow = retData[i];
             tmpRow[i] = myDiagonalR[i];
-            for (int j = i + 1; j < tmpColDim; j++) {
-                tmpRow[j] = tmpData[j][i];
+            for (int j = i + 1; j < n; j++) {
+                tmpRow[j] = internalData[j][i];
             }
         }
 
         return retVal;
     }
 
-    public int getRank() {
+    public double getRankThreshold() {
 
-        int retVal = 0;
-
-        final MatrixStore<Double> tmpR = this.getR();
-        final int tmpMinDim = (int) Math.min(tmpR.countRows(), tmpR.countColumns());
-
-        final AggregatorFunction<Double> tmpLargest = PrimitiveAggregator.LARGEST.get();
-        tmpR.visitDiagonal(0L, 0L, tmpLargest);
-        final double tmpLargestValue = tmpLargest.doubleValue();
-
-        for (int ij = 0; ij < tmpMinDim; ij++) {
-            if (!tmpR.isSmall(ij, ij, tmpLargestValue)) {
-                retVal++;
-            }
+        double largest = MACHINE_SMALLEST;
+        for (int ij = 0, limit = myDiagonalR.length; ij < limit; ij++) {
+            largest = Math.max(largest, Math.abs(myDiagonalR[ij]));
         }
 
-        return retVal;
+        double epsilon = this.getDimensionalEpsilon();
+
+        return largest * epsilon;
+    }
+
+    public MatrixStore<Double> getSolution(final Collectable<Double, ? super PhysicalStore<Double>> rhs) {
+        return this.getSolution(rhs, this.allocate(rhs.countRows(), rhs.countColumns()));
     }
 
     @Override
-    public final MatrixStore<Double> invert(final Access2D<?> original, final DecompositionStore<Double> preallocated) {
-
-        final double[][] tmpData = this.reset(MatrixStore.PRIMITIVE.makeWrapper(original), true);
-
-        MatrixStore.PRIMITIVE.makeWrapper(original).transpose().supplyTo(this.getRawInPlaceStore());
-
-        this.doDecompose(tmpData);
-
-        return this.getInverse(preallocated);
-    }
-
-    /**
-     * Is the matrix full rank?
-     *
-     * @return true if R, and hence A, has full rank.
-     */
-    public boolean isFullColumnRank() {
-
-        final int n = this.getColDim();
-
-        for (int j = 0; j < n; j++) {
-            if (myDiagonalR[j] == 0) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    public boolean isFullSize() {
-        return myFullSize;
-    }
-
-    public boolean isSolvable() {
-        return this.isFullColumnRank();
-    }
-
-    public MatrixStore<Double> reconstruct() {
-        return MatrixUtils.reconstruct(this);
-    }
-
-    public void setFullSize(final boolean fullSize) {
-        myFullSize = fullSize;
-    }
-
-    @Override
-    public MatrixStore<Double> solve(final Access2D<?> body, final Access2D<?> rhs, final DecompositionStore<Double> preallocated) {
-
-        final double[][] tmpData = this.reset(body, true);
-
-        MatrixStore.PRIMITIVE.makeWrapper(body).transpose().supplyTo(this.getRawInPlaceStore());
-
-        this.doDecompose(tmpData);
-
-        preallocated.fillMatching(rhs);
-
-        return this.doSolve((PrimitiveDenseStore) preallocated);
-    }
-
-    @Override
-    public MatrixStore<Double> solve(final ElementsSupplier<Double> rhs, final DecompositionStore<Double> preallocated) {
+    public MatrixStore<Double> getSolution(final Collectable<Double, ? super PhysicalStore<Double>> rhs, final PhysicalStore<Double> preallocated) {
 
         rhs.supplyTo(preallocated);
 
-        return this.doSolve((PrimitiveDenseStore) preallocated);
+        return this.doSolve((Primitive64Store) preallocated);
     }
 
-    public MatrixStore<Double> solve(final MatrixStore<Double> rhs, final DecompositionStore<Double> preallocated) {
-        return this.solve((Access2D<?>) rhs, preallocated);
-    }
-
-    /**
-     * Makes no use of <code>preallocated</code> at all. Simply delegates to {@link #getInverse()}.
-     *
-     * @see org.ojalgo.matrix.decomposition.MatrixDecomposition#doGetInverse(org.ojalgo.matrix.decomposition.DecompositionStore)
-     */
     @Override
-    protected MatrixStore<Double> doGetInverse(final PrimitiveDenseStore preallocated) {
+    public MatrixStore<Double> invert(final Access2D<?> original, final PhysicalStore<Double> preallocated) throws RecoverableCondition {
 
-        MatrixStore.PRIMITIVE.makeIdentity(this.getRowDim()).supplyTo(preallocated);
+        double[][] tmpData = this.reset(Primitive64Store.FACTORY.makeWrapper(original), true);
 
-        return this.doSolve(preallocated);
+        Primitive64Store.FACTORY.makeWrapper(original).transpose().supplyTo(this.getInternalStore());
+
+        this.doDecompose(tmpData);
+
+        if (this.isSolvable()) {
+            return this.getInverse(preallocated);
+        }
+        throw RecoverableCondition.newMatrixNotInvertible();
     }
 
-    boolean doDecompose(final double[][] data) {
+    public boolean isFullSize() {
+        return false;
+    }
 
-        final int m = this.getRowDim();
-        final int n = this.getColDim();
+    @Override
+    public boolean isSolvable() {
+        return super.isSolvable();
+    }
 
-        myDiagonalR = new double[n];
+    public PhysicalStore<Double> preallocate(final Structure2D template) {
+        return this.allocate(template.countRows(), template.countRows());
+    }
 
-        double[] tmpColK;
-        double nrm;
+    public PhysicalStore<Double> preallocate(final Structure2D templateBody, final Structure2D templateRHS) {
+        return this.allocate(templateBody.countRows(), templateRHS.countColumns());
+    }
 
-        // Main loop.
-        for (int k = 0; k < n; k++) {
+    @Override
+    public void reset() {
 
-            tmpColK = data[k];
+        super.reset();
 
-            // Compute 2-norm of k-th column without under/overflow.
-            nrm = ZERO;
+        myNumberOfHouseholderTransformations = 0;
+    }
+
+    public MatrixStore<Double> solve(final Access2D<?> body, final Access2D<?> rhs) throws RecoverableCondition {
+        return this.solve(body, rhs, this.preallocate(body, rhs));
+    }
+
+    @Override
+    public MatrixStore<Double> solve(final Access2D<?> body, final Access2D<?> rhs, final PhysicalStore<Double> preallocated) throws RecoverableCondition {
+
+        double[][] tmpData = this.reset(body, true);
+
+        Primitive64Store.FACTORY.makeWrapper(body).transpose().supplyTo(this.getInternalStore());
+
+        this.doDecompose(tmpData);
+
+        if (this.isSolvable()) {
+
+            preallocated.fillMatching(rhs);
+
+            return this.doSolve((Primitive64Store) preallocated);
+
+        }
+        throw RecoverableCondition.newEquationSystemNotSolvable();
+    }
+
+    private boolean doDecompose(final double[][] data) {
+
+        int m = this.getRowDim();
+        int r = this.getMinDim();
+
+        myDiagonalR = new double[r];
+
+        double[] colK;
+        for (int k = 0; k < r; k++) {
+            colK = data[k];
+
+            // Compute Infinity-norm of k-th column
+            double norm = NRMINF.invoke(colK, k, m);
+            if (norm == ZERO) {
+                break;
+            }
+            // Compute 2-norm of k-th column
+            norm = NRM2.invoke(colK, norm, k, m);
+
+            myNumberOfHouseholderTransformations++;
+
+            // Form k-th Householder vector.
+            if (colK[k] < 0) {
+                norm = -norm;
+            }
+
             for (int i = k; i < m; i++) {
-                nrm = Maths.hypot(nrm, tmpColK[i]);
+                colK[i] /= norm;
             }
+            colK[k] += ONE;
 
-            if (nrm != ZERO) {
+            // Apply transformation to remaining columns
+            double hBeta = ONE / colK[k];
 
-                // Form k-th Householder vector.
-                if (tmpColK[k] < 0) {
-                    nrm = -nrm;
-                }
-                for (int i = k; i < m; i++) {
-                    tmpColK[i] /= nrm;
-                }
-                tmpColK[k] += ONE;
+            HouseholderLeft.call(data, m, k + 1, colK, k, hBeta);
 
-                // Apply transformation to remaining columns.
-                for (int j = k + 1; j < n; j++) {
-                    SubtractScaledVector.invoke(data[j], 0, tmpColK, 0, DotProduct.invoke(tmpColK, 0, data[j], 0, k, m) / tmpColK[k], k, m);
-                }
-            }
-            myDiagonalR[k] = -nrm;
+            myDiagonalR[k] = -norm;
         }
 
         return this.computed(true);
     }
 
-    MatrixStore<Double> doSolve(final PrimitiveDenseStore preallocated) {
+    /**
+     * Makes no use of <code>preallocated</code> at all. Simply delegates to {@link #getInverse()}.
+     */
+    private MatrixStore<Double> doGetInverse(final Primitive64Store preallocated) {
 
-        final double[] tmpRHSdata = preallocated.data;
+        Primitive64Store.FACTORY.makeIdentity(this.getRowDim()).supplyTo(preallocated);
 
-        final int m = this.getRowDim();
-        final int n = this.getColDim();
-        final int s = (int) preallocated.countColumns();
+        return this.doSolve(preallocated);
+    }
 
-        if ((int) preallocated.countRows() != m) {
-            throw new IllegalArgumentException("RawStore row dimensions must agree.");
+    private MatrixStore<Double> doSolve(final Primitive64Store preallocated) {
+
+        double[] dataRHS = preallocated.data;
+
+        int m = this.getRowDim();
+        int n = this.getColDim();
+        int s = preallocated.getColDim();
+
+        if (preallocated.getRowDim() != m) {
+            throw new IllegalArgumentException("Row dimensions must agree!");
         }
-        if (!this.isFullColumnRank()) {
-            throw new RuntimeException("RawStore is rank deficient.");
+        if (!this.isFullRank()) {
+            throw new RuntimeException("Rank deficient!");
         }
 
-        final double[][] tmpData = this.getRawInPlaceData();
+        double[][] dataInternal = this.getInternalData();
 
-        double[] tmpColK;
+        double[] colK;
+        double beta;
 
         // Compute Y = transpose(Q)*B
         for (int k = 0; k < n; k++) {
 
-            tmpColK = tmpData[k];
+            colK = dataInternal[k];
+            beta = ONE / colK[k];
 
-            for (int j = 0; j < s; j++) {
-                final double tmpVal = DotProduct.invoke(tmpColK, 0, tmpRHSdata, m * j, k, m);
-                SubtractScaledVector.invoke(tmpRHSdata, m * j, tmpColK, 0, tmpVal / tmpColK[k], k, m);
-            }
+            HouseholderLeft.call(dataRHS, m, 0, colK, k, beta);
         }
 
         // Solve R*X = Y;
         for (int k = n - 1; k >= 0; k--) {
 
-            tmpColK = tmpData[k];
-            final double tmpDiagK = myDiagonalR[k];
+            colK = dataInternal[k];
+            double tmpDiagK = myDiagonalR[k];
 
             for (int j = 0; j < s; j++) {
-                tmpRHSdata[k + (j * m)] /= tmpDiagK;
-                SubtractScaledVector.invoke(tmpRHSdata, j * m, tmpColK, 0, tmpRHSdata[k + (j * m)], 0, k);
+                dataRHS[k + j * m] /= tmpDiagK;
+                AXPY.invoke(dataRHS, j * m, -dataRHS[k + j * m], colK, 0, 0, k);
             }
         }
 
-        return preallocated.builder().rows(0, n).build();
+        return preallocated.limits(n, s);
+    }
+
+    @Override
+    protected boolean checkSolvability() {
+        return this.isAspectRatioNormal() && this.isFullRank();
     }
 
 }

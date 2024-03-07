@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,7 +21,7 @@
  */
 package org.ojalgo.matrix.store;
 
-import org.ojalgo.ProgrammingError;
+import org.ojalgo.function.constant.PrimitiveMath;
 import org.ojalgo.scalar.Scalar;
 
 /**
@@ -29,60 +29,89 @@ import org.ojalgo.scalar.Scalar;
  *
  * @author apete
  */
-final class RowsStore<N extends Number> extends SelectingStore<N> {
+final class RowsStore<N extends Comparable<N>> extends SelectingStore<N> {
 
-    private final int myFirst;
     private final int[] myRows;
 
-    @SuppressWarnings("unused")
-    private RowsStore(final MatrixStore<N> aBase) {
+    RowsStore(final MatrixStore<N> base, final int... rows) {
 
-        this(aBase, null);
+        super(base, rows.length, (int) base.countColumns());
 
-        ProgrammingError.throwForIllegalInvocation();
-    }
-
-    RowsStore(final int aFirst, final int aLimit, final MatrixStore<N> aBase) {
-
-        super(aLimit - aFirst, (int) aBase.countColumns(), aBase);
-
-        myRows = null;
-        myFirst = aFirst;
-    }
-
-    RowsStore(final MatrixStore<N> aBase, final int... someRows) {
-
-        super(someRows.length, (int) aBase.countColumns(), aBase);
-
-        myRows = someRows;
-        myFirst = 0;
+        myRows = rows;
     }
 
     /**
      * @see org.ojalgo.matrix.store.MatrixStore#doubleValue(long, long)
      */
-    public double doubleValue(final long row, final long column) {
-        if (myRows != null) {
-            return this.getBase().doubleValue(myRows[(int) row], column);
+    @Override
+    public double doubleValue(final int row, final int col) {
+        int rowIndex = this.toBaseIndex(row);
+        if (rowIndex >= 0) {
+            return this.base().doubleValue(rowIndex, col);
         } else {
-            return this.getBase().doubleValue(myFirst + row, column);
+            return PrimitiveMath.ZERO;
         }
     }
 
-    public N get(final long row, final long column) {
-        if (myRows != null) {
-            return this.getBase().get(myRows[(int) row], column);
+    @Override
+    public int firstInRow(final int row) {
+        int rowIndex = this.toBaseIndex(row);
+        if (rowIndex >= 0) {
+            return this.base().firstInRow(rowIndex);
         } else {
-            return this.getBase().get(myFirst + row, column);
+            return this.getColDim();
         }
     }
 
-    public Scalar<N> toScalar(final long row, final long column) {
-        if (myRows != null) {
-            return this.getBase().toScalar(myRows[(int) row], column);
+    @Override
+    public N get(final int row, final int col) {
+        int rowIndex = this.toBaseIndex(row);
+        if (rowIndex >= 0) {
+            return this.base().get(rowIndex, col);
         } else {
-            return this.getBase().toScalar(myFirst + row, column);
+            return this.zero().get();
         }
+    }
+
+    @Override
+    public int limitOfRow(final int row) {
+        int rowIndex = this.toBaseIndex(row);
+        if (rowIndex >= 0) {
+            return this.base().limitOfRow(rowIndex);
+        } else {
+            return 0;
+        }
+    }
+
+    @Override
+    public void supplyTo(final TransformableRegion<N> consumer) {
+        final MatrixStore<N> base = this.base();
+        for (int i = 0; i < myRows.length; i++) {
+            int rowIndex = this.toBaseIndex(i);
+            if (rowIndex >= 0) {
+                consumer.fillRow(i, base.sliceRow(rowIndex));
+            } else {
+                consumer.fillColumn(i, this.zero().get());
+            }
+        }
+    }
+
+    @Override
+    public Scalar<N> toScalar(final long row, final long col) {
+        int rowIndex = this.toBaseIndex(row);
+        if (rowIndex >= 0) {
+            return this.base().toScalar(rowIndex, col);
+        } else {
+            return this.zero();
+        }
+    }
+
+    private int toBaseIndex(final int row) {
+        return myRows[row];
+    }
+
+    private int toBaseIndex(final long row) {
+        return myRows[Math.toIntExact(row)];
     }
 
 }

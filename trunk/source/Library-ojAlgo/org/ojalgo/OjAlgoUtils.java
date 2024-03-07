@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,23 +21,59 @@
  */
 package org.ojalgo;
 
-import java.util.Date;
+import java.time.LocalDate;
 
 import org.ojalgo.machine.Hardware;
 import org.ojalgo.machine.VirtualMachine;
+import org.ojalgo.matrix.operation.MatrixOperation;
 import org.ojalgo.netio.BasicLogger;
-import org.ojalgo.type.StandardType;
 
 public abstract class OjAlgoUtils {
+
+    /**
+     * This is set for you, but you may want to set it to something different/better. Create a
+     * {@linkplain Hardware} instance and then call {@linkplain Hardware#virtualise()}. The idea is that the
+     * {@linkplain Hardware} instance should match the actual hardware, but the {@linkplain VirtualMachine}
+     * can optionally be limited to only let ojAlgo "see" a subset of the cores/threads. Changing this must be
+     * the very first thing you do with ojAlgo.
+     */
+    public static VirtualMachine ENVIRONMENT = null;
+
+    static {
+
+        String architecture = VirtualMachine.getArchitecture();
+        long memory = VirtualMachine.getMemory();
+        int threads = VirtualMachine.getThreads();
+
+        for (Hardware hw : Hardware.PREDEFINED) {
+            if (hw.architecture.equals(architecture) && (hw.threads == threads) && (hw.memory >= memory)) {
+                ENVIRONMENT = hw.virtualise();
+            }
+        }
+
+        if (ENVIRONMENT == null) {
+            if (System.getProperty("shut.up.ojAlgo") == null) {
+                BasicLogger.debug("ojAlgo includes a small set of predefined hardware profiles,");
+                BasicLogger.debug("none of which were deemed suitable for the hardware you're currently using.");
+                BasicLogger.debug("A default hardware profile, that is perfectly usable, has been set for you.");
+                BasicLogger.debug("You may want to set org.ojalgo.OjAlgoUtils.ENVIRONMENT to something that");
+                BasicLogger.debug("better matches the hardware/OS/JVM you're running on, than the default.");
+                BasicLogger.debug("Additionally it would be appreciated if you contribute your hardware profile:");
+                BasicLogger.debug("https://github.com/optimatika/ojAlgo/issues");
+                BasicLogger.debug("Architecture={} Threads={} Memory={}", architecture, threads, memory);
+            }
+            ENVIRONMENT = Hardware.makeSimple(architecture, memory, threads).virtualise();
+        }
+    }
 
     /**
      * @see Package#getSpecificationVersion()
      */
     public static String getDate() {
 
-        final String tmpManifestValue = OjAlgoUtils.class.getPackage().getSpecificationVersion();
+        String manifestValue = OjAlgoUtils.class.getPackage().getSpecificationVersion();
 
-        return tmpManifestValue != null ? tmpManifestValue : StandardType.SQL_DATE.format(new Date());
+        return manifestValue != null ? manifestValue : LocalDate.now().toString();
     }
 
     /**
@@ -45,9 +81,9 @@ public abstract class OjAlgoUtils {
      */
     public static String getTitle() {
 
-        final String tmpManifestValue = OjAlgoUtils.class.getPackage().getImplementationTitle();
+        String manifestValue = OjAlgoUtils.class.getPackage().getImplementationTitle();
 
-        return tmpManifestValue != null ? tmpManifestValue : "ojAlgo";
+        return manifestValue != null ? manifestValue : "ojAlgo";
     }
 
     /**
@@ -55,9 +91,9 @@ public abstract class OjAlgoUtils {
      */
     public static String getVendor() {
 
-        final String tmpManifestValue = OjAlgoUtils.class.getPackage().getImplementationVendor();
+        String manifestValue = OjAlgoUtils.class.getPackage().getImplementationVendor();
 
-        return tmpManifestValue != null ? tmpManifestValue : "Optimatika";
+        return manifestValue != null ? manifestValue : "Optimatika";
     }
 
     /**
@@ -65,38 +101,65 @@ public abstract class OjAlgoUtils {
      */
     public static String getVersion() {
 
-        final String tmpManifestValue = OjAlgoUtils.class.getPackage().getImplementationVersion();
+        String manifestValue = OjAlgoUtils.class.getPackage().getImplementationVersion();
 
-        return tmpManifestValue != null ? tmpManifestValue : "X.X";
+        return manifestValue != null ? manifestValue : "X.Y.Z";
     }
 
     /**
-     * This is set for you, but you may want to set it to something different/better. Create a
-     * {@linkplain Hardware} instance and then call {@linkplain Hardware#virtualise()}.
+     * With several CPU cores present you can limit the number of threads used by ojAlgo by defining how many
+     * of the cores ojAlgo should "see".
+     *
+     * @param maxCores The number of CPU cores available to ojAlgo
      */
-    public static VirtualMachine ENVIRONMENT = null;
+    public static void limitCoresTo(final int maxCores) {
+        double newCores = Math.max(1, Math.min(ENVIRONMENT.cores, maxCores));
+        ENVIRONMENT = ENVIRONMENT.limitBy(newCores / ENVIRONMENT.cores);
+    }
 
-    static {
+    public static void limitEnvironmentBy(final double fraction) {
+        ENVIRONMENT = ENVIRONMENT.limitBy(fraction);
+    }
 
-        final String tmpArchitecture = VirtualMachine.getArchitecture();
-        final long tmpMemory = VirtualMachine.getMemory();
-        final int tmpThreads = VirtualMachine.getThreads();
+    /**
+     * @param maxThreads The number of CPU threads available to ojAlgo
+     */
+    public static void limitThreadsTo(final int maxThreads) {
+        double newThreads = Math.max(1, Math.min(ENVIRONMENT.threads, maxThreads));
+        ENVIRONMENT = ENVIRONMENT.limitBy(newThreads / ENVIRONMENT.threads);
+    }
 
-        for (final Hardware tmpHardware : Hardware.PREDEFINED) {
-            if (tmpHardware.architecture.equals(tmpArchitecture) && (tmpHardware.threads == tmpThreads) && (tmpHardware.memory >= tmpMemory)) {
-                ENVIRONMENT = tmpHardware.virtualise();
-            }
-        }
+    /**
+     * With several CPU:s present you can limit the number of threads used by ojAlgo by defining how many of
+     * the CPU:s ojAlgo should "see".
+     *
+     * @param maxUnits The number of CPU:s available to ojAlgo
+     */
+    public static void limitUnitsTo(final int maxUnits) {
+        double newUnits = Math.max(1, Math.min(ENVIRONMENT.units, maxUnits));
+        ENVIRONMENT = ENVIRONMENT.limitBy(newUnits / ENVIRONMENT.units);
+    }
 
-        if (ENVIRONMENT == null) {
-            BasicLogger.debug("ojAlgo includes a small set of predefined hardware profiles,");
-            BasicLogger.debug("none of which were deemed suitable for the hardware you're currently using.");
-            BasicLogger.debug("You should set org.ojalgo.OjAlgoUtils.ENVIRONMENT to something that matches the hardware/OS/JVM you're running on.");
-            BasicLogger.debug("Additionally it would be appreciated if you contribute your hardware profile to ojAlgo.");
-            BasicLogger.debug("https://lists.sourceforge.net/lists/listinfo/ojalgo-user");
-            ENVIRONMENT = Hardware.makeSimple(tmpArchitecture, tmpMemory, tmpThreads).virtualise();
-        }
+    public static void main(final String[] args) {
+        BasicLogger.debug();
+        BasicLogger.debug("####################################################################");
+        BasicLogger.debug("#################### Welcome to oj! Algorithms #####################");
+        BasicLogger.debug("####################################################################");
+        BasicLogger.debug("{} version {} built by {}.", OjAlgoUtils.getTitle(), OjAlgoUtils.getVersion(), OjAlgoUtils.getVendor());
+        BasicLogger.debug("####################################################################");
+        BasicLogger.debug();
+        BasicLogger.debug("Machine Architecture: {}", VirtualMachine.getArchitecture());
+        BasicLogger.debug("Machine Threads: {}", VirtualMachine.getThreads());
+        BasicLogger.debug("Machine Memory: {}", VirtualMachine.getMemory());
+        BasicLogger.debug();
+        BasicLogger.debug("ojAlgo Environment: {}", ENVIRONMENT);
+        BasicLogger.debug();
+        BasicLogger.debug("System properties: {}", System.getProperties());
+        BasicLogger.debug();
+    }
 
+    public static void pushUpConcurrencyThresholds(final int minValue) {
+        MatrixOperation.setThresholdsMinValue(minValue);
     }
 
     private OjAlgoUtils() {

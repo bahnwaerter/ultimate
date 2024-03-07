@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,7 +29,7 @@ import org.ojalgo.random.Uniform;
 
 /**
  * Password
- * 
+ *
  * @author apete
  */
 public class Password {
@@ -37,17 +37,17 @@ public class Password {
     private static MessageDigest INSTANCE;
 
     /**
-     * @param aPassword An unencrypted (plain text) password
+     * @param plainTextPassword An unencrypted (plain text) password
      * @return An encrypted password
      */
-    public static String encrypt(final String aPassword) {
+    public static String encrypt(final String plainTextPassword) {
 
         String retVal = null;
-        final MessageDigest tmpDigest = Password.getInstance();
+        final MessageDigest digest = Password.getInstance();
 
-        if (aPassword != null) {
+        if (plainTextPassword != null) {
 
-            final byte[] tmpBytes = tmpDigest.digest(aPassword.getBytes());
+            final byte[] tmpBytes = digest.digest(plainTextPassword.getBytes());
 
             for (int i = 0; i < tmpBytes.length; i++) {
 
@@ -79,42 +79,40 @@ public class Password {
     }
 
     /**
-     * @param aPassword An unencrypted (plain text) password
-     * @param aToBytesEncoding
-     * @param aFromBytesEncoding
+     * @param plainTextPassword An unencrypted (plain text) password
      * @return An encrypted password
      */
-    public static String encrypt(final String aPassword, final String aToBytesEncoding, final String aFromBytesEncoding) {
+    public static String encrypt(final String plainTextPassword, final String toBytesEncoding, final String fromBytesEncoding) {
 
         String retVal = null;
-        final MessageDigest tmpDigest = Password.getInstance();
+        final MessageDigest digest = Password.getInstance();
 
-        if (aPassword != null) {
+        if (plainTextPassword != null) {
 
             try {
 
-                final byte[] tmpBytes = tmpDigest.digest(aPassword.getBytes(aToBytesEncoding));
+                final byte[] tmpBytes = digest.digest(plainTextPassword.getBytes(toBytesEncoding));
 
-                retVal = new String(tmpBytes, aFromBytesEncoding).trim();
+                retVal = new String(tmpBytes, fromBytesEncoding).trim();
 
-            } catch (final UnsupportedEncodingException anE) {
-                BasicLogger.error(anE.toString());
+            } catch (final UnsupportedEncodingException cause) {
+                BasicLogger.error(cause.toString());
             }
         }
 
         return retVal;
     }
 
-    public static String makeClearText(final int length) {
+    public static String makePlainText(final int length) {
 
         final char[] retVal = new char[length];
 
-        final Uniform tmpRandom = new Uniform(0, 128);
+        final Uniform random = new Uniform(0, 128);
 
         for (int c = 0; c < length; c++) {
             int tmpChar = ASCII.NBSP;
             do {
-                tmpChar = tmpRandom.intValue();
+                tmpChar = random.intValue();
             } while (!ASCII.isAlphanumeric(tmpChar));
             retVal[c] = (char) tmpChar;
         }
@@ -126,9 +124,9 @@ public class Password {
 
         if (INSTANCE == null) {
             try {
-                INSTANCE = MessageDigest.getInstance("MD5");
-            } catch (final NoSuchAlgorithmException anE) {
-                BasicLogger.error(anE.toString());
+                INSTANCE = MessageDigest.getInstance("SHA-512");
+            } catch (final NoSuchAlgorithmException cause) {
+                BasicLogger.error(cause.toString());
             }
         }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,7 +21,7 @@
  */
 package org.ojalgo.matrix.store;
 
-import org.ojalgo.ProgrammingError;
+import org.ojalgo.function.constant.PrimitiveMath;
 import org.ojalgo.scalar.Scalar;
 
 /**
@@ -29,60 +29,86 @@ import org.ojalgo.scalar.Scalar;
  *
  * @author apete
  */
-final class ColumnsStore<N extends Number> extends SelectingStore<N> {
+final class ColumnsStore<N extends Comparable<N>> extends SelectingStore<N> {
 
     private final int[] myColumns;
-    private final int myFirst;
 
-    @SuppressWarnings("unused")
-    private ColumnsStore(final MatrixStore<N> aBase) {
+    ColumnsStore(final MatrixStore<N> base, final int[] columns) {
 
-        this(aBase, null);
+        super(base, (int) base.countRows(), columns.length);
 
-        ProgrammingError.throwForIllegalInvocation();
+        myColumns = columns;
     }
 
-    ColumnsStore(final int aFirst, final int aLimit, final MatrixStore<N> aBase) {
-
-        super((int) aBase.countRows(), aLimit - aFirst, aBase);
-
-        myColumns = null;
-        myFirst = aFirst;
-    }
-
-    ColumnsStore(final MatrixStore<N> aBase, final int... someColumns) {
-
-        super((int) aBase.countRows(), someColumns.length, aBase);
-
-        myColumns = someColumns;
-        myFirst = 0;
-    }
-
-    /**
-     * @see org.ojalgo.matrix.store.MatrixStore#doubleValue(long, long)
-     */
-    public double doubleValue(final long row, final long column) {
-        if (myColumns != null) {
-            return this.getBase().doubleValue(row, myColumns[(int) column]);
+    @Override
+    public double doubleValue(final int row, final int col) {
+        int colIndex = this.toBaseIndex(col);
+        if (colIndex >= 0) {
+            return this.base().doubleValue(row, colIndex);
         } else {
-            return this.getBase().doubleValue(row, myFirst + column);
+            return PrimitiveMath.ZERO;
         }
     }
 
-    public N get(final long row, final long column) {
-        if (myColumns != null) {
-            return this.getBase().get(row, myColumns[(int) column]);
+    @Override
+    public int firstInColumn(final int col) {
+        int colIndex = this.toBaseIndex(col);
+        if (colIndex >= 0) {
+            return this.base().firstInColumn(colIndex);
         } else {
-            return this.getBase().get(row, myFirst + column);
+            return this.getRowDim();
         }
     }
 
-    public Scalar<N> toScalar(final long row, final long column) {
-        if (myColumns != null) {
-            return this.getBase().toScalar(row, myColumns[(int) column]);
+    @Override
+    public N get(final int row, final int col) {
+        int colIndex = this.toBaseIndex(col);
+        if (colIndex >= 0) {
+            return this.base().get(row, colIndex);
         } else {
-            return this.getBase().toScalar(row, myFirst + column);
+            return this.zero().get();
         }
+    }
+
+    @Override
+    public int limitOfColumn(final int col) {
+        int colIndex = this.toBaseIndex(col);
+        if (colIndex >= 0) {
+            return this.base().limitOfColumn(colIndex);
+        } else {
+            return 0;
+        }
+    }
+
+    @Override
+    public void supplyTo(final TransformableRegion<N> consumer) {
+        final MatrixStore<N> base = this.base();
+        for (int j = 0; j < myColumns.length; j++) {
+            int colIndex = this.toBaseIndex(j);
+            if (colIndex >= 0) {
+                consumer.fillColumn(j, base.sliceColumn(colIndex));
+            } else {
+                consumer.fillColumn(j, this.zero().get());
+            }
+        }
+    }
+
+    @Override
+    public Scalar<N> toScalar(final long row, final long col) {
+        int colIndex = this.toBaseIndex(col);
+        if (colIndex >= 0) {
+            return this.base().toScalar(row, colIndex);
+        } else {
+            return this.zero();
+        }
+    }
+
+    private int toBaseIndex(final int col) {
+        return myColumns[col];
+    }
+
+    private int toBaseIndex(final long col) {
+        return myColumns[Math.toIntExact(col)];
     }
 
 }

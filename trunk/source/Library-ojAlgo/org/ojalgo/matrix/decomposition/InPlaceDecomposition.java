@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,53 +21,50 @@
  */
 package org.ojalgo.matrix.decomposition;
 
-import org.ojalgo.matrix.store.ElementsSupplier;
+import org.ojalgo.ProgrammingError;
 import org.ojalgo.matrix.store.MatrixStore;
+import org.ojalgo.matrix.store.PhysicalStore;
+import org.ojalgo.structure.Access2D;
 
-abstract class InPlaceDecomposition<N extends Number> extends GenericDecomposition<N> {
+abstract class InPlaceDecomposition<N extends Comparable<N>> extends GenericDecomposition<N> {
 
     private int myColDim;
     private DecompositionStore<N> myInPlace;
     private int myRowDim;
 
-    protected InPlaceDecomposition(final DecompositionStore.Factory<N, ? extends DecompositionStore<N>> aFactory) {
-        super(aFactory);
+    protected InPlaceDecomposition(final DecompositionStore.Factory<N, ? extends DecompositionStore<N>> factory) {
+        super(factory);
     }
 
-    public final MatrixStore<N> getInverse() {
-        return this.getInverse(this.preallocate(this.getRowDim(), this.getRowDim()));
-    }
-
-    public MatrixStore<N> getInverse(final DecompositionStore<N> preallocated) {
-        throw new UnsupportedOperationException();
-    }
-
-    protected final int getColDim() {
+    @Override
+    public int getColDim() {
         return myColDim;
     }
 
-    protected final DecompositionStore<N> getInPlace() {
-        return myInPlace;
+    public MatrixStore<N> getInverse() {
+        return this.getInverse(this.allocate(this.getRowDim(), this.getRowDim()));
     }
 
-    protected final int getMaxDim() {
-        return Math.max(myRowDim, myColDim);
+    public MatrixStore<N> getInverse(final PhysicalStore<N> preallocated) {
+        ProgrammingError.throwForUnsupportedOptionalOperation();
+        return null;
     }
 
-    protected final int getMinDim() {
-        return Math.min(myRowDim, myColDim);
-    }
-
-    protected final int getRowDim() {
+    @Override
+    public int getRowDim() {
         return myRowDim;
     }
 
-    final DecompositionStore<N> setInPlace(final ElementsSupplier<N> matrix) {
+    protected DecompositionStore<N> getInPlace() {
+        return myInPlace;
+    }
 
-        final int tmpRowDim = (int) matrix.countRows();
-        final int tmpColDim = (int) matrix.countColumns();
+    DecompositionStore<N> setInPlace(final Access2D.Collectable<N, ? super DecompositionStore<N>> matrix) {
 
-        if ((myInPlace != null) && (myRowDim == tmpRowDim) && (myColDim == tmpColDim)) {
+        int tmpRowDim = (int) matrix.countRows();
+        int tmpColDim = (int) matrix.countColumns();
+
+        if (myInPlace != null && myRowDim == tmpRowDim && myColDim == tmpColDim) {
 
         } else {
 
@@ -79,7 +76,6 @@ abstract class InPlaceDecomposition<N extends Number> extends GenericDecompositi
 
         matrix.supplyTo(myInPlace);
 
-        this.aspectRatioNormal(tmpRowDim >= tmpColDim);
         this.computed(false);
 
         return myInPlace;

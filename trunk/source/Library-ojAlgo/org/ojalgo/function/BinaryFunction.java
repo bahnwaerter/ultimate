@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,25 +24,23 @@ package org.ojalgo.function;
 import java.util.function.BinaryOperator;
 import java.util.function.DoubleBinaryOperator;
 
-public interface BinaryFunction<N extends Number> extends BasicFunction<N>, BinaryOperator<N>, DoubleBinaryOperator {
+import org.ojalgo.ProgrammingError;
+import org.ojalgo.type.NumberDefinition;
+
+public interface BinaryFunction<N extends Comparable<N>> extends BasicFunction, BinaryOperator<N>, DoubleBinaryOperator {
 
     /**
      * A {@linkplain BinaryFunction} with a set/fixed first argument.
      *
      * @author apete
      */
-    public static final class FixedFirst<N extends Number> implements UnaryFunction<N> {
+    public static final class FixedFirst<N extends Comparable<N>> implements UnaryFunction<N>, NumberDefinition {
 
+        private final double myDoubleValue;
+        private final float myFloatValue;
         private final BinaryFunction<N> myFunction;
         private final N myNumber;
-        private final double myValue;
 
-        @SuppressWarnings("unused")
-        private FixedFirst() {
-            this(null, null);
-        }
-
-        @SuppressWarnings("unchecked")
         FixedFirst(final double arg1, final BinaryFunction<N> function) {
 
             super();
@@ -50,7 +48,8 @@ public interface BinaryFunction<N extends Number> extends BasicFunction<N>, Bina
             myFunction = function;
 
             myNumber = (N) Double.valueOf(arg1);
-            myValue = arg1;
+            myDoubleValue = arg1;
+            myFloatValue = (float) arg1;
         }
 
         FixedFirst(final N arg1, final BinaryFunction<N> function) {
@@ -60,26 +59,35 @@ public interface BinaryFunction<N extends Number> extends BasicFunction<N>, Bina
             myFunction = function;
 
             myNumber = arg1;
-            myValue = arg1.doubleValue();
+            myDoubleValue = NumberDefinition.doubleValue(arg1);
+            myFloatValue = NumberDefinition.floatValue(arg1);
         }
 
-        public final double doubleValue() {
-            return myValue;
+        public double doubleValue() {
+            return myDoubleValue;
         }
 
-        public final BinaryFunction<N> getFunction() {
+        public float floatValue() {
+            return myFloatValue;
+        }
+
+        public BinaryFunction<N> getFunction() {
             return myFunction;
         }
 
-        public final N getNumber() {
+        public N getNumber() {
             return myNumber;
         }
 
-        public final double invoke(final double arg2) {
-            return myFunction.invoke(myValue, arg2);
+        public double invoke(final double arg2) {
+            return myFunction.invoke(myDoubleValue, arg2);
         }
 
-        public final N invoke(final N arg2) {
+        public float invoke(final float arg2) {
+            return myFunction.invoke(myFloatValue, arg2);
+        }
+
+        public N invoke(final N arg2) {
             return myFunction.invoke(myNumber, arg2);
         }
 
@@ -90,18 +98,13 @@ public interface BinaryFunction<N extends Number> extends BasicFunction<N>, Bina
      *
      * @author apete
      */
-    public static final class FixedSecond<N extends Number> implements UnaryFunction<N> {
+    public static final class FixedSecond<N extends Comparable<N>> implements UnaryFunction<N>, NumberDefinition {
 
+        private final double myDoubleValue;
+        private final float myFloatValue;
         private final BinaryFunction<N> myFunction;
         private final N myNumber;
-        private final double myValue;
 
-        @SuppressWarnings("unused")
-        private FixedSecond() {
-            this(null, null);
-        }
-
-        @SuppressWarnings("unchecked")
         FixedSecond(final BinaryFunction<N> function, final double arg2) {
 
             super();
@@ -109,7 +112,8 @@ public interface BinaryFunction<N extends Number> extends BasicFunction<N>, Bina
             myFunction = function;
 
             myNumber = (N) Double.valueOf(arg2);
-            myValue = arg2;
+            myDoubleValue = arg2;
+            myFloatValue = (float) arg2;
         }
 
         FixedSecond(final BinaryFunction<N> function, final N arg2) {
@@ -119,34 +123,62 @@ public interface BinaryFunction<N extends Number> extends BasicFunction<N>, Bina
             myFunction = function;
 
             myNumber = arg2;
-            myValue = arg2.doubleValue();
+            myDoubleValue = NumberDefinition.doubleValue(arg2);
+            myFloatValue = NumberDefinition.floatValue(arg2);
         }
 
-        public final double doubleValue() {
-            return myValue;
+        public double doubleValue() {
+            return myDoubleValue;
         }
 
-        public final BinaryFunction<N> getFunction() {
+        public float floatValue() {
+            return myFloatValue;
+        }
+
+        public BinaryFunction<N> getFunction() {
             return myFunction;
         }
 
-        public final N getNumber() {
+        public N getNumber() {
             return myNumber;
         }
 
-        public final double invoke(final double arg1) {
-            return myFunction.invoke(arg1, myValue);
+        public double invoke(final double arg1) {
+            return myFunction.invoke(arg1, myDoubleValue);
         }
 
-        public final N invoke(final N arg1) {
+        public float invoke(final float arg1) {
+            return myFunction.invoke(arg1, myFloatValue);
+        }
+
+        public N invoke(final N arg1) {
             return myFunction.invoke(arg1, myNumber);
         }
 
     }
 
-    public abstract double invoke(double arg1, double arg2);
+    default BinaryFunction<N> andThen(final UnaryFunction<N> after) {
+        ProgrammingError.throwIfNull(after);
+        return new BinaryFunction<>() {
 
-    public abstract N invoke(N arg1, N arg2);
+            public double invoke(final double arg1, final double arg2) {
+                return after.invoke(BinaryFunction.this.invoke(arg1, arg2));
+            }
+
+            public float invoke(final float arg1, final float arg2) {
+                return after.invoke(BinaryFunction.this.invoke(arg1, arg2));
+            }
+
+            public N invoke(final N arg1, final double arg2) {
+                return after.invoke(BinaryFunction.this.invoke(arg1, arg2));
+            }
+
+            public N invoke(final N arg1, final N arg2) {
+                return after.invoke(BinaryFunction.this.invoke(arg1, arg2));
+            }
+
+        };
+    }
 
     /**
      * @see java.util.function.BiFunction#apply(java.lang.Object, java.lang.Object)
@@ -163,10 +195,28 @@ public interface BinaryFunction<N extends Number> extends BasicFunction<N>, Bina
     }
 
     /**
-     * @see #first(Number)
+     * To allow syntax like <code>array.modifyAll(DIVIDE.by(3.0));</code>
+     *
+     * @see #second(double)
+     */
+    default UnaryFunction<N> by(final double arg2) {
+        return this.second(arg2);
+    }
+
+    /**
+     * To allow syntax like <code>array.modifyAll(DIVIDE.by(3.0));</code>
+     *
+     * @see #second(double)
+     */
+    default UnaryFunction<N> by(final N arg2) {
+        return this.second(arg2);
+    }
+
+    /**
+     * @see #first(Comparable)
      */
     default UnaryFunction<N> first(final double arg1) {
-        return new FixedFirst<N>(arg1, this);
+        return new FixedFirst<>(arg1, this);
     }
 
     /**
@@ -177,14 +227,40 @@ public interface BinaryFunction<N extends Number> extends BasicFunction<N>, Bina
      * @return The resulting unary function.
      */
     default UnaryFunction<N> first(final N arg1) {
-        return new FixedFirst<N>(arg1, this);
+        return new FixedFirst<>(arg1, this);
+    }
+
+    default byte invoke(final byte arg1, final byte arg2) {
+        return (byte) this.invoke((double) arg1, (double) arg2);
+    }
+
+    double invoke(double arg1, double arg2);
+
+    default float invoke(final float arg1, final float arg2) {
+        return (float) this.invoke((double) arg1, (double) arg2);
+    }
+
+    default int invoke(final int arg1, final int arg2) {
+        return NumberDefinition.toInt(this.invoke((double) arg1, (double) arg2));
+    }
+
+    default long invoke(final long arg1, final long arg2) {
+        return NumberDefinition.toLong(this.invoke((double) arg1, (double) arg2));
+    }
+
+    N invoke(N arg1, double arg2);
+
+    N invoke(N arg1, N arg2);
+
+    default short invoke(final short arg1, final short arg2) {
+        return (short) this.invoke((double) arg1, (double) arg2);
     }
 
     /**
-     * @see #second(Number)
+     * @see #second(Comparable)
      */
     default UnaryFunction<N> second(final double arg2) {
-        return new FixedSecond<N>(this, arg2);
+        return new FixedSecond<>(this, arg2);
     }
 
     /**
@@ -195,7 +271,7 @@ public interface BinaryFunction<N extends Number> extends BasicFunction<N>, Bina
      * @return The resulting unary function.
      */
     default UnaryFunction<N> second(final N arg2) {
-        return new FixedSecond<N>(this, arg2);
+        return new FixedSecond<>(this, arg2);
     }
 
 }

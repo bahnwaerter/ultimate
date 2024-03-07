@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,6 +21,14 @@
  */
 package org.ojalgo.type;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.ojalgo.concurrent.ParallelismSupplier;
+
+/**
+ * @deprecated v53 Use {@link AtomicInteger}, {@link ParallelismSupplier} or whatever
+ */
+@Deprecated
 public final class IntCount {
 
     private static final boolean BOOLEAN_FALSE = false;
@@ -69,17 +77,11 @@ public final class IntCount {
         if (this == obj) {
             return true;
         }
-        if (obj == null) {
-            return false;
-        }
-        if (!(obj instanceof IntCount)) {
+        if ((obj == null) || !(obj instanceof IntCount)) {
             return false;
         }
         final IntCount other = (IntCount) obj;
-        if (count != other.count) {
-            return false;
-        }
-        if (modified != other.modified) {
+        if ((count != other.count) || (modified != other.modified)) {
             return false;
         }
         return true;
@@ -97,8 +99,7 @@ public final class IntCount {
         final int prime = 31;
         int result = 1;
         result = (prime * result) + count;
-        result = (prime * result) + (modified ? 1231 : 1237);
-        return result;
+        return (prime * result) + (modified ? 1231 : 1237);
     }
 
     /**

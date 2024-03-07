@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,114 +21,164 @@
  */
 package org.ojalgo.matrix;
 
-import java.math.BigDecimal;
-
-import org.ojalgo.access.Access1D;
-import org.ojalgo.access.Access2D;
-import org.ojalgo.matrix.store.ComplexDenseStore;
+import org.ojalgo.matrix.decomposition.Cholesky;
+import org.ojalgo.matrix.decomposition.Eigenvalue;
+import org.ojalgo.matrix.decomposition.LDL;
+import org.ojalgo.matrix.decomposition.LU;
+import org.ojalgo.matrix.decomposition.QR;
+import org.ojalgo.matrix.decomposition.SingularValue;
+import org.ojalgo.matrix.store.ElementsSupplier;
+import org.ojalgo.matrix.store.GenericStore;
 import org.ojalgo.matrix.store.MatrixStore;
 import org.ojalgo.matrix.store.PhysicalStore;
+import org.ojalgo.matrix.store.Primitive64Store;
+import org.ojalgo.matrix.store.SparseStore;
+import org.ojalgo.matrix.task.DeterminantTask;
+import org.ojalgo.matrix.task.InverterTask;
+import org.ojalgo.matrix.task.SolverTask;
 import org.ojalgo.scalar.ComplexNumber;
-import org.ojalgo.type.context.NumberContext;
+import org.ojalgo.structure.Structure2D;
 
 /**
- * ComplexMatrix
- *
- * @author apete
+ * @deprecated v53 Use {@link MatrixC128} instead.
  */
-public final class ComplexMatrix extends AbstractMatrix<ComplexNumber, ComplexMatrix> {
+@Deprecated
+public final class ComplexMatrix extends BasicMatrix<ComplexNumber, ComplexMatrix> {
 
-    public static final BasicMatrix.Factory<ComplexMatrix> FACTORY = new MatrixFactory<ComplexNumber, ComplexMatrix>(ComplexMatrix.class,
-            ComplexDenseStore.FACTORY);
+    public static final class DenseReceiver extends Mutator2D<ComplexNumber, ComplexMatrix, PhysicalStore<ComplexNumber>> {
 
-    public static Builder<ComplexMatrix> getBuilder(final int aLength) {
-        return FACTORY.getBuilder(aLength);
+        DenseReceiver(final PhysicalStore<ComplexNumber> delegate) {
+            super(delegate);
+        }
+
+        @Override
+        ComplexMatrix instantiate(final MatrixStore<ComplexNumber> store) {
+            return FACTORY.instantiate(store);
+        }
+
     }
 
-    public static Builder<ComplexMatrix> getBuilder(final int aRowDim, final int aColDim) {
-        return FACTORY.getBuilder(aRowDim, aColDim);
+    public static final class Factory extends MatrixFactory<ComplexNumber, ComplexMatrix, ComplexMatrix.DenseReceiver, ComplexMatrix.SparseReceiver> {
+
+        Factory() {
+            super(ComplexMatrix.class, GenericStore.C128);
+        }
+
+        @Override
+        ComplexMatrix.DenseReceiver dense(final PhysicalStore<ComplexNumber> store) {
+            return new ComplexMatrix.DenseReceiver(store);
+        }
+
+        @Override
+        ComplexMatrix.SparseReceiver sparse(final SparseStore<ComplexNumber> store) {
+            return new ComplexMatrix.SparseReceiver(store);
+        }
+
     }
+
+    public static final class SparseReceiver extends Mutator2D<ComplexNumber, ComplexMatrix, SparseStore<ComplexNumber>> {
+
+        SparseReceiver(final SparseStore<ComplexNumber> delegate) {
+            super(delegate);
+        }
+
+        @Override
+        ComplexMatrix instantiate(final MatrixStore<ComplexNumber> store) {
+            return FACTORY.instantiate(store);
+        }
+
+    }
+
+    public static final Factory FACTORY = new Factory();
 
     /**
      * This method is for internal use only - YOU should NOT use it!
      */
-    ComplexMatrix(final MatrixStore<ComplexNumber> aStore) {
-        super(aStore);
+    ComplexMatrix(final ElementsSupplier<ComplexNumber> supplier) {
+        super(FACTORY.getPhysicalFactory(), supplier);
     }
 
-    public ComplexMatrix enforce(final NumberContext context) {
-        return this.modify(context.getComplexFunction());
+    @Override
+    public ComplexMatrix.DenseReceiver copy() {
+        return new ComplexMatrix.DenseReceiver(this.store().copy());
     }
 
     /**
      * @return A primitive double valued matrix containg this matrix' element arguments
      */
-    @SuppressWarnings("unchecked")
-    public PrimitiveMatrix getArgument() {
-        return ((MatrixFactory<Double, PrimitiveMatrix>) PrimitiveMatrix.FACTORY).instantiate(MatrixUtils.getComplexArgument(this.getStore()));
+    public Primitive64Matrix getArgument() {
+        return Primitive64Matrix.FACTORY.instantiate(Primitive64Store.getComplexArgument(this.store()));
     }
 
     /**
      * @return A primitive double valued matrix containg this matrix' element imaginary parts
      */
-    @SuppressWarnings("unchecked")
-    public PrimitiveMatrix getImaginary() {
-        return ((MatrixFactory<Double, PrimitiveMatrix>) PrimitiveMatrix.FACTORY).instantiate(MatrixUtils.getComplexImaginary(this.getStore()));
+    public Primitive64Matrix getImaginary() {
+        return Primitive64Matrix.FACTORY.instantiate(Primitive64Store.getComplexImaginary(this.store()));
     }
 
     /**
      * @return A primitive double valued matrix containg this matrix' element modulus
      */
-    @SuppressWarnings("unchecked")
-    public PrimitiveMatrix getModulus() {
-        return ((MatrixFactory<Double, PrimitiveMatrix>) PrimitiveMatrix.FACTORY).instantiate(MatrixUtils.getComplexModulus(this.getStore()));
+    public Primitive64Matrix getModulus() {
+        return Primitive64Matrix.FACTORY.instantiate(Primitive64Store.getComplexModulus(this.store()));
     }
 
     /**
      * @return A primitive double valued matrix containg this matrix' element real parts
      */
-    @SuppressWarnings("unchecked")
-    public PrimitiveMatrix getReal() {
-        return ((MatrixFactory<Double, PrimitiveMatrix>) PrimitiveMatrix.FACTORY).instantiate(MatrixUtils.getComplexReal(this.getStore()));
-    }
-
-    public BigDecimal toBigDecimal(final int row, final int column) {
-        return new BigDecimal(this.getStore().doubleValue(row, column));
-    }
-
-    public ComplexNumber toComplexNumber(final int row, final int column) {
-        return this.getStore().get(row, column);
+    public Primitive64Matrix getReal() {
+        return Primitive64Matrix.FACTORY.instantiate(Primitive64Store.getComplexReal(this.store()));
     }
 
     @Override
-    public PhysicalStore<ComplexNumber> toComplexStore() {
-        return this.getStore().copy();
+    Cholesky<ComplexNumber> newCholesky(final Structure2D typical) {
+        return Cholesky.COMPLEX.make(typical);
     }
 
-    public String toString(final int row, final int col) {
-        return this.toComplexNumber(row, col).toString();
-    }
-
-    @SuppressWarnings("unchecked")
     @Override
-    MatrixFactory<ComplexNumber, ComplexMatrix> getFactory() {
-        return (MatrixFactory<ComplexNumber, ComplexMatrix>) FACTORY;
+    DeterminantTask<ComplexNumber> newDeterminantTask(final Structure2D template) {
+        return DeterminantTask.C128.make(template, this.isHermitian(), false);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    MatrixStore<ComplexNumber> getStoreFrom(final Access1D<?> aMtrx) {
-        if (aMtrx instanceof ComplexMatrix) {
-            return ((ComplexMatrix) aMtrx).getStore();
-        } else if (aMtrx instanceof ComplexDenseStore) {
-            return (ComplexDenseStore) aMtrx;
-        } else if ((aMtrx instanceof MatrixStore) && !this.isEmpty() && (aMtrx.get(0) instanceof ComplexNumber)) {
-            return (MatrixStore<ComplexNumber>) aMtrx;
-        } else if (aMtrx instanceof Access2D<?>) {
-            return this.getPhysicalFactory().copy((Access2D<?>) aMtrx);
-        } else {
-            return this.getPhysicalFactory().columns(aMtrx);
-        }
+    Eigenvalue<ComplexNumber> newEigenvalue(final Structure2D typical) {
+        return Eigenvalue.COMPLEX.make(typical, this.isHermitian());
+    }
+
+    @Override
+    ComplexMatrix newInstance(final ElementsSupplier<ComplexNumber> store) {
+        return new ComplexMatrix(store);
+    }
+
+    @Override
+    InverterTask<ComplexNumber> newInverterTask(final Structure2D base) {
+        return InverterTask.COMPLEX.make(base, this.isHermitian(), false);
+    }
+
+    @Override
+    LDL<ComplexNumber> newLDL(final Structure2D typical) {
+        return LDL.COMPLEX.make(typical);
+    }
+
+    @Override
+    LU<ComplexNumber> newLU(final Structure2D typical) {
+        return LU.COMPLEX.make(typical);
+    }
+
+    @Override
+    QR<ComplexNumber> newQR(final Structure2D typical) {
+        return QR.COMPLEX.make(typical);
+    }
+
+    @Override
+    SingularValue<ComplexNumber> newSingularValue(final Structure2D typical) {
+        return SingularValue.COMPLEX.make(typical);
+    }
+
+    @Override
+    SolverTask<ComplexNumber> newSolverTask(final Structure2D templateBody, final Structure2D templateRHS) {
+        return SolverTask.COMPLEX.make(templateBody, templateRHS, this.isHermitian(), false);
     }
 
 }

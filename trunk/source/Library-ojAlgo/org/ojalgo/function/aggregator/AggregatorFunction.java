@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,27 +21,121 @@
  */
 package org.ojalgo.function.aggregator;
 
+import org.ojalgo.function.PredicateFunction;
 import org.ojalgo.function.VoidFunction;
 import org.ojalgo.scalar.Scalar;
+import org.ojalgo.structure.AccessScalar;
 
-public interface AggregatorFunction<N extends Number> extends VoidFunction<N> {
+public interface AggregatorFunction<N extends Comparable<N>> extends VoidFunction<N>, AccessScalar<N> {
 
-    double doubleValue();
+    final class PredicateWrapper<N extends Comparable<N>> implements AggregatorFunction<N> {
 
-    N getNumber();
+        private final AggregatorFunction<N> myAggregator;
+        private final PredicateFunction<N> myPredicate;
 
-    int intValue();
+        PredicateWrapper(final PredicateFunction<N> predicate, final AggregatorFunction<N> aggregator) {
+            super();
+            myPredicate = predicate;
+            myAggregator = aggregator;
+        }
 
-    void merge(N result);
+        public boolean booleanValue() {
+            return myAggregator.booleanValue();
+        }
 
-    N merge(N result1, N result2);
+        public byte byteValue() {
+            return myAggregator.byteValue();
+        }
+
+        public double doubleValue() {
+            return myAggregator.doubleValue();
+        }
+
+        public float floatValue() {
+            return myAggregator.floatValue();
+        }
+
+        public N get() {
+            return myAggregator.get();
+        }
+
+        public int intValue() {
+            return myAggregator.intValue();
+        }
+
+        public void invoke(final byte arg) {
+            if (myPredicate.test(arg)) {
+                myAggregator.invoke(arg);
+            }
+        }
+
+        public void invoke(final double arg) {
+            if (myPredicate.test(arg)) {
+                myAggregator.invoke(arg);
+            }
+        }
+
+        public void invoke(final float arg) {
+            if (myPredicate.test(arg)) {
+                myAggregator.invoke(arg);
+            }
+        }
+
+        public void invoke(final int arg) {
+            if (myPredicate.test(arg)) {
+                myAggregator.invoke(arg);
+            }
+        }
+
+        public void invoke(final long arg) {
+            if (myPredicate.test(arg)) {
+                myAggregator.invoke(arg);
+            }
+        }
+
+        public void invoke(final N arg) {
+            if (myPredicate.test(arg)) {
+                myAggregator.invoke(arg);
+            }
+        }
+
+        public void invoke(final short arg) {
+            if (myPredicate.test(arg)) {
+                myAggregator.invoke(arg);
+            }
+        }
+
+        public long longValue() {
+            return myAggregator.longValue();
+        }
+
+        public AggregatorFunction<N> reset() {
+            return myAggregator.reset();
+        }
+
+        public short shortValue() {
+            return myAggregator.shortValue();
+        }
+
+        public Scalar<N> toScalar() {
+            return myAggregator.toScalar();
+        }
+
+    }
+
+    /**
+     * Only the values that pass the predicate filter will actually be part of the aggregation.
+     */
+    default AggregatorFunction<N> filter(final PredicateFunction<N> predicate) {
+        return new PredicateWrapper<>(predicate, this);
+    }
 
     AggregatorFunction<N> reset();
 
-    default AggregationResults<N> snapshot() {
-        return new AggregationResults<N>(this.getNumber(), this.doubleValue(), this.intValue(), this.intValue());
-    }
-
+    /**
+     * @deprecated v53 Will be removed
+     */
+    @Deprecated
     Scalar<N> toScalar();
 
 }

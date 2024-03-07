@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,45 +21,56 @@
  */
 package org.ojalgo.matrix.store;
 
-import org.ojalgo.ProgrammingError;
-import org.ojalgo.access.Access2D;
+import org.ojalgo.scalar.Scalar.Factory;
+import org.ojalgo.structure.Access1D;
+import org.ojalgo.structure.Access2D;
+import org.ojalgo.structure.Structure2D;
 
 /**
  * @author apete
  */
-final class WrapperStore<N extends Number> extends FactoryStore<N> {
+final class WrapperStore<N extends Comparable<N>> extends FactoryStore<N> {
 
-    private final Access2D<?> myAccess;
+    private final Access1D<?> myAccess;
+    private final Factory<N> myScalarFactory;
+    private final int myStructure;
 
-    private WrapperStore(final PhysicalStore.Factory<N, ?> factory, final int rowsCount, final int columnsCount) {
-        super(factory, rowsCount, columnsCount);
-        myAccess = null;
-        ProgrammingError.throwForIllegalInvocation();
+    WrapperStore(final Access1D<?> access1D, final PhysicalStore.Factory<N, ?> factory) {
+
+        super(factory, access1D.size(), 1);
+
+        myAccess = access1D;
+        myScalarFactory = factory.scalar();
+        myStructure = access1D.size();
     }
 
-    WrapperStore(final PhysicalStore.Factory<N, ?> factory, final Access2D<?> access) {
+    WrapperStore(final PhysicalStore.Factory<N, ?> factory, final Access2D<?> access2D) {
 
-        super(factory, (int) access.countRows(), (int) access.countColumns());
+        super(factory, access2D.getRowDim(), access2D.getColDim());
 
-        myAccess = access;
-    }
-
-    public double doubleValue(final long aRow, final long aCol) {
-        return myAccess.doubleValue(aRow, aCol);
-    }
-
-    public N get(final long aRow, final long aCol) {
-        return this.factory().scalar().cast(myAccess.get(aRow, aCol));
-    }
-
-    @Override
-    public void supplyTo(final ElementsConsumer<N> consumer) {
-        this.supplyNonZerosTo(consumer);
+        myAccess = access2D;
+        myScalarFactory = factory.scalar();
+        myStructure = access2D.getRowDim();
     }
 
     @Override
-    protected void supplyNonZerosTo(final ElementsConsumer<N> consumer) {
-        consumer.fillMatching(myAccess);
+    public double doubleValue(final int index) {
+        return myAccess.doubleValue(index);
+    }
+
+    @Override
+    public double doubleValue(final int row, final int col) {
+        return myAccess.doubleValue(Structure2D.index(myStructure, row, col));
+    }
+
+    @Override
+    public N get(final int row, final int col) {
+        return myScalarFactory.cast(myAccess.get(Structure2D.index(myStructure, row, col)));
+    }
+
+    @Override
+    public N get(final long index) {
+        return myScalarFactory.cast(myAccess.get(index));
     }
 
 }

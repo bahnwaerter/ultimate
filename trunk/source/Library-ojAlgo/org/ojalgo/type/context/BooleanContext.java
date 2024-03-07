@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,8 +27,6 @@ import org.ojalgo.ProgrammingError;
 import org.ojalgo.type.format.BooleanFormat;
 
 /**
- * BooleanContext
- * 
  * @author apete
  */
 public final class BooleanContext extends FormatContext<Boolean> {
@@ -39,6 +37,10 @@ public final class BooleanContext extends FormatContext<Boolean> {
         super(DEFAULT_FORMAT);
     }
 
+    public BooleanContext(final String trueValue, final String falseValue) {
+        super(new BooleanFormat(trueValue, falseValue));
+    }
+
     private BooleanContext(final Format format) {
         super(format);
         ProgrammingError.throwForIllegalInvocation();
@@ -46,7 +48,11 @@ public final class BooleanContext extends FormatContext<Boolean> {
 
     @Override
     public Boolean enforce(final Boolean object) {
-        return object;
+        if (object == null) {
+            return Boolean.FALSE;
+        } else {
+            return object;
+        }
     }
 
     @Override
@@ -56,11 +62,11 @@ public final class BooleanContext extends FormatContext<Boolean> {
 
     @Override
     protected String handleFormatException(final Format format, final Object object) {
-        return "";
+        return "?";
     }
 
     @Override
     protected Boolean handleParseException(final Format format, final String string) {
-        return false;
+        return Boolean.FALSE;
     }
 }

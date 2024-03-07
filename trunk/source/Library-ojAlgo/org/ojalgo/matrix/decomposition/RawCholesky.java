@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,24 +21,21 @@
  */
 package org.ojalgo.matrix.decomposition;
 
-import static org.ojalgo.constant.PrimitiveMath.*;
+import static org.ojalgo.function.constant.PrimitiveMath.*;
 
-import org.ojalgo.access.Access2D;
-import org.ojalgo.matrix.MatrixUtils;
-import org.ojalgo.matrix.store.ElementsSupplier;
+import org.ojalgo.RecoverableCondition;
+import org.ojalgo.array.operation.DOT;
 import org.ojalgo.matrix.store.MatrixStore;
-import org.ojalgo.matrix.store.PrimitiveDenseStore;
+import org.ojalgo.matrix.store.PhysicalStore;
 import org.ojalgo.matrix.store.RawStore;
-import org.ojalgo.matrix.store.operation.DotProduct;
-import org.ojalgo.type.context.NumberContext;
+import org.ojalgo.structure.Access2D;
+import org.ojalgo.structure.Access2D.Collectable;
+import org.ojalgo.structure.Structure2D;
 
-/**
- * This class adapts JAMA's CholeskyDecomposition to ojAlgo's {@linkplain Cholesky} interface.
- *
- * @author apete
- */
 final class RawCholesky extends RawDecomposition implements Cholesky<Double> {
 
+    private double myMaxDiag = ONE;
+    private double myMinDiag = ZERO;
     private boolean mySPD = false;
 
     /**
@@ -49,51 +46,65 @@ final class RawCholesky extends RawDecomposition implements Cholesky<Double> {
         super();
     }
 
+    public void btran(final PhysicalStore<Double> arg) {
+        this.doSolve(arg);
+    }
+
     public Double calculateDeterminant(final Access2D<?> matrix) {
 
-        final double[][] retVal = this.reset(matrix, false);
+        double[][] retVal = this.reset(matrix, false);
 
         this.doDecompose(retVal, matrix);
 
         return this.getDeterminant();
     }
 
-    public boolean checkAndCompute(final MatrixStore<Double> matrix) {
+    public boolean checkAndDecompose(final MatrixStore<Double> matrix) {
 
-        mySPD = MatrixUtils.isHermitian(matrix);
+        mySPD = matrix.isHermitian();
 
         if (mySPD) {
 
-            final double[][] retVal = this.reset(matrix, false);
+            double[][] retVal = this.reset(matrix, false);
 
             return this.doDecompose(retVal, matrix);
 
-        } else {
-
-            return this.computed(false);
         }
+        return this.computed(false);
     }
 
-    public boolean decompose(final ElementsSupplier<Double> matrix) {
+    public int countSignificant(final double threshold) {
 
-        final double[][] retVal = this.reset(matrix, false);
+        double minimum = Math.sqrt(threshold);
 
-        final RawStore tmpRawInPlaceStore = this.getRawInPlaceStore();
+        RawStore internal = this.getInternalStore();
+
+        int significant = 0;
+        for (int ij = 0, limit = this.getMinDim(); ij < limit; ij++) {
+            if (internal.doubleValue(ij, ij) > minimum) {
+                significant++;
+            }
+        }
+
+        return significant;
+    }
+
+    public boolean decompose(final Access2D.Collectable<Double, ? super PhysicalStore<Double>> matrix) {
+
+        double[][] retVal = this.reset(matrix, false);
+
+        RawStore tmpRawInPlaceStore = this.getInternalStore();
 
         matrix.supplyTo(tmpRawInPlaceStore);
 
         return this.doDecompose(retVal, tmpRawInPlaceStore);
     }
 
-    public boolean equals(final MatrixStore<Double> matrix, final NumberContext context) {
-        return MatrixUtils.equals(matrix, this, context);
-    }
-
     public Double getDeterminant() {
 
-        final double[][] tmpData = this.getRawInPlaceData();
+        double[][] tmpData = this.getInternalData();
 
-        final int tmpMinDim = this.getMinDim();
+        int tmpMinDim = this.getMinDim();
 
         double retVal = ONE;
         double tmpVal;
@@ -105,98 +116,137 @@ final class RawCholesky extends RawDecomposition implements Cholesky<Double> {
         return retVal;
     }
 
+    public MatrixStore<Double> getInverse() {
+        int tmpRowDim = this.getRowDim();
+        return this.doGetInverse(this.allocate(tmpRowDim, tmpRowDim));
+    }
+
+    public MatrixStore<Double> getInverse(final PhysicalStore<Double> preallocated) {
+        return this.doGetInverse(preallocated);
+    }
+
     public MatrixStore<Double> getL() {
-        return this.getRawInPlaceStore().builder().triangular(false, false).build();
+        return this.getInternalStore().triangular(false, false);
+    }
+
+    public double getRankThreshold() {
+        return TEN * myMaxDiag * this.getDimensionalEpsilon();
+    }
+
+    public MatrixStore<Double> getSolution(final Collectable<Double, ? super PhysicalStore<Double>> rhs) {
+        DecompositionStore<Double> tmpPreallocated = this.allocate(rhs.countRows(), rhs.countColumns());
+        return this.getSolution(rhs, tmpPreallocated);
     }
 
     @Override
-    public MatrixStore<Double> invert(final Access2D<?> original, final DecompositionStore<Double> preallocated) {
-
-        final double[][] retVal = this.reset(original, false);
-
-        this.doDecompose(retVal, original);
-
-        return this.getInverse(preallocated);
-    }
-
-    public boolean isSolvable() {
-        return this.isComputed() && this.isSPD();
-    }
-
-    public boolean isSPD() {
-        return mySPD;
-    }
-
-    @Override
-    public MatrixStore<Double> solve(final Access2D<?> body, final Access2D<?> rhs, final DecompositionStore<Double> preallocated) {
-
-        final double[][] retVal = this.reset(body, false);
-
-        this.doDecompose(retVal, body);
-
-        preallocated.fillMatching(rhs);
-
-        return this.doSolve(preallocated);
-    }
-
-    @Override
-    public MatrixStore<Double> solve(final ElementsSupplier<Double> rhs, final DecompositionStore<Double> preallocated) {
+    public MatrixStore<Double> getSolution(final Collectable<Double, ? super PhysicalStore<Double>> rhs, final PhysicalStore<Double> preallocated) {
 
         rhs.supplyTo(preallocated);
 
         return this.doSolve(preallocated);
     }
 
-    public MatrixStore<Double> solve(final MatrixStore<Double> rhs, final DecompositionStore<Double> preallocated) {
+    @Override
+    public MatrixStore<Double> invert(final Access2D<?> original, final PhysicalStore<Double> preallocated) throws RecoverableCondition {
 
-        preallocated.fillMatching(rhs);
+        double[][] retVal = this.reset(original, false);
 
-        return this.doSolve(preallocated);
+        this.doDecompose(retVal, original);
+
+        if (this.isSolvable()) {
+            return this.getInverse(preallocated);
+        }
+        throw RecoverableCondition.newMatrixNotInvertible();
     }
 
     @Override
-    protected MatrixStore<Double> doGetInverse(final PrimitiveDenseStore preallocated) {
-
-        final RawStore tmpBody = this.getRawInPlaceStore();
-
-        preallocated.substituteForwards(tmpBody, false, false, true);
-        preallocated.substituteBackwards(tmpBody, false, true, true);
-
-        return preallocated.builder().hermitian(false).get();
+    public boolean isSolvable() {
+        return super.isSolvable();
     }
 
-    MatrixStore<Double> doSolve(final DecompositionStore<Double> preallocated) {
-
-        final RawStore tmpBody = this.getRawInPlaceStore();
-
-        preallocated.substituteForwards(tmpBody, false, false, false);
-        preallocated.substituteBackwards(tmpBody, false, true, false);
-
-        return preallocated;
+    public boolean isSPD() {
+        return mySPD;
     }
 
-    boolean doDecompose(final double[][] data, final Access2D<?> input) {
+    public PhysicalStore<Double> preallocate(final Structure2D template) {
+        return this.allocate(template.countRows(), template.countRows());
+    }
 
-        final int tmpDiagDim = this.getRowDim();
-        mySPD = (this.getColDim() == tmpDiagDim);
+    public PhysicalStore<Double> preallocate(final Structure2D templateBody, final Structure2D templateRHS) {
+        return this.allocate(templateBody.countRows(), templateRHS.countColumns());
+    }
+
+    @Override
+    public MatrixStore<Double> solve(final Access2D<?> body, final Access2D<?> rhs, final PhysicalStore<Double> preallocated) throws RecoverableCondition {
+
+        double[][] retVal = this.reset(body, false);
+
+        this.doDecompose(retVal, body);
+
+        if (this.isSolvable()) {
+
+            preallocated.fillMatching(rhs);
+
+            return this.doSolve(preallocated);
+
+        }
+        throw RecoverableCondition.newEquationSystemNotSolvable();
+    }
+
+    private boolean doDecompose(final double[][] data, final Access2D<?> input) {
+
+        int tmpDiagDim = this.getRowDim();
+        mySPD = this.getColDim() == tmpDiagDim;
+        myMaxDiag = MACHINE_SMALLEST;
+        myMinDiag = MACHINE_LARGEST;
 
         double[] tmpRowIJ;
         double[] tmpRowI;
+        double tmpVal;
 
         // Main loop.
-        for (int ij = 0; ij < tmpDiagDim; ij++) { // For each row/column, along the diagonal
+        for (int ij = 0; mySPD && ij < tmpDiagDim; ij++) { // For each row/column, along the diagonal
             tmpRowIJ = data[ij];
 
-            final double tmpD = tmpRowIJ[ij] = Math.sqrt(Math.max(input.doubleValue(ij, ij) - DotProduct.invoke(tmpRowIJ, 0, tmpRowIJ, 0, 0, ij), ZERO));
-            mySPD &= (tmpD > ZERO);
+            tmpVal = MAX.invoke(input.doubleValue(ij, ij) - DOT.invoke(tmpRowIJ, 0, tmpRowIJ, 0, 0, ij), ZERO);
+            myMaxDiag = MAX.invoke(myMaxDiag, tmpVal);
+            myMinDiag = MIN.invoke(myMinDiag, tmpVal);
+            tmpVal = tmpRowIJ[ij] = SQRT.invoke(tmpVal);
+            mySPD = mySPD && tmpVal > ZERO;
 
             for (int i = ij + 1; i < tmpDiagDim; i++) { // Update column below current row
                 tmpRowI = data[i];
 
-                tmpRowI[ij] = (input.doubleValue(i, ij) - DotProduct.invoke(tmpRowI, 0, tmpRowIJ, 0, 0, ij)) / tmpD;
+                tmpRowI[ij] = (input.doubleValue(i, ij) - DOT.invoke(tmpRowI, 0, tmpRowIJ, 0, 0, ij)) / tmpVal;
             }
         }
 
-        return this.computed(true);
+        return this.computed(mySPD);
     }
+
+    private MatrixStore<Double> doGetInverse(final PhysicalStore<Double> preallocated) {
+
+        RawStore body = this.getInternalStore();
+
+        preallocated.substituteForwards(body, false, false, true);
+        preallocated.substituteBackwards(body, false, true, true);
+
+        return preallocated.hermitian(false);
+    }
+
+    private MatrixStore<Double> doSolve(final PhysicalStore<Double> preallocated) {
+
+        RawStore body = this.getInternalStore();
+
+        preallocated.substituteForwards(body, false, false, false);
+        preallocated.substituteBackwards(body, false, true, false);
+
+        return preallocated;
+    }
+
+    @Override
+    protected boolean checkSolvability() {
+        return mySPD && myMinDiag > this.getRankThreshold();
+    }
+
 }

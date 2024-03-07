@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,7 +23,7 @@ package org.ojalgo.type;
 
 /**
  * Alternator
- * 
+ *
  * @author apete
  */
 public class Alternator<T> {
@@ -32,14 +32,14 @@ public class Alternator<T> {
     private final T myAlternativeB;
     private boolean mySwitch;
 
-    public Alternator(final T anAlternativeA, final T anAlternativeB) {
+    public Alternator(final T alternativeA, final T alternativeB) {
 
         super();
 
         mySwitch = false;
 
-        myAlternativeA = anAlternativeA;
-        myAlternativeB = anAlternativeB;
+        myAlternativeA = alternativeA;
+        myAlternativeB = alternativeB;
     }
 
     @SuppressWarnings("unused")

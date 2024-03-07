@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -53,16 +53,14 @@ public class ScheduleBuilder {
     public void schedule(final Timer aTimer) {
         if (myStartDate != null) {
             if (myRepetitionUnit != null) {
-                aTimer.scheduleAtFixedRate(myTask, myStartDate, myRepetitionMeassure * myRepetitionUnit.size());
+                aTimer.scheduleAtFixedRate(myTask, myStartDate, myRepetitionMeassure * myRepetitionUnit.toDurationInMillis());
             } else {
                 aTimer.schedule(myTask, myStartDate);
             }
+        } else if (myRepetitionUnit != null) {
+            aTimer.scheduleAtFixedRate(myTask, new Date(), myRepetitionMeassure * myRepetitionUnit.toDurationInMillis());
         } else {
-            if (myRepetitionUnit != null) {
-                aTimer.scheduleAtFixedRate(myTask, new Date(), myRepetitionMeassure * myRepetitionUnit.size());
-            } else {
-                aTimer.schedule(myTask, new Date());
-            }
+            aTimer.schedule(myTask, new Date());
         }
     }
 
@@ -72,7 +70,7 @@ public class ScheduleBuilder {
     }
 
     public ScheduleBuilder start(final int aDelayMeassure, final CalendarDateUnit aDelayUnit) {
-        myStartDate = new Date(System.currentTimeMillis() + aDelayMeassure * aDelayUnit.size());
+        myStartDate = new Date(System.currentTimeMillis() + (aDelayMeassure * aDelayUnit.toDurationInMillis()));
         return this;
     }
 

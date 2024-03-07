@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,13 +21,14 @@
  */
 package org.ojalgo.matrix.decomposition;
 
-import java.math.BigDecimal;
-
-import org.ojalgo.access.Access2D;
-import org.ojalgo.array.BasicArray;
-import org.ojalgo.matrix.MatrixUtils;
+import org.ojalgo.array.PlainArray;
 import org.ojalgo.matrix.store.MatrixStore;
 import org.ojalgo.scalar.ComplexNumber;
+import org.ojalgo.scalar.Quadruple;
+import org.ojalgo.scalar.Quaternion;
+import org.ojalgo.scalar.RationalNumber;
+import org.ojalgo.structure.Access2D;
+import org.ojalgo.type.context.NumberContext;
 
 /**
  * <p>
@@ -47,49 +48,66 @@ import org.ojalgo.scalar.ComplexNumber;
  *
  * @author apete
  */
-public interface Cholesky<N extends Number> extends LDU<N>, MatrixDecomposition.Hermitian<N> {
+public interface Cholesky<N extends Comparable<N>> extends LDU<N>, MatrixDecomposition.Hermitian<N> {
 
-    @SuppressWarnings("unchecked")
-    public static <N extends Number> Cholesky<N> make(final Access2D<N> typical) {
+    interface Factory<N extends Comparable<N>> extends MatrixDecomposition.Factory<Cholesky<N>> {
 
-        final N tmpNumber = typical.get(0, 0);
+    }
 
-        if (tmpNumber instanceof BigDecimal) {
-            return (Cholesky<N>) new CholeskyDecomposition.Big();
-        } else if (tmpNumber instanceof ComplexNumber) {
-            return (Cholesky<N>) new CholeskyDecomposition.Complex();
-        } else if (tmpNumber instanceof Double) {
-            if ((32L < typical.countColumns()) && (typical.count() <= BasicArray.MAX_ARRAY_SIZE)) {
-                return (Cholesky<N>) new CholeskyDecomposition.Primitive();
-            } else {
-                return (Cholesky<N>) new RawCholesky();
-            }
+    Factory<ComplexNumber> C128 = typical -> new CholeskyDecomposition.C128();
+
+    Factory<Double> R064 = typical -> {
+        if ((32L < typical.countColumns()) && (typical.count() <= PlainArray.MAX_SIZE)) {
+            return new CholeskyDecomposition.R064();
         } else {
-            throw new IllegalArgumentException();
+            return new RawCholesky();
         }
-    }
+    };
 
-    public static Cholesky<BigDecimal> makeBig() {
-        return new CholeskyDecomposition.Big();
-    }
+    Factory<Quadruple> R128 = typical -> new CholeskyDecomposition.R128();
 
-    public static Cholesky<ComplexNumber> makeComplex() {
-        return new CholeskyDecomposition.Complex();
-    }
+    Factory<Quaternion> H256 = typical -> new CholeskyDecomposition.H256();
 
-    public static Cholesky<Double> makePrimitive() {
-        return new CholeskyDecomposition.Primitive();
-    }
+    Factory<RationalNumber> Q128 = typical -> new CholeskyDecomposition.Q128();
 
     /**
-     * To use the Cholesky decomposition rather than the LU decomposition the matrix must be symmetric and
-     * positive definite. It is recommended that the decomposition algorithm checks for this during
-     * calculation. Possibly the matrix could be assumed to be symmetric (to improve performance) but tests
-     * should be made to assure the matrix is positive definite.
-     *
-     * @return true if the tests did not fail.
+     * @deprecated
      */
-    public boolean isSPD();
+    @Deprecated
+    Factory<ComplexNumber> COMPLEX = C128;
+
+    /**
+     * @deprecated
+     */
+    @Deprecated
+    Factory<Double> PRIMITIVE = R064;
+
+    /**
+     * @deprecated
+     */
+    @Deprecated
+    Factory<Quadruple> QUADRUPLE = R128;
+
+    /**
+     * @deprecated
+     */
+    @Deprecated
+    Factory<Quaternion> QUATERNION = H256;
+
+    /**
+     * @deprecated
+     */
+    @Deprecated
+    Factory<RationalNumber> RATIONAL = Q128;
+
+    static <N extends Comparable<N>> boolean equals(final MatrixStore<N> matrix, final Cholesky<N> decomposition, final NumberContext context) {
+
+        boolean retVal = false;
+
+        final MatrixStore<N> tmpL = decomposition.getL();
+
+        return Access2D.equals(tmpL.multiply(tmpL.conjugate()), matrix, context);
+    }
 
     /**
      * Must implement either {@link #getL()} or {@link #getR()}.
@@ -105,8 +123,19 @@ public interface Cholesky<N extends Number> extends LDU<N>, MatrixDecomposition.
         return this.getL().conjugate();
     }
 
+    /**
+     * To use the Cholesky decomposition rather than the LU decomposition the matrix must be symmetric and
+     * positive definite. It is recommended that the decomposition algorithm checks for this during
+     * calculation. Possibly the matrix could be assumed to be symmetric (to improve performance) but tests
+     * should be made to assure the matrix is positive definite.
+     *
+     * @return true if the tests did not fail.
+     */
+    boolean isSPD();
+
     default MatrixStore<N> reconstruct() {
-        return MatrixUtils.reconstruct(this);
+        final MatrixStore<N> mtrxL = this.getL();
+        return mtrxL.multiply(mtrxL.conjugate());
     }
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,15 +21,15 @@
  */
 package org.ojalgo.matrix.store;
 
-import org.ojalgo.ProgrammingError;
 import org.ojalgo.scalar.Scalar;
+import org.ojalgo.structure.Access1D;
 
 /**
  * SuperimposedStore
  *
  * @author apete
  */
-final class SuperimposedStore<N extends Number> extends DelegatingStore<N> {
+final class SuperimposedStore<N extends Comparable<N>> extends ComposingStore<N> {
 
     private final int myColFirst;
     private final int myColLimit;
@@ -37,78 +37,113 @@ final class SuperimposedStore<N extends Number> extends DelegatingStore<N> {
     private final int myRowFirst;
     private final int myRowLimit;
 
-    @SuppressWarnings("unused")
-    private SuperimposedStore(final int rowsCount, final int columnsCount, final MatrixStore<N> base) {
+    SuperimposedStore(final MatrixStore<N> base, final long row, final long col, final MatrixStore<N> diff) {
 
-        this(base, 0, 0, (MatrixStore<N>) null);
+        super(base, base.countRows(), base.countColumns());
 
-        ProgrammingError.throwForIllegalInvocation();
-    }
+        myRowFirst = Math.toIntExact(row);
+        myColFirst = Math.toIntExact(col);
 
-    SuperimposedStore(final MatrixStore<N> base, final int row, final int column, final MatrixStore<N> diff) {
+        long diffRowDim = diff.countRows();
+        long diffColDim = diff.countColumns();
 
-        super((int) base.countRows(), (int) base.countColumns(), base);
-
-        myRowFirst = row;
-        myColFirst = column;
-
-        final int tmpDiffRowDim = (int) diff.countRows();
-        final int tmpDiffColDim = (int) diff.countColumns();
-
-        myRowLimit = row + tmpDiffRowDim;
-        myColLimit = column + tmpDiffColDim;
+        myRowLimit = Math.toIntExact(row + diffRowDim);
+        myColLimit = Math.toIntExact(col + diffColDim);
 
         myDiff = diff;
     }
 
     SuperimposedStore(final MatrixStore<N> base, final MatrixStore<N> diff) {
-        this(base, 0, 0, diff);
+        this(base, 0L, 0L, diff);
     }
 
     /**
      * @see org.ojalgo.matrix.store.MatrixStore#doubleValue(long, long)
      */
-    public double doubleValue(final long row, final long column) {
+    @Override
+    public double doubleValue(final int row, final int col) {
 
-        double retVal = this.getBase().doubleValue(row, column);
+        double retVal = this.base().doubleValue(row, col);
 
-        if (this.isCovered((int) row, (int) column)) {
-            retVal += myDiff.doubleValue(row - myRowFirst, column - myColFirst);
+        if (this.isCovered(row, col)) {
+            retVal += myDiff.doubleValue(row - myRowFirst, col - myColFirst);
         }
 
         return retVal;
     }
 
-    public N get(final long row, final long column) {
+    @Override
+    public N get(final int row, final int col) {
 
-        N retVal = this.getBase().get(row, column);
+        N retVal = this.base().get(row, col);
 
-        if (this.isCovered((int) row, (int) column)) {
-            retVal = myDiff.toScalar((int) row - myRowFirst, (int) column - myColFirst).add(retVal).getNumber();
+        if (this.isCovered(row, col)) {
+            retVal = myDiff.toScalar(row - myRowFirst, col - myColFirst).add(retVal).get();
         }
 
         return retVal;
     }
 
+    @Override
+    public void multiply(final Access1D<N> right, final TransformableRegion<N> target) {
+        // TODO Auto-generated method stub
+        super.multiply(right, target);
+    }
+
+    @Override
+    public MatrixStore<N> multiply(final double scalar) {
+        // TODO Auto-generated method stub
+        return super.multiply(scalar);
+    }
+
+    @Override
+    public MatrixStore<N> multiply(final MatrixStore<N> right) {
+        // TODO Auto-generated method stub
+        return super.multiply(right);
+    }
+
+    @Override
+    public MatrixStore<N> multiply(final N scalar) {
+        // TODO Auto-generated method stub
+        return super.multiply(scalar);
+    }
+
+    @Override
+    public N multiplyBoth(final Access1D<N> leftAndRight) {
+        // TODO Auto-generated method stub
+        return super.multiplyBoth(leftAndRight);
+    }
+
+    @Override
+    public ElementsSupplier<N> premultiply(final Access1D<N> left) {
+        // TODO Auto-generated method stub
+        return super.premultiply(left);
+    }
+
+    @Override
+    public void supplyTo(final TransformableRegion<N> consumer) {
+        consumer.fillMatching(this.base());
+        consumer.regionByLimits(myRowLimit, myColLimit).regionByOffsets(myRowFirst, myColFirst).modifyMatching(this.physical().function().add(), myDiff);
+    }
+
+    @Override
     public Scalar<N> toScalar(final long row, final long column) {
 
-        Scalar<N> retVal = this.getBase().toScalar(row, column);
+        Scalar<N> retVal = this.base().toScalar(row, column);
 
-        if (this.isCovered((int) row, (int) column)) {
+        if (this.isCovered(row, column)) {
             retVal = retVal.add(myDiff.get(row - myRowFirst, column - myColFirst));
         }
 
         return retVal;
     }
 
-    private final boolean isCovered(final int row, final int column) {
-        return (myRowFirst <= row) && (myColFirst <= column) && (row < myRowLimit) && (column < myColLimit);
+    private boolean isCovered(final int row, final int col) {
+        return myRowFirst <= row && myColFirst <= col && row < myRowLimit && col < myColLimit;
     }
 
-    @Override
-    protected void supplyNonZerosTo(final ElementsConsumer<N> consumer) {
-        consumer.fillMatching(this.getBase());
-        consumer.regionByLimits(myRowLimit, myColLimit).regionByOffsets(myRowFirst, myColFirst).modifyMatching(this.factory().function().add(), myDiff);
+    private boolean isCovered(final long row, final long col) {
+        return this.isCovered(Math.toIntExact(row), Math.toIntExact(col));
     }
 
 }

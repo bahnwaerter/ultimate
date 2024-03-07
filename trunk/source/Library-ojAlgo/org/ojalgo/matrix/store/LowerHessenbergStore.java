@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,52 +21,43 @@
  */
 package org.ojalgo.matrix.store;
 
-import org.ojalgo.ProgrammingError;
-import org.ojalgo.constant.PrimitiveMath;
+import org.ojalgo.function.constant.PrimitiveMath;
 import org.ojalgo.scalar.Scalar;
 
 /**
- * A Hessenberg matrix is one that is "almost" triangular. A lower Hessenberg matrix has zero entries above
- * the first superdiagonal.
+ * A Hessenberg matrix is one that is "almost" triangular. A lower Hessenberg matrix has zeros above the first
+ * superdiagonal, and an upper Hessenberg matrix zeros below the first subdiagonal.
  *
  * @author apete
  */
-final class LowerHessenbergStore<N extends Number> extends ShadingStore<N> {
-
-    @SuppressWarnings("unused")
-    private LowerHessenbergStore(final int aRowDim, final int aColDim, final MatrixStore<N> base) {
-
-        this(base);
-
-        ProgrammingError.throwForIllegalInvocation();
-    }
+final class LowerHessenbergStore<N extends Comparable<N>> extends ShadingStore<N> {
 
     LowerHessenbergStore(final MatrixStore<N> base) {
-        super((int) base.countRows(), (int) Math.min(base.countRows(), base.countColumns()), base);
+        super(base);
     }
 
-    public double doubleValue(final long row, final long col) {
-        if ((row + 1) < col) {
+    @Override
+    public double doubleValue(final int row, final int col) {
+        if (row + 1 < col) {
             return PrimitiveMath.ZERO;
-        } else {
-            return this.getBase().doubleValue(row, col);
         }
+        return this.base().doubleValue(row, col);
     }
 
+    @Override
     public int firstInColumn(final int col) {
         if (col == 0) {
             return 0;
-        } else {
-            return col - 1;
         }
+        return col - 1;
     }
 
-    public N get(final long row, final long col) {
-        if ((row + 1) < col) {
-            return this.factory().scalar().zero().getNumber();
-        } else {
-            return this.getBase().get(row, col);
+    @Override
+    public N get(final int row, final int col) {
+        if (row + 1 < col) {
+            return this.zero().get();
         }
+        return this.base().get(row, col);
     }
 
     @Override
@@ -74,12 +65,12 @@ final class LowerHessenbergStore<N extends Number> extends ShadingStore<N> {
         return Math.min(row + 2, this.getColDim());
     }
 
+    @Override
     public Scalar<N> toScalar(final long row, final long col) {
-        if ((row + 1) < col) {
-            return this.factory().scalar().zero();
-        } else {
-            return this.getBase().toScalar(row, col);
+        if (row + 1 < col) {
+            return this.zero();
         }
+        return this.base().toScalar(row, col);
     }
 
 }

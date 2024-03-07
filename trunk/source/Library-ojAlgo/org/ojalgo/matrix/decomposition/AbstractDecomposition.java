@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,16 +21,30 @@
  */
 package org.ojalgo.matrix.decomposition;
 
+import static org.ojalgo.function.constant.PrimitiveMath.MACHINE_EPSILON;
+
+import org.ojalgo.function.FunctionSet;
+import org.ojalgo.matrix.store.PhysicalStore;
+import org.ojalgo.scalar.Scalar;
+
 /**
  * @author apete
  */
-abstract class AbstractDecomposition<N extends Number> implements MatrixDecomposition<N> {
+abstract class AbstractDecomposition<N extends Comparable<N>> implements MatrixDecomposition<N> {
 
-    private boolean myAspectRatioNormal = true;
     private boolean myComputed = false;
+    private Boolean mySolvable = null;
 
     AbstractDecomposition() {
         super();
+    }
+
+    public final long countColumns() {
+        return this.getColDim();
+    }
+
+    public final long countRows() {
+        return this.getRowDim();
     }
 
     public final boolean isComputed() {
@@ -38,21 +52,41 @@ abstract class AbstractDecomposition<N extends Number> implements MatrixDecompos
     }
 
     public void reset() {
-        myAspectRatioNormal = true;
         myComputed = false;
+        mySolvable = null;
     }
 
-    protected final boolean aspectRatioNormal(final boolean aspectRatioNormal) {
-        return (myAspectRatioNormal = aspectRatioNormal);
+    protected abstract PhysicalStore<N> allocate(long numberOfRows, long numberOfColumns);
+
+    protected boolean checkSolvability() {
+        return false;
     }
 
     protected final boolean computed(final boolean computed) {
-        return (myComputed = computed);
+        return myComputed = computed;
+    }
+
+    protected abstract FunctionSet<N> function();
+
+    protected final double getDimensionalEpsilon() {
+        return this.getMaxDim() * MACHINE_EPSILON;
     }
 
     protected final boolean isAspectRatioNormal() {
-        return myAspectRatioNormal;
+        return this.getRowDim() >= this.getColDim();
     }
 
-    protected abstract DecompositionStore<N> preallocate(long numberOfRows, long numberOfColumns);
+    protected abstract Scalar.Factory<N> scalar();
+
+    boolean isSolvable() {
+        if (myComputed && mySolvable == null) {
+            if (this instanceof MatrixDecomposition.Solver) {
+                mySolvable = Boolean.valueOf(this.checkSolvability());
+            } else {
+                mySolvable = Boolean.FALSE;
+            }
+        }
+        return myComputed && mySolvable != null && mySolvable.booleanValue();
+    }
+
 }

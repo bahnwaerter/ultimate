@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,9 @@ package org.ojalgo.function;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 
-public interface VoidFunction<N extends Number> extends BasicFunction<N>, Consumer<N>, DoubleConsumer {
+import org.ojalgo.ProgrammingError;
+
+public interface VoidFunction<N extends Comparable<N>> extends BasicFunction, Consumer<N>, DoubleConsumer {
 
     default void accept(final double arg) {
         this.invoke(arg);
@@ -34,8 +36,47 @@ public interface VoidFunction<N extends Number> extends BasicFunction<N>, Consum
         this.invoke(arg);
     }
 
+    default VoidFunction<N> compose(final UnaryFunction<N> before) {
+        ProgrammingError.throwIfNull(before);
+        return new VoidFunction<N>() {
+
+            public void invoke(final double arg) {
+                VoidFunction.this.invoke(before.invoke(arg));
+            }
+
+            public void invoke(final float arg) {
+                VoidFunction.this.invoke(before.invoke(arg));
+            }
+
+            public void invoke(final N arg) {
+                VoidFunction.this.invoke(before.invoke(arg));
+            }
+
+        };
+    }
+
+    default void invoke(final byte arg) {
+        this.invoke((double) arg);
+    }
+
     void invoke(double arg);
 
+    default void invoke(final float arg) {
+        this.invoke((double) arg);
+    }
+
+    default void invoke(final int arg) {
+        this.invoke((double) arg);
+    }
+
+    default void invoke(final long arg) {
+        this.invoke((double) arg);
+    }
+
     void invoke(N arg);
+
+    default void invoke(final short arg) {
+        this.invoke((double) arg);
+    }
 
 }

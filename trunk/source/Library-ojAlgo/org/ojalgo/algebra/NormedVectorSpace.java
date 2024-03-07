@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,18 +21,25 @@
  */
 package org.ojalgo.algebra;
 
+import org.ojalgo.scalar.PrimitiveScalar;
+
 /**
  * @author apete
  */
-public interface NormedVectorSpace<V, F extends Number> extends VectorSpace<V, F> {
+public interface NormedVectorSpace<T, N extends Comparable<N>> extends VectorSpace<T, N> {
 
     /**
+     * @param comparedTo What to compare with
      * @return true if this is small compared to the magnitude of the input reference value.
      */
-    boolean isSmall(double comparedTo);
+    default boolean isSmall(final double comparedTo) {
+        return PrimitiveScalar.isSmall(comparedTo, this.norm());
+    }
 
     /**
      * <code>this == this.signum().multiply(this.norm())</code>
+     *
+     * @return The norm
      */
     double norm();
 
@@ -41,6 +48,6 @@ public interface NormedVectorSpace<V, F extends Number> extends VectorSpace<V, F
      *
      * @return A unit "vector"
      */
-    V signum();
+    T signum();
 
 }

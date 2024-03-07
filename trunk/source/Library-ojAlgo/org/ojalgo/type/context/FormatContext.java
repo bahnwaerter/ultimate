@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,7 +21,6 @@
  */
 package org.ojalgo.type.context;
 
-import java.io.Serializable;
 import java.text.Format;
 import java.text.ParseException;
 
@@ -33,19 +32,14 @@ import org.ojalgo.netio.ASCII;
  *
  * @author apete
  */
-abstract class FormatContext<T> implements TypeContext<T>, Serializable {
+public abstract class FormatContext<T> implements TypeContext<T> {
 
     /**
      * Use 'Non-Breaking SPace' character instead of ardinary 'space' character.
      */
     public static final boolean NBSP = true;
     private boolean myConfigured = false;
-    private Format myFormat;
-
-    @SuppressWarnings("unused")
-    private FormatContext() {
-        this((Format) null);
-    }
+    private final Format myFormat;
 
     FormatContext(final Format format) {
 
@@ -88,27 +82,23 @@ abstract class FormatContext<T> implements TypeContext<T>, Serializable {
         }
     }
 
-    public final Format getFormat() {
-        return (Format) myFormat.clone();
-    }
-
-    public final <G> TypeContext<G> newFormat(final Format format) {
-        return new GenericContext<>(this, format);
+    public Format getFormat() {
+        return (Format) this.format().clone();
     }
 
     /**
-     * @see org.ojalgo.type.context.TypeContext#parse(java.lang.String)
+     * @see org.ojalgo.type.context.TypeContext#parse(CharSequence)
      */
     @Override
     @SuppressWarnings("unchecked")
-    public final T parse(final String string) {
+    public final T parse(final CharSequence string) {
 
         if (string != null) {
 
             try {
-                return (T) myFormat.parseObject(NBSP ? string.replace(ASCII.NBSP, ASCII.SP) : string);
+                return (T) myFormat.parseObject(NBSP ? string.toString().replace(ASCII.NBSP, ASCII.SP) : string.toString());
             } catch (final ParseException anException) {
-                return this.handleParseException(myFormat, string);
+                return this.handleParseException(myFormat, string.toString());
             }
 
         } else {
@@ -117,10 +107,22 @@ abstract class FormatContext<T> implements TypeContext<T>, Serializable {
         }
     }
 
+    public final <G> TypeContext<G> withFormat(final Format format) {
+        return new GenericContext<>(this, format);
+    }
+
     protected abstract void configureFormat(Format format, Object object);
 
     protected abstract String handleFormatException(Format format, Object object);
 
     protected abstract T handleParseException(Format format, String string);
+
+    final Format format() {
+        return myFormat;
+    }
+
+    final boolean isConfigured() {
+        return myConfigured;
+    }
 
 }

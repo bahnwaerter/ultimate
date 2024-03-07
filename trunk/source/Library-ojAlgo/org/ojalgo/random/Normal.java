@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,7 +21,10 @@
  */
 package org.ojalgo.random;
 
-import static org.ojalgo.constant.PrimitiveMath.*;
+import static org.ojalgo.function.constant.PrimitiveMath.*;
+
+import org.ojalgo.function.constant.PrimitiveMath;
+import org.ojalgo.function.special.ErrorFunction;
 
 /**
  * Under general conditions, the sum of a large number of random variables is approximately normally
@@ -31,7 +34,13 @@ import static org.ojalgo.constant.PrimitiveMath.*;
  */
 public class Normal extends AbstractContinuous {
 
-    private static final long serialVersionUID = 7164712313114018919L;
+    public static Normal of(final double location, final double scale) {
+        return new Normal(location, scale);
+    }
+
+    public static Normal standard() {
+        return new Normal();
+    }
 
     private final double myLocation;
     private final double myScale;
@@ -40,34 +49,34 @@ public class Normal extends AbstractContinuous {
         this(ZERO, ONE);
     }
 
-    public Normal(final double aLocation, final double aScale) {
+    public Normal(final double location, final double scale) {
 
         super();
 
-        myLocation = aLocation;
-        myScale = aScale;
+        myLocation = location;
+        myScale = scale;
     }
 
-    public double getDistribution(final double aValue) {
-        return (ONE + RandomUtils.erf((aValue - myLocation) / (myScale * SQRT_TWO))) / TWO;
+    public double getDensity(final double value) {
+
+        final double tmpVal = (value - myLocation) / myScale;
+
+        return PrimitiveMath.EXP.invoke((tmpVal * tmpVal) / -TWO) / (myScale * SQRT_TWO_PI);
+    }
+
+    public double getDistribution(final double value) {
+        return (ONE + ErrorFunction.erf((value - myLocation) / (myScale * SQRT_TWO))) / TWO;
     }
 
     public double getExpected() {
         return myLocation;
     }
 
-    public double getProbability(final double aValue) {
+    public double getQuantile(final double probability) {
 
-        final double tmpVal = (aValue - myLocation) / myScale;
+        this.checkProbabilty(probability);
 
-        return Math.exp((tmpVal * tmpVal) / -TWO) / (myScale * SQRT_TWO_PI);
-    }
-
-    public double getQuantile(final double aProbality) {
-
-        this.checkProbabilty(aProbality);
-
-        return (myScale * SQRT_TWO * RandomUtils.erfi((TWO * aProbality) - ONE)) + myLocation;
+        return (myScale * SQRT_TWO * ErrorFunction.erfi((TWO * probability) - ONE)) + myLocation;
     }
 
     @Override

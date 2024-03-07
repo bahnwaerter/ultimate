@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,14 +24,27 @@ package org.ojalgo.matrix;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.List;
+import java.util.function.Supplier;
 
 import org.ojalgo.ProgrammingError;
-import org.ojalgo.access.Access1D;
-import org.ojalgo.access.Access2D;
-import org.ojalgo.access.Access2D.Builder;
+import org.ojalgo.array.ArrayR064;
+import org.ojalgo.function.FunctionSet;
 import org.ojalgo.function.NullaryFunction;
+import org.ojalgo.matrix.store.ElementsSupplier;
 import org.ojalgo.matrix.store.MatrixStore;
 import org.ojalgo.matrix.store.PhysicalStore;
+import org.ojalgo.matrix.store.SparseStore;
+import org.ojalgo.scalar.Scalar;
+import org.ojalgo.scalar.Scalar.Factory;
+import org.ojalgo.structure.Access1D;
+import org.ojalgo.structure.Access2D;
+import org.ojalgo.structure.Factory1D;
+import org.ojalgo.structure.Factory2D;
+import org.ojalgo.structure.Mutate2D;
+import org.ojalgo.structure.Structure2D;
+import org.ojalgo.tensor.TensorFactory1D;
+import org.ojalgo.tensor.TensorFactory2D;
+import org.ojalgo.type.math.MathType;
 
 /**
  * MatrixFactory creates instances of classes that implement the {@linkplain org.ojalgo.matrix.BasicMatrix}
@@ -39,252 +52,204 @@ import org.ojalgo.matrix.store.PhysicalStore;
  *
  * @author apete
  */
-final class MatrixFactory<N extends Number, I extends BasicMatrix> implements BasicMatrix.Factory<I> {
+public abstract class MatrixFactory<N extends Comparable<N>, M extends BasicMatrix<N, M>, DR extends Mutate2D.ModifiableReceiver<N> & Supplier<M>, SR extends Mutate2D.ModifiableReceiver<N> & Supplier<M>>
+        implements Factory2D.Dense<M>, Factory2D.MayBeSparse<M, DR, SR> {
 
-    final class MatrixBuilder implements Access2D.Builder<I> {
-
-        private final PhysicalStore.Factory<N, ?> myFactory;
-        private final PhysicalStore<N> myPhysicalStore;
-        private boolean mySafe = true;
-
-        @SuppressWarnings("unused")
-        private MatrixBuilder() {
-            this(null, 0, 0);
-        }
-
-        protected MatrixBuilder(final PhysicalStore.Factory<N, ?> aFactory, final int aRowDim, final int aColDim) {
-
-            super();
-
-            myPhysicalStore = aFactory.makeZero(aRowDim, aColDim);
-            myFactory = aFactory;
-        }
-
-        MatrixBuilder(final PhysicalStore<N> aPhysicalStore) {
-
-            super();
-
-            myPhysicalStore = aPhysicalStore;
-            myFactory = aPhysicalStore.factory();
-        }
-
-        @Override
-        public I build() {
-            mySafe = false;
-            return MatrixFactory.this.instantiate(myPhysicalStore);
-        }
-
-        public long count() {
-            return myPhysicalStore.count();
-        }
-
-        public long countColumns() {
-            return myPhysicalStore.countColumns();
-        }
-
-        public long countRows() {
-            return myPhysicalStore.countRows();
-        }
-
-        public final MatrixBuilder fillAll(final Number value) {
-            if (mySafe) {
-                myPhysicalStore.fillAll(myFactory.scalar().cast(value));
-            } else {
-                throw new IllegalStateException();
-            }
-            return this;
-        }
-
-        public final MatrixBuilder fillColumn(final long row, final long column, final Number value) {
-            if (mySafe) {
-                myPhysicalStore.fillColumn((int) row, (int) column, myFactory.scalar().cast(value));
-            } else {
-                throw new IllegalStateException();
-            }
-            return this;
-        }
-
-        public final MatrixBuilder fillDiagonal(final long row, final long column, final Number value) {
-            if (mySafe) {
-                myPhysicalStore.fillDiagonal((int) row, (int) column, myFactory.scalar().cast(value));
-            } else {
-                throw new IllegalStateException();
-            }
-            return this;
-        }
-
-        public final MatrixBuilder fillRow(final long row, final long column, final Number value) {
-            if (mySafe) {
-                myPhysicalStore.fillRow((int) row, (int) column, myFactory.scalar().cast(value));
-            } else {
-                throw new IllegalStateException();
-            }
-            return this;
-        }
-
-        public final MatrixBuilder set(final long index, final double value) {
-            if (mySafe) {
-                myPhysicalStore.set(index, value);
-            } else {
-                throw new IllegalStateException();
-            }
-            return this;
-        }
-
-        public final MatrixBuilder set(final long row, final long column, final double value) {
-            if (mySafe) {
-                myPhysicalStore.set(row, column, value);
-            } else {
-                throw new IllegalStateException();
-            }
-            return this;
-        }
-
-        public final MatrixBuilder set(final long row, final long column, final Number value) {
-            if (mySafe) {
-                myPhysicalStore.set(row, column, myFactory.scalar().cast(value));
-            } else {
-                throw new IllegalStateException();
-            }
-            return this;
-        }
-
-        public final MatrixBuilder set(final long index, final Number value) {
-            if (mySafe) {
-                myPhysicalStore.set(index, myFactory.scalar().cast(value));
-            } else {
-                throw new IllegalStateException();
-            }
-            return this;
-        }
-
-    }
-
-    private static Constructor<? extends BasicMatrix> getConstructor(final Class<? extends BasicMatrix> aTemplate) {
+    private static Constructor<? extends BasicMatrix<?, ?>> getConstructor(final Class<? extends BasicMatrix<?, ?>> template) {
         try {
-            final Constructor<? extends BasicMatrix> retVal = aTemplate.getDeclaredConstructor(MatrixStore.class);
+            Constructor<? extends BasicMatrix<?, ?>> retVal = template.getDeclaredConstructor(ElementsSupplier.class);
             retVal.setAccessible(true);
             return retVal;
-        } catch (final SecurityException anException) {
-            return null;
-        } catch (final NoSuchMethodException anException) {
-            return null;
+        } catch (SecurityException | NoSuchMethodException cause) {
+            throw new ProgrammingError(cause);
         }
     }
 
-    private final Constructor<I> myConstructor;
+    private final Constructor<M> myConstructor;
     private final PhysicalStore.Factory<N, ?> myPhysicalFactory;
 
-    @SuppressWarnings("unused")
-    private MatrixFactory() {
-
-        this(null, null);
-
-        ProgrammingError.throwForIllegalInvocation();
-    }
-
-    MatrixFactory(final Class<I> aTemplate, final PhysicalStore.Factory<N, ?> aPhysical) {
+    MatrixFactory(final Class<M> template, final PhysicalStore.Factory<N, ?> factory) {
 
         super();
 
-        myPhysicalFactory = aPhysical;
-        myConstructor = (Constructor<I>) MatrixFactory.getConstructor(aTemplate);
+        myPhysicalFactory = factory;
+        myConstructor = (Constructor<M>) MatrixFactory.getConstructor(template);
     }
 
-    public I columns(final Access1D<?>... source) {
+    public M columns(final Access1D<?>... source) {
         return this.instantiate(myPhysicalFactory.columns(source));
     }
 
-    public I columns(final double[]... source) {
+    public M columns(final Comparable<?>[]... source) {
         return this.instantiate(myPhysicalFactory.columns(source));
     }
 
-    public I columns(final List<? extends Number>... source) {
+    public M columns(final double[]... source) {
         return this.instantiate(myPhysicalFactory.columns(source));
     }
 
-    public I columns(final Number[]... source) {
+    public M columns(final List<? extends Comparable<?>>... source) {
         return this.instantiate(myPhysicalFactory.columns(source));
     }
 
-    public I copy(final Access2D<?> source) {
+    public M copy(final Access2D<?> source) {
         return this.instantiate(myPhysicalFactory.copy(source));
     }
 
-    public Builder<I> getBuilder(final int count) {
-        return this.getBuilder(count, 1);
+    @Override
+    public FunctionSet<N> function() {
+        return myPhysicalFactory.function();
     }
 
-    public Builder<I> getBuilder(final int rows, final int columns) {
-        return new MatrixBuilder(myPhysicalFactory, rows, columns);
+    public M make(final long rows, final long columns) {
+        return this.instantiate(myPhysicalFactory.makeZero((int) rows, (int) columns));
     }
 
-    public I makeEye(final long rows, final long columns) {
+    public DR makeDense(final int count) {
+        return this.makeDense(count, 1);
+    }
 
-        final int tmpMinDim = (int) Math.min(rows, columns);
+    public DR makeDense(final long rows, final long columns) {
+        return this.dense(myPhysicalFactory.make(rows, columns));
+    }
 
-        MatrixStore.Builder<N> retVal = myPhysicalFactory.builder().makeIdentity(tmpMinDim);
+    public M makeDiagonal(final Access1D<?> diagonal) {
+        return this.instantiate(myPhysicalFactory.makeDiagonal(diagonal).get());
+    }
 
-        if (rows > tmpMinDim) {
-            //retVal = new AboveBelowStore<N>(retVal, new ZeroStore<N>(myPhysicalFactory, , (int) columns));
-            retVal = retVal.below((int) rows - tmpMinDim);
-        } else if (columns > tmpMinDim) {
-            //retVal = new LeftRightStore<N>(retVal, new ZeroStore<N>(myPhysicalFactory, (int) rows, (int) columns - tmpMinDim));
-            retVal = retVal.right((int) columns - tmpMinDim);
+    public M makeDiagonal(final double... diagonal) {
+        return this.makeDiagonal(ArrayR064.wrap(diagonal));
+    }
+
+    public M makeEye(final int rows, final int columns) {
+
+        final int square = Math.min(rows, columns);
+
+        MatrixStore<N> retVal = myPhysicalFactory.makeIdentity(square);
+
+        if (rows > square) {
+            retVal = retVal.below(rows - square);
+        } else if (columns > square) {
+            retVal = retVal.right(columns - square);
         }
 
-        return this.instantiate(retVal.get());
+        return this.instantiate(retVal);
     }
 
-    public I makeFilled(final long rows, final long columns, final NullaryFunction<?> supplier) {
+    public M makeEye(final Structure2D shape) {
+        return this.makeEye(Math.toIntExact(shape.countRows()), Math.toIntExact(shape.countColumns()));
+    }
+
+    public M makeFilled(final long rows, final long columns, final NullaryFunction<?> supplier) {
         return this.instantiate(myPhysicalFactory.makeFilled(rows, columns, supplier));
     }
 
-    public I makeZero(final long rows, final long columns) {
-        //return this.instantiate(new ZeroStore<N>(myPhysicalFactory, (int) rows, (int) columns));
-        return this.instantiate(myPhysicalFactory.builder().makeZero((int) rows, (int) columns).get());
+    public M makeIdentity(final int dimension) {
+        return this.instantiate(myPhysicalFactory.makeIdentity(dimension));
     }
 
-    public I rows(final Access1D<?>... source) {
+    public M makeSingle(final N element) {
+        return this.instantiate(myPhysicalFactory.makeSingle(element));
+    }
+
+    public SR makeSparse(final long rows, final long columns) {
+        return this.sparse(myPhysicalFactory.makeSparse(rows, columns));
+    }
+
+    public SR makeSparse(final Structure2D shape) {
+        return this.makeSparse(Math.toIntExact(shape.countRows()), Math.toIntExact(shape.countColumns()));
+    }
+
+    public M makeWrapper(final Access2D<?> elements) {
+        return this.instantiate(myPhysicalFactory.makeWrapper(elements));
+    }
+
+    public M rows(final Access1D<?>... source) {
         return this.instantiate(myPhysicalFactory.rows(source));
     }
 
-    public I rows(final double[]... source) {
+    public M rows(final Comparable<?>[]... source) {
         return this.instantiate(myPhysicalFactory.rows(source));
     }
 
-    @SuppressWarnings("unchecked")
-    public I rows(final List<? extends Number>... source) {
+    public M rows(final double[]... source) {
         return this.instantiate(myPhysicalFactory.rows(source));
     }
 
-    public I rows(final Number[]... source) {
+    public M rows(final List<? extends Comparable<?>>... source) {
         return this.instantiate(myPhysicalFactory.rows(source));
     }
 
-    protected final PhysicalStore.Factory<N, ?> getPhysicalFactory() {
+    @Override
+    public Scalar.Factory<N> scalar() {
+        return myPhysicalFactory.scalar();
+    }
+
+    public TensorFactory1D<N, DR> tensor1D() {
+        return TensorFactory1D.of(new Factory1D<DR>() {
+
+            public FunctionSet<N> function() {
+                return MatrixFactory.this.function();
+            }
+
+            public DR make(final long count) {
+                return MatrixFactory.this.makeDense(count, 1L);
+            }
+
+            public Factory<N> scalar() {
+                return MatrixFactory.this.scalar();
+            }
+
+            public MathType getMathType() {
+                return MatrixFactory.this.getMathType();
+            }
+
+        });
+    }
+
+    public TensorFactory2D<N, DR> tensor2D() {
+        return TensorFactory2D.of(new Factory2D<DR>() {
+
+            public FunctionSet<N> function() {
+                return MatrixFactory.this.function();
+            }
+
+            public DR make(final long rows, final long columns) {
+                return MatrixFactory.this.makeDense(rows, columns);
+            }
+
+            public Factory<N> scalar() {
+                return MatrixFactory.this.scalar();
+            }
+
+            public MathType getMathType() {
+                return MatrixFactory.this.getMathType();
+            }
+
+        });
+    }
+
+    abstract DR dense(final PhysicalStore<N> store);
+
+    final PhysicalStore.Factory<N, ?> getPhysicalFactory() {
         return myPhysicalFactory;
     }
 
     /**
      * This method is for internal use only - YOU should NOT use it!
      */
-    final I instantiate(final MatrixStore<N> aStore) {
+    M instantiate(final ElementsSupplier<N> supplier) {
         try {
-            return myConstructor.newInstance(aStore);
-        } catch (final IllegalArgumentException anException) {
-            throw new ProgrammingError(anException);
-        } catch (final InstantiationException anException) {
-            throw new ProgrammingError(anException);
-        } catch (final IllegalAccessException anException) {
-            throw new ProgrammingError(anException);
-        } catch (final InvocationTargetException anException) {
-            throw new ProgrammingError(anException);
+            return myConstructor.newInstance(supplier);
+        } catch (final IllegalArgumentException | InstantiationException | IllegalAccessException | InvocationTargetException cause) {
+            throw new ProgrammingError(cause);
         }
     }
 
-    final MatrixBuilder wrap(final PhysicalStore<N> aStore) {
-        return new MatrixBuilder(aStore);
+    abstract SR sparse(final SparseStore<N> store);
+
+    public MathType getMathType() {
+        return myPhysicalFactory.getMathType();
     }
 
 }

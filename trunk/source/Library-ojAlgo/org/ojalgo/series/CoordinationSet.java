@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,73 +28,79 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
 
-import org.ojalgo.ProgrammingError;
-import org.ojalgo.function.BinaryFunction;
-import org.ojalgo.function.ParameterFunction;
-import org.ojalgo.function.UnaryFunction;
 import org.ojalgo.netio.ASCII;
 import org.ojalgo.type.CalendarDate;
 import org.ojalgo.type.CalendarDateUnit;
 
-public class CoordinationSet<V extends Number> extends HashMap<String, CalendarDateSeries<V>> {
+/**
+ * A {@link CoordinationSet} is used to coordinate a set of {@link CalendarDateSeries} instances.
+ *
+ * @author apete
+ */
+public class CoordinationSet<N extends Comparable<N>> extends HashMap<String, CalendarDateSeries<N>> {
 
-    private CalendarDateUnit myResolution = null;
+    private static final long serialVersionUID = 1L;
+
+    private transient CalendarDateUnit myResolution = null;
 
     public CoordinationSet() {
         super();
     }
 
-    public CoordinationSet(final CalendarDateUnit aResolution) {
+    public CoordinationSet(final CalendarDateUnit resolution) {
 
         super();
 
-        myResolution = aResolution;
+        myResolution = resolution;
     }
 
-    public CoordinationSet(final Collection<CalendarDateSeries<V>> aTimeSeriesCollection) {
+    public CoordinationSet(final Collection<CalendarDateSeries<N>> seriesCollection) {
 
-        super(aTimeSeriesCollection.size());
+        super(seriesCollection.size());
 
-        for (final CalendarDateSeries<V> tmpTimeSeries : aTimeSeriesCollection) {
+        for (final CalendarDateSeries<N> tmpTimeSeries : seriesCollection) {
             this.put(tmpTimeSeries);
         }
     }
 
-    public CoordinationSet(final Collection<CalendarDateSeries<V>> aTimeSeriesCollection, final CalendarDateUnit aResolution) {
+    public CoordinationSet(final Collection<CalendarDateSeries<N>> seriesCollection, final CalendarDateUnit resolution) {
 
-        super(aTimeSeriesCollection.size());
+        super(seriesCollection.size());
 
-        myResolution = aResolution;
+        myResolution = resolution;
 
-        for (final CalendarDateSeries<V> tmpTimeSeries : aTimeSeriesCollection) {
+        for (final CalendarDateSeries<N> tmpTimeSeries : seriesCollection) {
             this.put(tmpTimeSeries);
         }
     }
 
-    public CoordinationSet(final int someInitialCapacity) {
-        super(someInitialCapacity);
+    public CoordinationSet(final int initialCapacity) {
+        super(initialCapacity);
     }
 
-    public CoordinationSet(final int someInitialCapacity, final float someLoadFactor) {
-        super(someInitialCapacity, someLoadFactor);
+    public CoordinationSet(final int initialCapacity, final float loadFactor) {
+        super(initialCapacity, loadFactor);
     }
 
-    public CoordinationSet(final Map<? extends String, ? extends CalendarDateSeries<V>> someM) {
-        super(someM);
+    public CoordinationSet(final Map<? extends String, ? extends CalendarDateSeries<N>> members) {
+        super(members);
     }
 
+    /**
+     * Will call {@link CalendarDateSeries#complete()} on each of the instances in this set.
+     */
     public void complete() {
-        for (final CalendarDateSeries<V> tmpSeries : this.values()) {
+        for (final CalendarDateSeries<N> tmpSeries : this.values()) {
             tmpSeries.complete();
         }
     }
 
-    public CoordinationSet<V> copy() {
+    public CoordinationSet<N> copy() {
         return this.resample(this.getResolution());
     }
 
     @Override
-    public CalendarDateSeries<V> get(final Object key) {
+    public CalendarDateSeries<N> get(final Object key) {
         if (key instanceof CalendarDateSeries<?>) {
             return super.get(((CalendarDateSeries<?>) key).getName());
         } else {
@@ -102,195 +108,93 @@ public class CoordinationSet<V extends Number> extends HashMap<String, CalendarD
         }
     }
 
-    public CalendarDateSeries<V> get(final String aSeriesName) {
-        return super.get(aSeriesName);
+    public CalendarDateSeries<N> get(final String seriesName) {
+        return super.get(seriesName);
     }
 
     public List<CalendarDate> getAllCalendarDates() {
 
-        final TreeSet<CalendarDate> retVal = new TreeSet<CalendarDate>();
+        final TreeSet<CalendarDate> retVal = new TreeSet<>();
 
-        for (final CalendarDateSeries<V> tmpSeries : this.values()) {
+        for (final CalendarDateSeries<N> tmpSeries : this.values()) {
             retVal.addAll(tmpSeries.keySet());
         }
 
-        return new ArrayList<CalendarDate>(retVal);
+        return new ArrayList<>(retVal);
     }
 
     public List<String> getAllSeriesNames() {
-        return new ArrayList<String>(this.keySet());
+        return new ArrayList<>(this.keySet());
     }
 
     public CalendarDate getEarliestFirstKey() {
-
-        CalendarDate retVal = null, tmpVal = null;
-
-        for (final CalendarDateSeries<V> tmpSeries : this.values()) {
-
-            tmpVal = tmpSeries.firstKey();
-
-            if ((retVal == null) || (tmpVal.compareTo(retVal) < 0)) {
-                retVal = tmpVal;
-            }
-        }
-
-        return retVal;
+        return BasicSeries.findEarliestFirstKey(this.values());
     }
 
     public CalendarDate getEarliestLastKey() {
-
-        CalendarDate retVal = null, tmpVal = null;
-
-        for (final CalendarDateSeries<V> tmpSeries : this.values()) {
-
-            tmpVal = tmpSeries.lastKey();
-
-            if ((retVal == null) || (tmpVal.compareTo(retVal) < 0)) {
-                retVal = tmpVal;
-            }
-        }
-
-        return retVal;
+        return BasicSeries.findEarliestLastKey(this.values());
     }
 
     public CalendarDate getLatestFirstKey() {
-
-        CalendarDate retVal = null, tmpVal = null;
-
-        for (final CalendarDateSeries<V> tmpSeries : this.values()) {
-
-            tmpVal = tmpSeries.firstKey();
-
-            if ((retVal == null) || (tmpVal.compareTo(retVal) > 0)) {
-                retVal = tmpVal;
-            }
-        }
-
-        return retVal;
+        return BasicSeries.findLatestFirstKey(this.values());
     }
 
     public CalendarDate getLatestLastKey() {
-
-        CalendarDate retVal = null, tmpVal = null;
-
-        for (final CalendarDateSeries<V> tmpSeries : this.values()) {
-
-            tmpVal = tmpSeries.lastKey();
-
-            if ((retVal == null) || (tmpVal.compareTo(retVal) > 0)) {
-                retVal = tmpVal;
-            }
-        }
-
-        return retVal;
-    };
+        return BasicSeries.findLatestLastKey(this.values());
+    }
 
     public CalendarDateUnit getResolution() {
 
-        if (myResolution != null) {
+        if (myResolution == null) {
 
-            return myResolution;
+            CalendarDateUnit tmpRes = null;
 
-        } else {
+            for (CalendarDateSeries<N> series : this.values()) {
 
-            CalendarDateUnit retVal = null, tmpVal = null;
+                tmpRes = series.getResolution();
 
-            for (final CalendarDateSeries<V> tmpSeries : this.values()) {
-
-                tmpVal = tmpSeries.getResolution();
-
-                if ((retVal == null) || (tmpVal.compareTo(retVal) > 0)) {
-                    retVal = tmpVal;
+                if ((myResolution == null) || (tmpRes.compareTo(myResolution) > 0)) {
+                    myResolution = tmpRes;
                 }
             }
-
-            return retVal;
         }
+
+        return myResolution;
     }
 
-    public V getValue(final String aSeriesName, final CalendarDate aCalendarDate) {
-        return this.get(aSeriesName).get(aCalendarDate);
-    };
-
-    public void modify(final BinaryFunction<V> aFunc, final V anArg) {
-        for (final CalendarDateSeries<V> tmpSeries : this.values()) {
-            tmpSeries.modify(aFunc, anArg);
-        }
+    public N getValue(final String series, final CalendarDate date) {
+        return this.get(series).get(date);
     }
 
-    public void modify(final ParameterFunction<V> aFunc, final int aParam) {
-        for (final CalendarDateSeries<V> tmpSeries : this.values()) {
-            tmpSeries.modify(aFunc, aParam);
-        }
+    /**
+     * Returns a new CoordinationSet where all series have the same first and last keys, as well as a common
+     * (the highest common) resolution.
+     */
+    public CoordinationSet<N> prune() {
+        return this.doPruneAndResample(this.getLatestFirstKey(), this.getEarliestLastKey(), this.getResolution());
     }
 
-    public void modify(final UnaryFunction<V> aFunc) {
-        for (final CalendarDateSeries<V> tmpSeries : this.values()) {
-            tmpSeries.modify(aFunc);
-        }
+    /**
+     * Returns a new CoordinationSet where all series have the same first and last keys, as well as the
+     * specified resolution.
+     */
+    public CoordinationSet<N> prune(final CalendarDateUnit resolution) {
+        return this.doPruneAndResample(this.getLatestFirstKey(), this.getEarliestLastKey(), resolution);
     }
 
-    public CoordinationSet<V> prune() {
-
-        final CoordinationSet<V> retVal = new CoordinationSet<V>(this.getResolution());
-
-        final CalendarDate tmpFirstKey = this.getLatestFirstKey();
-        final CalendarDate tmpLastKey = this.getEarliestLastKey();
-
-        if (tmpLastKey.compareTo(tmpFirstKey) != -1) {
-            for (final CalendarDateSeries<V> tmpSeries : this.values()) {
-                final CalendarDateSeries<V> tmpSubMap = tmpSeries.subMap(tmpFirstKey, true, tmpLastKey, true);
-                retVal.put(tmpSubMap);
-            }
-        }
-
-        final CalendarDate tmpEarliestFirstKey = retVal.getEarliestFirstKey();
-        final CalendarDate tmpLatestFirstKey = retVal.getLatestFirstKey();
-        final CalendarDate tmpEarliestLastKey = retVal.getEarliestLastKey();
-        final CalendarDate tmpLatestLastKey = retVal.getLatestLastKey();
-        if (!tmpEarliestFirstKey.equals(tmpFirstKey)) {
-            throw new ProgrammingError("Something went wrong!");
-        }
-        if (!tmpLatestFirstKey.equals(tmpFirstKey)) {
-            throw new ProgrammingError("Something went wrong!");
-        }
-        if (!tmpEarliestLastKey.equals(tmpLastKey)) {
-            throw new ProgrammingError("Something went wrong!");
-        }
-        if (!tmpLatestLastKey.equals(tmpLastKey)) {
-            throw new ProgrammingError("Something went wrong!");
-        }
-
-        return retVal;
+    /**
+     * Vill use the series' name as the key. Make sure you have set the name to something that uniquely
+     * identifies the series.
+     */
+    public CalendarDateSeries<N> put(final CalendarDateSeries<N> series) {
+        return this.put(series.getName(), series);
     }
 
-    public CoordinationSet<V> prune(final CalendarDateUnit aResolution) {
-
-        final CoordinationSet<V> retVal = new CoordinationSet<V>(aResolution);
-
-        final CalendarDate tmpLatestFirstKey = this.getLatestFirstKey();
-        final CalendarDate tmpEarliestLastKey = this.getEarliestLastKey();
-
-        for (final CalendarDateSeries<V> tmpSeries : this.values()) {
-            retVal.put(tmpSeries.resample(tmpLatestFirstKey, tmpEarliestLastKey, aResolution));
-        }
-
-        return retVal;
-    }
-
-    public CalendarDateSeries<V> put(final CalendarDateSeries<V> aSeries) {
-        return this.put(aSeries.getName(), aSeries);
-    }
-
-    public CoordinationSet<V> resample(final CalendarDateUnit aResolution) {
-
-        final CoordinationSet<V> retVal = new CoordinationSet<V>(aResolution);
-
-        for (final CalendarDateSeries<V> tmpSeries : this.values()) {
-            retVal.put(tmpSeries.resample(aResolution));
-        }
-
-        return retVal;
+    /**
+     * Returns a new set of series each resampled to the supplied resolution. No pruning!
+     */
+    public CoordinationSet<N> resample(final CalendarDateUnit resolution) {
+        return this.doPruneAndResample(this.getEarliestFirstKey(), this.getLatestLastKey(), resolution);
     }
 
     @Override
@@ -298,12 +202,30 @@ public class CoordinationSet<V extends Number> extends HashMap<String, CalendarD
 
         final StringBuilder retVal = new StringBuilder(this.getClass().getSimpleName() + '@' + Integer.toHexString(this.hashCode()));
 
-        for (final CalendarDateSeries<V> tmpSeries : this.values()) {
+        for (final CalendarDateSeries<N> tmpSeries : this.values()) {
             retVal.append(ASCII.LF);
             retVal.append(tmpSeries.toString());
         }
 
         return retVal.toString();
+    }
+
+    private CoordinationSet<N> doPruneAndResample(final CalendarDate firstKey, final CalendarDate lastKey, final CalendarDateUnit resolution) {
+
+        CoordinationSet<N> retVal = new CoordinationSet<>();
+
+        for (Map.Entry<String, CalendarDateSeries<N>> entry : this.entrySet()) {
+
+            String key = entry.getKey();
+
+            CalendarDateSeries<N> value = entry.getValue();
+            CalendarDateSeries<N> pruned = value.subMap(firstKey, true, lastKey, true);
+            CalendarDateSeries<N> resampled = (CalendarDateSeries<N>) pruned.resample(resolution::adjustInto);
+
+            retVal.put(key, resampled);
+        }
+
+        return retVal;
     }
 
 }

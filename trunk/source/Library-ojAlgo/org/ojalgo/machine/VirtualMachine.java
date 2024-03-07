@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,21 +21,25 @@
  */
 package org.ojalgo.machine;
 
-import org.ojalgo.ProgrammingError;
+import org.ojalgo.function.constant.PrimitiveMath;
+import org.ojalgo.function.special.MissingMath;
 import org.ojalgo.netio.ASCII;
 import org.ojalgo.netio.BasicLogger;
 
-public final class VirtualMachine extends AbstractMachine {
+public final class VirtualMachine extends CommonMachine {
+
+    private static final String AMD64 = "amd64";
+    private static final String I386 = "i386";
+    private static final String X86 = "x86";
+    private static final String X86_64 = "x86_64";
 
     public static String getArchitecture() {
 
-        // http://fantom.org/sidewalk/topic/756
+        String tmpProperty = System.getProperty("os.arch").toLowerCase();
 
-        final String tmpProperty = System.getProperty("os.arch").toLowerCase();
-
-        if (tmpProperty.equals(I386)) {
+        if (I386.equals(tmpProperty)) {
             return X86;
-        } else if (tmpProperty.equals(AMD64)) {
+        } else if (AMD64.equals(tmpProperty)) {
             return X86_64;
         } else {
             return tmpProperty;
@@ -50,26 +54,8 @@ public final class VirtualMachine extends AbstractMachine {
         return Runtime.getRuntime().availableProcessors();
     }
 
-    private static final String AMD64 = "amd64";
-
-    private static final String I386 = "i386";
-
-    private static final String X86 = "x86";
-
-    private static final String X86_64 = "x86_64";
-
     private final Hardware myHardware;
     private final Runtime myRuntime;
-
-    private VirtualMachine(final String architecture, final BasicMachine[] levels) {
-
-        super(architecture, levels);
-
-        myHardware = null;
-        myRuntime = null;
-
-        ProgrammingError.throwForIllegalInvocation();
-    }
 
     VirtualMachine(final Hardware hardware, final Runtime runtime) {
 
@@ -77,6 +63,12 @@ public final class VirtualMachine extends AbstractMachine {
 
         myHardware = hardware;
         myRuntime = runtime;
+    }
+
+    VirtualMachine(final VirtualMachine base, final int modUnits, final int modCores, final int modThreads) {
+        super(base, modUnits, modCores, modThreads);
+        myHardware = base.myHardware;
+        myRuntime = base.myRuntime;
     }
 
     public void collectGarbage() {
@@ -91,7 +83,7 @@ public final class VirtualMachine extends AbstractMachine {
             myRuntime.gc();
             try {
                 Thread.sleep(8L);
-            } catch (final InterruptedException exception) {
+            } catch (InterruptedException exception) {
                 BasicLogger.error(exception.getMessage());
             }
             tmpIsFree = myRuntime.freeMemory();
@@ -105,13 +97,10 @@ public final class VirtualMachine extends AbstractMachine {
         if (this == obj) {
             return true;
         }
-        if (!super.equals(obj)) {
+        if (!super.equals(obj) || !(obj instanceof VirtualMachine)) {
             return false;
         }
-        if (!(obj instanceof VirtualMachine)) {
-            return false;
-        }
-        final VirtualMachine other = (VirtualMachine) obj;
+        VirtualMachine other = (VirtualMachine) obj;
         if (myHardware == null) {
             if (other.myHardware != null) {
                 return false;
@@ -119,34 +108,54 @@ public final class VirtualMachine extends AbstractMachine {
         } else if (!myHardware.equals(other.myHardware)) {
             return false;
         }
+        if (myRuntime == null) {
+            if (other.myRuntime != null) {
+                return false;
+            }
+        } else if (!myRuntime.equals(other.myRuntime)) {
+            return false;
+        }
         return true;
     }
 
     public int getAvailableDim1D(final long elementSize) {
-        return (int) AbstractMachine.elements(this.getAvailableMemory(), elementSize);
+        return (int) CommonMachine.elements(this.getAvailableMemory(), elementSize);
     }
 
     public int getAvailableDim2D(final long elementSize) {
-        return (int) Math.sqrt(AbstractMachine.elements(this.getAvailableMemory(), elementSize));
+        return (int) PrimitiveMath.SQRT.invoke(CommonMachine.elements(this.getAvailableMemory(), elementSize));
     }
 
     public long getAvailableMemory() {
 
-        final long tmpMax = myRuntime.maxMemory();
-        final long tmpTotal = myRuntime.totalMemory();
-        final long tmpFree = myRuntime.freeMemory();
+        long tmpMax = myRuntime.maxMemory();
+        long tmpTotal = myRuntime.totalMemory();
+        long tmpFree = myRuntime.freeMemory();
 
-        final long tmpAvailable = (tmpMax - tmpTotal) + tmpFree;
-
-        return tmpAvailable;
+        return (tmpMax - tmpTotal) + tmpFree;
     }
 
     @Override
     public int hashCode() {
         final int prime = 31;
         int result = super.hashCode();
-        result = (prime * result) + ((myHardware == null) ? 0 : myHardware.hashCode());
-        return result;
+        result = prime * result + ((myHardware == null) ? 0 : myHardware.hashCode());
+        return prime * result + ((myRuntime == null) ? 0 : myRuntime.hashCode());
+    }
+
+    /**
+     * @param fraction [0.0, 1.0]
+     * @return A limited VirtualMachine
+     */
+    public VirtualMachine limitBy(final double fraction) {
+
+        double factor = Math.max(0.0, Math.min(Math.abs(fraction), 1.0));
+
+        int newUnits = Math.max(1, MissingMath.roundToInt(units * factor));
+        int newCores = Math.max(1, MissingMath.roundToInt(cores * factor));
+        int newThreads = Math.max(1, MissingMath.roundToInt(threads * factor));
+
+        return new VirtualMachine(this, newUnits, newCores, newThreads);
     }
 
     @Override

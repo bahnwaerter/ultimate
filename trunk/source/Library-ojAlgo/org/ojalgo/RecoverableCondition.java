@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -17,25 +17,53 @@
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE. 
+ * SOFTWARE.
  */
 package org.ojalgo;
+
+import org.ojalgo.type.TypeUtils;
 
 /**
  * Something that potentially could go wrong, actually did go wrong. The API user is expected to recover and
  * continue execution. Is always declared to be thrown, and must be caught.
- * 
+ *
  * @author apete
  */
-public class RecoverableCondition extends Exception {
+public final class RecoverableCondition extends Exception implements EffectiveThrowable {
 
-    public RecoverableCondition(final String description) {
-        super(description);
+    private static final long serialVersionUID = 1L;
+
+    public static RecoverableCondition newEquationSystemNotSolvable() {
+        return new RecoverableCondition("Equation System Not Solvable!");
     }
 
-    @SuppressWarnings("unused")
-    private RecoverableCondition() {
+    public static RecoverableCondition newFailedToParseString(final String stringToParse, final Class<?> classToInstantiate) {
+        return new RecoverableCondition(TypeUtils.format("Failed to parse \"{}\" to a {}!", String.valueOf(stringToParse),
+                classToInstantiate != null ? classToInstantiate.getName() : "unspecified type"));
+    }
+
+    public static RecoverableCondition newMatrixNotInvertible() {
+        return new RecoverableCondition("Matrix Not Invertible!");
+    }
+
+    public RecoverableCondition(final String message) {
+        super(message);
+    }
+
+    RecoverableCondition() {
         super();
+    }
+
+    RecoverableCondition(final String message, final Throwable cause) {
+        super(message, cause);
+    }
+
+    RecoverableCondition(final String message, final Throwable cause, final boolean enableSuppression, final boolean writableStackTrace) {
+        super(message, cause, enableSuppression, writableStackTrace);
+    }
+
+    RecoverableCondition(final Throwable cause) {
+        super(cause);
     }
 
     @Override
@@ -44,4 +72,5 @@ public class RecoverableCondition extends Exception {
         final String tmpMessage = this.getLocalizedMessage();
         return (tmpMessage != null) ? (retVal + ": " + tmpMessage) : retVal;
     }
+
 }

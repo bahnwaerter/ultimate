@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,7 +21,9 @@
  */
 package org.ojalgo.random;
 
-import static org.ojalgo.constant.PrimitiveMath.*;
+import static org.ojalgo.function.constant.PrimitiveMath.*;
+
+import org.ojalgo.function.constant.PrimitiveMath;
 
 /**
  * Distribution of the sum of aCount random variables with an exponential distribution with parameter aLambda.
@@ -29,8 +31,6 @@ import static org.ojalgo.constant.PrimitiveMath.*;
  * @author apete
  */
 public class Erlang extends RandomNumber {
-
-    private static final long serialVersionUID = 6544837857838057678L;
 
     private final int myCount;
     private final double myRate;
@@ -62,7 +62,7 @@ public class Erlang extends RandomNumber {
         double tmpVal = ZERO;
 
         for (int i = 0; i < myCount; i++) {
-            tmpVal -= Math.log(this.random().nextDouble());
+            tmpVal -= PrimitiveMath.LOG.invoke(this.random().nextDouble());
         }
 
         return tmpVal / myRate;

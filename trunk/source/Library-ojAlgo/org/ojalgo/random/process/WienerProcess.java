@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,12 +21,12 @@
  */
 package org.ojalgo.random.process;
 
-import static org.ojalgo.constant.PrimitiveMath.*;
+import static org.ojalgo.function.constant.PrimitiveMath.*;
 
+import org.ojalgo.function.special.ErrorFunction;
 import org.ojalgo.random.Normal;
-import org.ojalgo.random.RandomUtils;
 
-public final class WienerProcess extends AbstractProcess<Normal> {
+public final class WienerProcess extends SingleValueBasedProcess<Normal> implements Process1D.ComponentProcess<Normal> {
 
     private static final Normal GENERATOR = new Normal();
 
@@ -34,7 +34,7 @@ public final class WienerProcess extends AbstractProcess<Normal> {
 
         super();
 
-        this.setValue(ZERO);
+        this.setCurrentValue(ZERO);
     }
 
     @SuppressWarnings("unused")
@@ -42,48 +42,61 @@ public final class WienerProcess extends AbstractProcess<Normal> {
 
         super();
 
-        this.setValue(initialValue);
+        this.setCurrentValue(initialValue);
     }
 
     public Normal getDistribution(final double evaluationPoint) {
-        return new Normal(this.getValue(), Math.sqrt(evaluationPoint));
+        return new Normal(this.getCurrentValue(), SQRT.invoke(evaluationPoint));
+    }
+
+    public double getValue() {
+        return this.getCurrentValue();
+    }
+
+    public void setValue(final double newValue) {
+        this.setCurrentValue(newValue);
     }
 
     @Override
-    protected double getNormalisedRandomIncrement() {
-        return GENERATOR.doubleValue();
+    public double step(final double stepSize, final double standardGaussianInnovation) {
+        return this.doStep(stepSize, standardGaussianInnovation);
     }
 
     @Override
-    protected double step(final double currentValue, final double stepSize, final double normalisedRandomIncrement) {
-        final double retVal = currentValue + (Math.sqrt(stepSize) * normalisedRandomIncrement);
-        this.setValue(retVal);
+    double doStep(final double stepSize, final double normalisedRandomIncrement) {
+        double retVal = this.getCurrentValue() + (SQRT.invoke(stepSize) * normalisedRandomIncrement);
+        this.setCurrentValue(retVal);
         return retVal;
     }
 
     @Override
-    double getExpected(final double aStepSize) {
-        return this.getValue();
+    double getExpected(final double stepSize) {
+        return this.getCurrentValue();
     }
 
     @Override
-    double getLowerConfidenceQuantile(final double aStepSize, final double aConfidence) {
-        return this.getValue() - (Math.sqrt(aStepSize) * SQRT_TWO * RandomUtils.erfi(aConfidence));
+    double getLowerConfidenceQuantile(final double stepSize, final double confidence) {
+        return this.getCurrentValue() - (SQRT.invoke(stepSize) * SQRT_TWO * ErrorFunction.erfi(confidence));
     }
 
     @Override
-    double getStandardDeviation(final double aStepSize) {
-        return Math.sqrt(aStepSize);
+    double getNormalisedRandomIncrement() {
+        return GENERATOR.doubleValue();
     }
 
     @Override
-    double getUpperConfidenceQuantile(final double aStepSize, final double aConfidence) {
-        return this.getValue() + (Math.sqrt(aStepSize) * SQRT_TWO * RandomUtils.erfi(aConfidence));
+    double getStandardDeviation(final double stepSize) {
+        return SQRT.invoke(stepSize);
     }
 
     @Override
-    double getVariance(final double aStepSize) {
-        return aStepSize;
+    double getUpperConfidenceQuantile(final double stepSize, final double confidence) {
+        return this.getCurrentValue() + (SQRT.invoke(stepSize) * SQRT_TWO * ErrorFunction.erfi(confidence));
+    }
+
+    @Override
+    double getVariance(final double stepSize) {
+        return stepSize;
     }
 
 }

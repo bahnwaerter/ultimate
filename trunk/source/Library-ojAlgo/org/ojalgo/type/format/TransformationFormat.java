@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,7 +27,9 @@ import java.text.ParsePosition;
 
 import org.ojalgo.function.UnaryFunction;
 
-public class TransformationFormat<N extends Number> extends NumberFormat {
+public class TransformationFormat<N extends Number & Comparable<N>> extends NumberFormat {
+
+    private static final long serialVersionUID = 1L;
 
     private final UnaryFunction<N> myTransfoFunc;
     private final UnaryFunction<N> myInverseFunc;
@@ -42,10 +44,12 @@ public class TransformationFormat<N extends Number> extends NumberFormat {
         myInverseFunc = inverse;
     }
 
+    @Override
     public StringBuffer format(final double number, final StringBuffer toAppendTo, final FieldPosition pos) {
         return myFormat.format(myTransfoFunc.invoke(number), toAppendTo, pos);
     }
 
+    @Override
     public StringBuffer format(final long number, final StringBuffer toAppendTo, final FieldPosition pos) {
         return myFormat.format(myTransfoFunc.invoke(number), toAppendTo, pos);
     }
@@ -56,6 +60,7 @@ public class TransformationFormat<N extends Number> extends NumberFormat {
         return myFormat.format(myTransfoFunc.invoke((N) obj), toAppendTo, pos);
     }
 
+    @Override
     public Number parse(final String source, final ParsePosition parsePosition) {
         return myInverseFunc.invoke((N) myFormat.parseObject(source, parsePosition));
     }

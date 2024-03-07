@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,14 +21,14 @@
  */
 package org.ojalgo.random;
 
-import static org.ojalgo.constant.PrimitiveMath.*;
+import static org.ojalgo.function.constant.PrimitiveMath.ZERO;
+
+import org.ojalgo.type.NumberDefinition;
 
 /**
  * @author apete
  */
 public class Deterministic extends RandomNumber {
-
-    private static final long serialVersionUID = 6544837857838057678L;
 
     private final double myValue;
 
@@ -39,6 +39,13 @@ public class Deterministic extends RandomNumber {
         myValue = ZERO;
     }
 
+    public Deterministic(final Comparable<?> aValue) {
+
+        super();
+
+        myValue = NumberDefinition.doubleValue(aValue);
+    }
+
     public Deterministic(final double aValue) {
 
         super();
@@ -46,11 +53,8 @@ public class Deterministic extends RandomNumber {
         myValue = aValue;
     }
 
-    public Deterministic(final Number aValue) {
-
-        super();
-
-        myValue = aValue.doubleValue();
+    public int compareTo(final Deterministic o) {
+        return Double.compare(myValue, o.myValue);
     }
 
     public double getExpected() {

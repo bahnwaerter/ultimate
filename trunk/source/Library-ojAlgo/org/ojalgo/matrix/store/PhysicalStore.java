@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,29 +21,30 @@
  */
 package org.ojalgo.matrix.store;
 
-import java.io.Serializable;
 import java.util.List;
 
-import org.ojalgo.access.Access1D;
-import org.ojalgo.access.Access2D;
-import org.ojalgo.array.BasicArray;
-import org.ojalgo.function.BinaryFunction;
+import org.ojalgo.array.DenseArray;
+import org.ojalgo.array.operation.AMAX;
+import org.ojalgo.array.operation.SubstituteBackwards;
+import org.ojalgo.array.operation.SubstituteForwards;
 import org.ojalgo.function.FunctionSet;
-import org.ojalgo.function.FunctionUtils;
 import org.ojalgo.function.NullaryFunction;
-import org.ojalgo.function.UnaryFunction;
 import org.ojalgo.function.aggregator.AggregatorSet;
-import org.ojalgo.matrix.store.BigDenseStore.BigMultiplyBoth;
-import org.ojalgo.matrix.store.ComplexDenseStore.ComplexMultiplyBoth;
-import org.ojalgo.matrix.store.PrimitiveDenseStore.PrimitiveMultiplyBoth;
-import org.ojalgo.matrix.store.operation.MultiplyBoth;
+import org.ojalgo.matrix.store.DiagonalStore.Builder;
 import org.ojalgo.matrix.transformation.Householder;
 import org.ojalgo.matrix.transformation.Rotation;
 import org.ojalgo.scalar.Scalar;
+import org.ojalgo.structure.Access1D;
+import org.ojalgo.structure.Access2D;
+import org.ojalgo.structure.Factory2D;
+import org.ojalgo.structure.Structure2D;
+import org.ojalgo.structure.Transformation2D;
+import org.ojalgo.tensor.TensorFactory1D;
+import org.ojalgo.tensor.TensorFactory2D;
 
 /**
  * <p>
- * PhysicalStore:s, as opposed to MatrixStore:s, are mutable. The vast majorty of the methods defined here
+ * PhysicalStore:s, as opposed to MatrixStore:s, are mutable. The vast majority of the methods defined here
  * return void and none return {@linkplain PhysicalStore} or {@linkplain MatrixStore}.
  * </p>
  * <p>
@@ -52,513 +53,141 @@ import org.ojalgo.scalar.Scalar;
  *
  * @author apete
  */
-public interface PhysicalStore<N extends Number> extends MatrixStore<N>, ElementsConsumer<N>, Access2D.IndexOf, Access2D.Special<N> {
+public interface PhysicalStore<N extends Comparable<N>> extends MatrixStore<N>, TransformableRegion<N> {
 
-    public static final class ColumnsRegion<N extends Number> extends ConsumerRegion<N> {
-
-        private final ElementsConsumer<N> myBase;
-        private final int[] myColumns;
-
-        ColumnsRegion(final ElementsConsumer<N> base, final FillByMultiplying<N> multiplier, final int... columns) {
-            super(multiplier, base.countRows(), columns.length);
-            myBase = base;
-            myColumns = columns;
-        }
-
-        public void add(final long row, final long column, final double addend) {
-            myBase.add(row, myColumns[(int) column], addend);
-        }
-
-        public void add(final long row, final long column, final Number addend) {
-            myBase.add(row, myColumns[(int) column], addend);
-        }
-
-        public long countColumns() {
-            return myColumns.length;
-        }
-
-        public long countRows() {
-            return myBase.countRows();
-        }
-
-        public void fillColumn(final long row, final long column, final Access1D<N> values) {
-            myBase.fillColumn(row, myColumns[(int) column], values);
-        }
-
-        public void fillColumn(final long row, final long column, final N value) {
-            myBase.fillColumn(row, myColumns[(int) column], value);
-        }
-
-        public void fillColumn(final long row, final long column, final NullaryFunction<N> supplier) {
-            myBase.fillColumn(row, myColumns[(int) column], supplier);
-        }
-
-        public void fillOne(final long row, final long column, final N value) {
-            myBase.fillOne(row, myColumns[(int) column], value);
-        }
-
-        public void fillOne(final long row, final long column, final NullaryFunction<N> supplier) {
-            myBase.fillOne(row, myColumns[(int) column], supplier);
-        }
-
-        public void fillOneMatching(final long row, final long column, final Access1D<?> values, final long valueIndex) {
-            myBase.fillOneMatching(row, myColumns[(int) column], values, valueIndex);
-        }
-
-        public void modifyColumn(final long row, final long column, final UnaryFunction<N> function) {
-            myBase.modifyColumn(row, myColumns[(int) column], function);
-        }
-
-        public void modifyOne(final long row, final long column, final UnaryFunction<N> function) {
-            myBase.modifyOne(row, myColumns[(int) column], function);
-        }
-
-        public void set(final long row, final long column, final double value) {
-            myBase.set(row, myColumns[(int) column], value);
-        }
-
-        public void set(final long row, final long column, final Number value) {
-            myBase.set(row, myColumns[(int) column], value);
-        }
-
-    }
-
-    abstract static class ConsumerRegion<N extends Number> implements ElementsConsumer<N> {
-
-        private final FillByMultiplying<N> myMultiplier;
-
-        @SuppressWarnings("unused")
-        private ConsumerRegion() {
-            this(null, 0L, 0L);
-        }
-
-        @SuppressWarnings("unchecked")
-        ConsumerRegion(final FillByMultiplying<N> multiplier, final long rows, final long columns) {
-
-            super();
-
-            if (multiplier instanceof PrimitiveMultiplyBoth) {
-                myMultiplier = (FillByMultiplying<N>) MultiplyBoth.getPrimitive(rows, columns);
-            } else if (multiplier instanceof ComplexMultiplyBoth) {
-                myMultiplier = (FillByMultiplying<N>) MultiplyBoth.getComplex(rows, columns);
-            } else if (multiplier instanceof BigMultiplyBoth) {
-                myMultiplier = (FillByMultiplying<N>) MultiplyBoth.getBig(rows, columns);
-            } else {
-                myMultiplier = multiplier;
-            }
-        }
-
-        public final void fillByMultiplying(final Access1D<N> left, final Access1D<N> right) {
-            myMultiplier.invoke(this, left, (int) (left.count() / this.countRows()), right);
-        }
-
-        public void modifyMatching(final Access1D<N> left, final BinaryFunction<N> function) {
-            // TODO very inefficient implemention - must invent something better
-            final long tmpLimit = FunctionUtils.min(left.count(), this.count());
-            for (long i = 0; i < tmpLimit; i++) {
-                this.modifyOne(i, function.first(left.get(i)));
-            }
-        }
-
-        public void modifyMatching(final BinaryFunction<N> function, final Access1D<N> right) {
-            // TODO very inefficient implemention - must invent something better
-            final long tmpLimit = FunctionUtils.min(this.count(), right.count());
-            for (long i = 0; i < tmpLimit; i++) {
-                this.modifyOne(i, function.second(right.get(i)));
-            }
-        }
-
-        public final ElementsConsumer<N> regionByColumns(final int... columns) {
-            return new ColumnsRegion<N>(this, myMultiplier, columns);
-        }
-
-        public final ElementsConsumer<N> regionByLimits(final int rowLimit, final int columnLimit) {
-            return new LimitRegion<N>(this, myMultiplier, rowLimit, columnLimit);
-        }
-
-        public final ElementsConsumer<N> regionByOffsets(final int rowOffset, final int columnOffset) {
-            return new OffsetRegion<N>(this, myMultiplier, rowOffset, columnOffset);
-        }
-
-        public final ElementsConsumer<N> regionByRows(final int... rows) {
-            return new RowsRegion<N>(this, myMultiplier, rows);
-        }
-
-        public ElementsConsumer<N> regionByTransposing() {
-            return new TransposedRegion<N>(this, myMultiplier);
-        }
-
-        @Override
-        public String toString() {
-            return super.toString() + " " + this.countRows() + " x " + this.countColumns();
-        }
-
-    }
-
-    public static interface Factory<N extends Number, I extends PhysicalStore<N>> extends Access2D.Factory<I>, Serializable {
+    public interface Factory<N extends Comparable<N>, I extends PhysicalStore<N>>
+            extends Factory2D.Dense<I>, Factory2D.MayBeSparse<I, PhysicalStore<N>, SparseStore<N>> {
 
         AggregatorSet<N> aggregator();
 
-        MatrixStore.Factory<N> builder();
+        DenseArray.Factory<N> array();
+
+        /**
+         * @deprecated v50 No need to call this.
+         */
+        @Deprecated
+        default PhysicalStore.Factory<N, I> builder() {
+            return this;
+        }
 
         I conjugate(Access2D<?> source);
 
+        @Override
         FunctionSet<N> function();
 
-        BasicArray<N> makeArray(int length);
+        default ColumnsSupplier<N> makeColumnsSupplier(final int numberOfRows) {
+            return new ColumnsSupplier<>(this, numberOfRows);
+        }
+
+        @Override
+        default PhysicalStore<N> makeDense(final long rows, final long columns) {
+            return this.make(rows, columns);
+        }
+
+        default <D extends Access1D<?>> Builder<N, D> makeDiagonal(final D mainDiagonal) {
+            return DiagonalStore.builder(this, mainDiagonal);
+        }
+
+        default I makeEye(final long rows, final long columns) {
+
+            I retVal = this.make(rows, columns);
+
+            N tmpVal = this.scalar().one().get();
+
+            retVal.fillDiagonal(tmpVal);
+
+            return retVal;
+        }
+
+        default I makeEye(final Structure2D shape) {
+            return this.makeEye(shape.countRows(), shape.countColumns());
+        }
+
+        @Override
+        default I makeFilled(final long rows, final long columns, final NullaryFunction<?> supplier) {
+
+            I retVal = this.make(rows, columns);
+
+            retVal.fillAll(supplier);
+
+            return retVal;
+        }
 
         Householder<N> makeHouseholder(int length);
+
+        default MatrixStore<N> makeIdentity(final long dimension) {
+            return new IdentityStore<>(this, dimension);
+        }
 
         Rotation<N> makeRotation(int low, int high, double cos, double sin);
 
         Rotation<N> makeRotation(int low, int high, N cos, N sin);
 
+        default RowsSupplier<N> makeRowsSupplier(final int numberOfColumns) {
+            return new RowsSupplier<>(this, numberOfColumns);
+        }
+
+        default MatrixStore<N> makeSingle(final double element) {
+            return this.makeSingle(this.scalar().cast(element));
+        }
+
+        default MatrixStore<N> makeSingle(final N element) {
+            return new SingleStore<>(this, element);
+        }
+
+        @Override
+        default SparseStore<N> makeSparse(final long rowsCount, final long columnsCount) {
+            return SparseStore.makeSparse(this, rowsCount, columnsCount);
+        }
+
+        /**
+         * Make a random Symmetric Positive Definite matrix
+         */
+        default I makeSPD(final int dim) {
+
+            double[] random = new double[dim];
+            I retVal = this.make(dim, dim);
+
+            for (int i = 0; i < dim; i++) {
+                random[i] = Math.random();
+                for (int j = 0; j < i; j++) {
+                    retVal.set(i, j, random[i] * random[j]);
+                    retVal.set(j, i, random[j] * random[i]);
+                }
+                retVal.set(i, i, random[i] + 1.0);
+            }
+
+            return retVal;
+        }
+
+        default MatrixStore<N> makeWrapper(final Access2D<?> access) {
+            return new WrapperStore<>(this, access);
+        }
+
+        default MatrixStore<N> makeWrapperColumn(final Access1D<?> access) {
+            return new WrapperStore<>(access, this);
+        }
+
+        default MatrixStore<N> makeZero(final long rowsCount, final long columnsCount) {
+            return new ZeroStore<>(this, rowsCount, columnsCount);
+        }
+
+        default MatrixStore<N> makeZero(final Structure2D shape) {
+            return this.makeZero(shape.countRows(), shape.countColumns());
+        }
+
+        @Override
         Scalar.Factory<N> scalar();
 
+        default TensorFactory1D<N, I> tensor1D() {
+            return TensorFactory1D.of(this.asFactory1D());
+        }
+
+        default TensorFactory2D<N, I> tensor2D() {
+            return TensorFactory2D.of(this);
+        }
+
         I transpose(Access2D<?> source);
-
-    }
-
-    public static interface FillByMultiplying<N extends Number> {
-
-        void invoke(ElementsConsumer<N> product, Access1D<N> left, int complexity, Access1D<N> right);
-
-    }
-
-    public static final class LimitRegion<N extends Number> extends ConsumerRegion<N> {
-
-        private final ElementsConsumer<N> myBase;
-        private final int myRowLimit, myColumnLimit; // limits
-
-        LimitRegion(final ElementsConsumer<N> base, final FillByMultiplying<N> multiplier, final int rowLimit, final int columnLimit) {
-            super(multiplier, rowLimit, columnLimit);
-            myBase = base;
-            myRowLimit = rowLimit;
-            myColumnLimit = columnLimit;
-        }
-
-        public void add(final long row, final long column, final double addend) {
-            myBase.add(row, column, addend);
-        }
-
-        public void add(final long row, final long column, final Number addend) {
-            myBase.add(row, column, addend);
-        }
-
-        public long countColumns() {
-            return myColumnLimit;
-        }
-
-        public long countRows() {
-            return myRowLimit;
-        }
-
-        public void fillOne(final long row, final long column, final N value) {
-            myBase.fillOne(row, column, value);
-        }
-
-        public void fillOne(final long row, final long column, final NullaryFunction<N> supplier) {
-            myBase.fillOne(row, column, supplier);
-        }
-
-        public void fillOneMatching(final long row, final long column, final Access1D<?> values, final long valueIndex) {
-            myBase.fillOneMatching(row, column, values, valueIndex);
-        }
-
-        public void modifyOne(final long row, final long column, final UnaryFunction<N> function) {
-            myBase.modifyOne(row, column, function);
-        }
-
-        public void set(final long row, final long column, final double value) {
-            myBase.set(row, column, value);
-        }
-
-        public void set(final long row, final long column, final Number value) {
-            myBase.set(row, column, value);
-        }
-
-    }
-
-    public static final class OffsetRegion<N extends Number> extends ConsumerRegion<N> {
-
-        private final ElementsConsumer<N> myBase;
-        private final int myRowOffset, myColumnOffset; // origin/offset
-
-        OffsetRegion(final ElementsConsumer<N> base, final FillByMultiplying<N> multiplier, final int rowOffset, final int columnOffset) {
-            super(multiplier, base.countRows() - rowOffset, base.countColumns() - columnOffset);
-            myBase = base;
-            myRowOffset = rowOffset;
-            myColumnOffset = columnOffset;
-        }
-
-        public void add(final long row, final long column, final double addend) {
-            myBase.add(myRowOffset + row, myColumnOffset + column, addend);
-        }
-
-        public void add(final long row, final long column, final Number addend) {
-            myBase.add(myRowOffset + row, myColumnOffset + column, addend);
-        }
-
-        public long countColumns() {
-            return myBase.countColumns() - myColumnOffset;
-        }
-
-        public long countRows() {
-            return myBase.countRows() - myRowOffset;
-        }
-
-        @Override
-        public void fillAll(final N value) {
-            final long tmpCountColumns = myBase.countColumns();
-            for (long j = myColumnOffset; j < tmpCountColumns; j++) {
-                myBase.fillColumn(myRowOffset, j, value);
-            }
-        }
-
-        @Override
-        public void fillAll(final NullaryFunction<N> supplier) {
-            final long tmpCountColumns = myBase.countColumns();
-            for (long j = myColumnOffset; j < tmpCountColumns; j++) {
-                myBase.fillColumn(myRowOffset, j, supplier);
-            }
-        }
-
-        public void fillColumn(final long row, final long column, final N value) {
-            myBase.fillColumn(myRowOffset + row, myColumnOffset + column, value);
-        }
-
-        public void fillColumn(final long row, final long column, final NullaryFunction<N> supplier) {
-            myBase.fillColumn(myRowOffset + row, myColumnOffset + column, supplier);
-        }
-
-        public void fillDiagonal(final long row, final long column, final N value) {
-            myBase.fillDiagonal(myRowOffset + row, myColumnOffset + column, value);
-        }
-
-        public void fillDiagonal(final long row, final long column, final NullaryFunction<N> supplier) {
-            myBase.fillDiagonal(myRowOffset + row, myColumnOffset + column, supplier);
-        }
-
-        public void fillOne(final long row, final long column, final N value) {
-            myBase.fillOne(myRowOffset + row, myColumnOffset + column, value);
-        }
-
-        public void fillOne(final long row, final long column, final NullaryFunction<N> supplier) {
-            myBase.fillOne(myRowOffset + row, myColumnOffset + column, supplier);
-        }
-
-        public void fillOneMatching(final long row, final long column, final Access1D<?> values, final long valueIndex) {
-            myBase.fillOneMatching(myRowOffset + row, myColumnOffset + column, values, valueIndex);
-        }
-
-        public void fillRow(final long row, final long column, final N value) {
-            myBase.fillRow(myRowOffset + row, myColumnOffset + column, value);
-        }
-
-        public void fillRow(final long row, final long column, final NullaryFunction<N> supplier) {
-            myBase.fillRow(myRowOffset + row, myColumnOffset + column, supplier);
-        }
-
-        public void modifyAll(final UnaryFunction<N> function) {
-            for (long j = myColumnOffset; j < myBase.countColumns(); j++) {
-                myBase.modifyColumn(myRowOffset, j, function);
-            }
-        }
-
-        public void modifyColumn(final long row, final long column, final UnaryFunction<N> function) {
-            myBase.modifyColumn(myRowOffset + row, myColumnOffset + column, function);
-        }
-
-        public void modifyDiagonal(final long row, final long column, final UnaryFunction<N> function) {
-            myBase.modifyDiagonal(myRowOffset + row, myColumnOffset + column, function);
-        }
-
-        public void modifyOne(final long row, final long column, final UnaryFunction<N> function) {
-            myBase.modifyOne(myRowOffset + row, myColumnOffset + column, function);
-        }
-
-        public void modifyRow(final long row, final long column, final UnaryFunction<N> function) {
-            myBase.modifyRow(myRowOffset + row, myColumnOffset + column, function);
-        }
-
-        public void set(final long row, final long column, final double value) {
-            myBase.set(myRowOffset + row, myColumnOffset + column, value);
-        }
-
-        public void set(final long row, final long column, final Number value) {
-            myBase.set(myRowOffset + row, myColumnOffset + column, value);
-        }
-
-    }
-
-    public static final class RowsRegion<N extends Number> extends ConsumerRegion<N> {
-
-        private final ElementsConsumer<N> myBase;
-        private final int[] myRows;
-
-        RowsRegion(final ElementsConsumer<N> base, final FillByMultiplying<N> multiplier, final int... rows) {
-            super(multiplier, rows.length, base.countColumns());
-            myBase = base;
-            myRows = rows;
-        }
-
-        public void add(final long row, final long column, final double addend) {
-            myBase.add(myRows[(int) row], column, addend);
-        }
-
-        public void add(final long row, final long column, final Number addend) {
-            myBase.add(myRows[(int) row], column, addend);
-        }
-
-        public long countColumns() {
-            return myBase.countColumns();
-        }
-
-        public long countRows() {
-            return myRows.length;
-        }
-
-        public void fillOne(final long row, final long column, final N value) {
-            myBase.fillOne(myRows[(int) row], column, value);
-        }
-
-        public void fillOne(final long row, final long column, final NullaryFunction<N> supplier) {
-            myBase.fillOne(myRows[(int) row], column, supplier);
-        }
-
-        public void fillOneMatching(final long row, final long column, final Access1D<?> values, final long valueIndex) {
-            myBase.fillOneMatching(myRows[(int) row], column, values, valueIndex);
-        }
-
-        public void fillRow(final long row, final long column, final Access1D<N> values) {
-            myBase.fillRow(myRows[(int) row], column, values);
-        }
-
-        public void fillRow(final long row, final long column, final N value) {
-            myBase.fillRow(myRows[(int) row], column, value);
-        }
-
-        public void fillRow(final long row, final long column, final NullaryFunction<N> supplier) {
-            myBase.fillRow(myRows[(int) row], column, supplier);
-        }
-
-        public void modifyOne(final long row, final long column, final UnaryFunction<N> function) {
-            myBase.modifyOne(myRows[(int) row], column, function);
-        }
-
-        public void modifyRow(final long row, final long column, final UnaryFunction<N> function) {
-            myBase.modifyRow(myRows[(int) row], column, function);
-        }
-
-        public void set(final long row, final long column, final double value) {
-            myBase.set(myRows[(int) row], column, value);
-        }
-
-        public void set(final long row, final long column, final Number value) {
-            myBase.set(myRows[(int) row], column, value);
-        }
-
-    }
-
-    public static final class TransposedRegion<N extends Number> extends ConsumerRegion<N> {
-
-        private final ElementsConsumer<N> myBase;
-
-        TransposedRegion(final ElementsConsumer<N> base, final FillByMultiplying<N> multiplier) {
-            super(multiplier, base.countColumns(), base.countRows());
-            myBase = base;
-        }
-
-        public void add(final long row, final long column, final double addend) {
-            myBase.add(column, row, addend);
-        }
-
-        public void add(final long row, final long column, final Number addend) {
-            myBase.add(column, row, addend);
-        }
-
-        public long countColumns() {
-            return myBase.countRows();
-        }
-
-        public long countRows() {
-            return myBase.countColumns();
-        }
-
-        public void fillColumn(final long row, final long column, final N value) {
-            myBase.fillRow(column, row, value);
-        }
-
-        public void fillColumn(final long row, final long column, final NullaryFunction<N> supplier) {
-            myBase.fillRow(column, row, supplier);
-        }
-
-        public void fillDiagonal(final long row, final long column, final N value) {
-            myBase.fillDiagonal(column, row, value);
-        }
-
-        public void fillDiagonal(final long row, final long column, final NullaryFunction<N> supplier) {
-            myBase.fillRow(column, row, supplier);
-        }
-
-        public void fillOne(final long row, final long column, final N value) {
-            myBase.fillOne(column, row, value);
-        }
-
-        public void fillOne(final long row, final long column, final NullaryFunction<N> supplier) {
-            myBase.fillOne(column, row, supplier);
-        }
-
-        public void fillOneMatching(final long row, final long column, final Access1D<?> values, final long valueIndex) {
-            myBase.fillOneMatching(column, row, values, valueIndex);
-        }
-
-        public void fillRow(final long row, final long column, final N value) {
-            myBase.fillDiagonal(column, row, value);
-        }
-
-        public void fillRow(final long row, final long column, final NullaryFunction<N> supplier) {
-            myBase.fillDiagonal(column, row, supplier);
-        }
-
-        public void modifyColumn(final long row, final long column, final UnaryFunction<N> function) {
-            myBase.modifyRow(column, row, function);
-        }
-
-        public void modifyDiagonal(final long row, final long column, final UnaryFunction<N> function) {
-            myBase.modifyDiagonal(column, row, function);
-        }
-
-        @Override
-        public void modifyMatching(final Access1D<N> left, final BinaryFunction<N> function) {
-            myBase.modifyMatching(left, function);
-        }
-
-        @Override
-        public void modifyMatching(final BinaryFunction<N> function, final Access1D<N> right) {
-            myBase.modifyMatching(function, right);
-        }
-
-        public void modifyOne(final long row, final long column, final UnaryFunction<N> function) {
-            myBase.modifyOne(column, row, function);
-        }
-
-        public void modifyRow(final long row, final long column, final UnaryFunction<N> function) {
-            myBase.modifyColumn(column, row, function);
-        }
-
-        @Override
-        public ElementsConsumer<N> regionByTransposing() {
-            return myBase;
-        }
-
-        public void set(final long row, final long column, final double value) {
-            myBase.set(column, row, value);
-        }
-
-        public void set(final long row, final long column, final Number value) {
-            myBase.set(column, row, value);
-        }
 
     }
 
@@ -568,45 +197,74 @@ public interface PhysicalStore<N extends Number> extends MatrixStore<N>, Element
      */
     List<N> asList();
 
-    /**
-     * <p>
-     * <b>c</b>olumn <b>a</b> * <b>x</b> <b>p</b>lus <b>y</b>
-     * </p>
-     * [this(*,aColY)] = aSclrA [this(*,aColX)] + [this(*,aColY)]
-     *
-     * @deprecated v32 Let me know if you need this
-     */
-    @Deprecated
-    void caxpy(final N scalarA, final int columnX, final int columnY, final int firstRow);
+    default int indexOfLargestInColumn(final int row, final int col) {
+        long structure = this.countRows();
+        long first = Structure2D.index(structure, row, col);
+        long limit = Structure2D.index(structure, 0L, col + 1L);
+        long step = 1L;
+        long largest = AMAX.invoke(this, first, limit, step);
+        return Math.toIntExact(largest % structure);
+    }
+
+    default int indexOfLargestInRow(final int row, final int col) {
+        long structure = this.countRows();
+        long first = Structure2D.index(structure, row, col);
+        long limit = Structure2D.index(structure, 0L, this.countColumns());
+        long step = structure;
+        long largest = AMAX.invoke(this, first, limit, step);
+        return Math.toIntExact(largest / structure);
+    }
+
+    default int indexOfLargestOnDiagonal(final int row, final int col) {
+        long structure = this.countRows();
+        long first = Structure2D.index(structure, row, col);
+        long limit = Structure2D.index(structure, 0L, this.countColumns());
+        long step = structure + 1L;
+        long largest = AMAX.invoke(this, first, limit, step);
+        return Math.toIntExact(largest / structure);
+    }
+
+    @Override
+    default void modifyAny(final Transformation2D<N> modifier) {
+        modifier.transform(this);
+    }
 
     /**
-     * <p>
-     * <b>m</b>atrix <b>a</b> * <b>x</b> <b>p</b>lus <b>y</b>
-     * </p>
-     * [this] = aSclrA [aMtrxX] + [this]
+     * Will solve the equation system [A][X]=[B] where:
+     * <ul>
+     * <li>[body][this]=[this] is [A][X]=[B] ("this" is the right hand side, and it will be overwritten with
+     * the solution).</li>
+     * <li>[A] is upper/right triangular</li>
+     * </ul>
      *
-     * @deprecated v32 Let me know if you need this
+     * @see SubstituteBackwards#invoke(double[], int, int, int, Access2D, boolean, boolean, boolean)
      */
-    @Deprecated
-    void maxpy(final N scalarA, final MatrixStore<N> matrixX);
+    void substituteBackwards(Access2D<N> body, boolean unitDiagonal, boolean conjugated, boolean hermitian);
 
     /**
-     * <p>
-     * <b>r</b>ow <b>a</b> * <b>x</b> <b>p</b>lus <b>y</b>
-     * </p>
-     * [this(aRowY,*)] = aSclrA [this(aRowX,*)] + [this(aRowY,*)]
+     * Will solve the equation system [A][X]=[B] where:
+     * <ul>
+     * <li>[body][this]=[this] is [A][X]=[B] ("this" is the right hand side, and it will be overwritten with
+     * the solution).</li>
+     * <li>[A] is lower/left triangular</li>
+     * </ul>
      *
-     * @deprecated v32 Let me know if you need this
+     * @see SubstituteForwards#invoke(double[], int, int, int, Access2D, boolean, boolean, boolean)
      */
-    @Deprecated
-    void raxpy(final N scalarA, final int rowX, final int rowY, final int firstColumn);
+    void substituteForwards(Access2D<N> body, boolean unitDiagonal, boolean conjugated, boolean identity);
+
+    @Override
+    default void supplyTo(final TransformableRegion<N> receiver) {
+        if (this != receiver) {
+            receiver.fillMatching(this);
+        }
+    }
 
     void transformLeft(Householder<N> transformation, int firstColumn);
 
     /**
      * <p>
-     * As in {@link MatrixStore#multiplyLeft(MatrixStore)} where the left/parameter matrix is a plane
-     * rotation.
+     * As in {@link MatrixStore#premultiply(Access1D)} where the left/parameter matrix is a plane rotation.
      * </p>
      * <p>
      * Multiplying by a plane rotation from the left means that [this] gets two of its rows updated to new
@@ -625,7 +283,7 @@ public interface PhysicalStore<N extends Number> extends MatrixStore<N>, Element
 
     /**
      * <p>
-     * As in {@link MatrixStore#multiply(Access1D)} where the right/parameter matrix is a plane rotation.
+     * As in {@link MatrixStore#multiply(MatrixStore)} where the right/parameter matrix is a plane rotation.
      * </p>
      * <p>
      * Multiplying by a plane rotation from the right means that [this] gets two of its columns updated to new

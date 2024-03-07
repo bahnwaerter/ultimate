@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,31 +29,55 @@ import org.ojalgo.type.context.BooleanContext;
 
 /**
  * BooleanFormat doesn't do anything useful, but it was needed for {@linkplain BooleanContext} (that doesn't
- * do anything either).
+ * do much either).
  *
  * @author apete
  */
 public final class BooleanFormat extends Format {
 
+    private static final long serialVersionUID = 1L;
+
+    private final String myFalseValue;
+    private final String myNullValue;
+    private final String myTrueValue;
+
     public BooleanFormat() {
+        this(Boolean.TRUE.toString(), Boolean.FALSE.toString());
+    }
+
+    public BooleanFormat(final String trueValue, final String falseValue) {
+        this(trueValue, falseValue, "?");
+    }
+
+    public BooleanFormat(final String trueValue, final String falseValue, final String nullValue) {
         super();
+        myTrueValue = trueValue;
+        myFalseValue = falseValue;
+        myNullValue = nullValue;
     }
 
     @Override
-    public StringBuffer format(final Object anObject, final StringBuffer aBuffer, final FieldPosition aPosition) {
+    public StringBuffer format(final Object object, final StringBuffer buffer, final FieldPosition position) {
 
-        if ((anObject instanceof Boolean) && ((Boolean) anObject).booleanValue()) {
-            aBuffer.append(true);
+        if ((object == null) || !(object instanceof Boolean)) {
+            buffer.append(myNullValue);
+        } else if (((Boolean) object).booleanValue()) {
+            buffer.append(myTrueValue);
         } else {
-            aBuffer.append(false);
+            buffer.append(myFalseValue);
         }
 
-        return aBuffer;
+        return buffer;
     }
 
     @Override
-    public Boolean parseObject(final String aSource, final ParsePosition aPosition) {
-        return Boolean.valueOf(aSource);
+    public Boolean parseObject(final String source, final ParsePosition position) {
+
+        if (myTrueValue.equals(source)) {
+            return Boolean.TRUE;
+        } else {
+            return Boolean.FALSE;
+        }
     }
 
 }

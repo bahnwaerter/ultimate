@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,14 +23,17 @@ package org.ojalgo.function;
 
 import java.util.function.BiFunction;
 
-public interface ParameterFunction<N extends Number> extends BasicFunction<N>, BiFunction<N, Integer, N> {
+import org.ojalgo.ProgrammingError;
+import org.ojalgo.type.NumberDefinition;
+
+public interface ParameterFunction<N extends Comparable<N>> extends BasicFunction, BiFunction<N, Integer, N> {
 
     /**
      * A {@linkplain ParameterFunction} with a set/fixed parameter.
      *
      * @author apete
      */
-    public static final class FixedParameter<N extends Number> implements UnaryFunction<N> {
+    public static final class FixedParameter<N extends Comparable<N>> implements UnaryFunction<N> {
 
         private final ParameterFunction<N> myFunction;
         private final int myParameter;
@@ -48,30 +51,92 @@ public interface ParameterFunction<N extends Number> extends BasicFunction<N>, B
             myParameter = param;
         }
 
-        public final ParameterFunction<N> getFunction() {
+        public ParameterFunction<N> getFunction() {
             return myFunction;
         }
 
-        public final int getParameter() {
+        public int getParameter() {
             return myParameter;
         }
 
-        public final double invoke(final double arg) {
+        public double invoke(final double arg) {
             return myFunction.invoke(arg, myParameter);
         }
 
-        public final N invoke(final N arg) {
+        public float invoke(final float arg) {
+            return myFunction.invoke(arg, myParameter);
+        }
+
+        public N invoke(final N arg) {
             return myFunction.invoke(arg, myParameter);
         }
 
     }
 
-    public abstract double invoke(double arg, int param);
+    default ParameterFunction<N> andThen(final UnaryFunction<N> after) {
+        ProgrammingError.throwIfNull(after);
+        return new ParameterFunction<N>() {
 
-    public abstract N invoke(N arg, int param);
+            public double invoke(final double arg, final int param) {
+                return after.invoke(ParameterFunction.this.invoke(arg, param));
+            }
+
+            public float invoke(final float arg, final int param) {
+                return after.invoke(ParameterFunction.this.invoke(arg, param));
+            }
+
+            public N invoke(final N arg, final int param) {
+                return after.invoke(ParameterFunction.this.invoke(arg, param));
+            }
+
+        };
+    }
 
     default N apply(final N arg, final Integer param) {
-        return this.invoke(arg, param);
+        return this.invoke(arg, param.intValue());
+    }
+
+    default ParameterFunction<N> compose(final UnaryFunction<N> before) {
+        ProgrammingError.throwIfNull(before);
+        return new ParameterFunction<N>() {
+
+            public double invoke(final double arg, final int param) {
+                return ParameterFunction.this.invoke(before.invoke(arg), param);
+            }
+
+            public float invoke(final float arg, final int param) {
+                return ParameterFunction.this.invoke(before.invoke(arg), param);
+            }
+
+            public N invoke(final N arg, final int param) {
+                return ParameterFunction.this.invoke(before.invoke(arg), param);
+            }
+
+        };
+    }
+
+    default byte invoke(final byte arg, final int param) {
+        return (byte) this.invoke((double) arg, param);
+    }
+
+    double invoke(double arg, int param);
+
+    default float invoke(final float arg, final int param) {
+        return (float) this.invoke((double) arg, param);
+    }
+
+    default int invoke(final int arg, final int param) {
+        return NumberDefinition.toInt(this.invoke((double) arg, param));
+    }
+
+    default long invoke(final long arg, final int param) {
+        return NumberDefinition.toLong(this.invoke((double) arg, param));
+    }
+
+    N invoke(N arg, int param);
+
+    default short invoke(final short arg, final int param) {
+        return (short) this.invoke((double) arg, param);
     }
 
     /**
@@ -82,7 +147,7 @@ public interface ParameterFunction<N extends Number> extends BasicFunction<N>, B
      * @return The resulting unary function.
      */
     default UnaryFunction<N> parameter(final int param) {
-        return new FixedParameter<N>(this, param);
+        return new FixedParameter<>(this, param);
     }
 
 }

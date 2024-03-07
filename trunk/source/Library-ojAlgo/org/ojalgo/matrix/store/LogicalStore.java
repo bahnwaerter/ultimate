@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,24 +21,22 @@
  */
 package org.ojalgo.matrix.store;
 
-import org.ojalgo.ProgrammingError;
+import java.util.concurrent.Future;
+
+import org.ojalgo.concurrent.DaemonPoolExecutor;
+import org.ojalgo.scalar.Scalar;
+import org.ojalgo.structure.Access1D;
 
 /**
- * Logical stores are (intended to be) immutable. Therefore LogicalStore subclasses should be made .
- * 
+ * Logical stores are (intended to be) immutable.
+ *
  * @author apete
  */
-abstract class LogicalStore<N extends Number> extends AbstractStore<N> {
+abstract class LogicalStore<N extends Comparable<N>> extends AbstractStore<N> {
 
-    private MatrixStore<N> myBase;
-
-    @SuppressWarnings("unused")
-    private LogicalStore(final int aRowDim, final int aColDim) {
-
-        this(null, aRowDim, aColDim);
-
-        ProgrammingError.throwForIllegalInvocation();
-    }
+    private final MatrixStore<N> myBase;
+    private final Scalar<N> myOne;
+    private final Scalar<N> myZero;
 
     protected LogicalStore(final MatrixStore<N> base, final int rowsCount, final int columnsCount) {
 
@@ -46,17 +44,52 @@ abstract class LogicalStore<N extends Number> extends AbstractStore<N> {
 
         myBase = base;
 
-        if (myBase == null) {
-            throw new IllegalArgumentException(this.getClass().getName() + " cannot have a null 'base'!");
-        }
+        myZero = base.physical().scalar().zero();
+        myOne = base.physical().scalar().one();
     }
 
-    public final PhysicalStore.Factory<N, ?> factory() {
-        return myBase.factory();
+    protected LogicalStore(final MatrixStore<N> base, final long rowsCount, final long columnsCount) {
+        this(base, Math.toIntExact(rowsCount), Math.toIntExact(columnsCount));
     }
 
-    protected final MatrixStore<N> getBase() {
+    public PhysicalStore.Factory<N, ?> physical() {
+        return myBase.physical();
+    }
+
+    protected final Future<?> executeMultiply(final Access1D<N> right, final TransformableRegion<N> target) {
+        return DaemonPoolExecutor.invoke(() -> myBase.multiply(right, target));
+    }
+
+    protected final Future<MatrixStore<N>> executeMultiply(final double scalar) {
+        return DaemonPoolExecutor.invoke(() -> myBase.multiply(scalar));
+    }
+
+    protected final Future<MatrixStore<N>> executeMultiply(final MatrixStore<N> right) {
+        return DaemonPoolExecutor.invoke(() -> myBase.multiply(right));
+    }
+
+    protected final Future<MatrixStore<N>> executeMultiply(final N scalar) {
+        return DaemonPoolExecutor.invoke(() -> myBase.multiply(scalar));
+    }
+
+    protected final Future<N> executeMultiplyBoth(final Access1D<N> leftAndRight) {
+        return DaemonPoolExecutor.invoke(() -> myBase.multiplyBoth(leftAndRight));
+    }
+
+    protected final Future<ElementsSupplier<N>> executePremultiply(final Access1D<N> left) {
+        return DaemonPoolExecutor.invoke(() -> myBase.premultiply(left));
+    }
+
+    final MatrixStore<N> base() {
         return myBase;
+    }
+
+    final Scalar<N> one() {
+        return myOne;
+    }
+
+    final Scalar<N> zero() {
+        return myZero;
     }
 
 }

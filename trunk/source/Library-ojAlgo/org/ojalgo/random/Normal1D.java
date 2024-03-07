@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,24 +21,25 @@
  */
 package org.ojalgo.random;
 
-import static org.ojalgo.constant.PrimitiveMath.*;
+import static org.ojalgo.function.constant.PrimitiveMath.ONE;
 
-import org.ojalgo.access.Access1D;
-import org.ojalgo.access.Access2D;
 import org.ojalgo.array.Array1D;
 import org.ojalgo.array.Array2D;
+import org.ojalgo.function.constant.PrimitiveMath;
+import org.ojalgo.structure.Access1D;
+import org.ojalgo.structure.Access2D;
 
-public final class Normal1D extends RandomNumber1D {
+public final class Normal1D extends AbstractDistribution1D {
 
     static Access2D<?> correlations(final Access2D<?> covariances) {
 
         final int tmpDim = (int) covariances.countRows();
 
-        final Array2D<Double> retVal = Array2D.PRIMITIVE.makeZero(tmpDim, tmpDim);
-        final Array1D<Double> tmpStdDev = Array1D.PRIMITIVE.makeZero(tmpDim);
+        final Array2D<Double> retVal = Array2D.R064.make(tmpDim, tmpDim);
+        final Array1D<Double> tmpStdDev = Array1D.R064.make(tmpDim);
 
         for (int ij = 0; ij < tmpDim; ij++) {
-            tmpStdDev.set(ij, Math.sqrt(covariances.doubleValue(ij, ij)));
+            tmpStdDev.set(ij, PrimitiveMath.SQRT.invoke(covariances.doubleValue(ij, ij)));
         }
 
         double tmpCorrelation;
@@ -67,10 +68,10 @@ public final class Normal1D extends RandomNumber1D {
 
         final int tmpDim = (int) covariances.countRows();
 
-        myLocations = Array1D.PRIMITIVE.copy(locations);
-        myScales = Array1D.PRIMITIVE.makeZero(tmpDim);
+        myLocations = Array1D.R064.copy(locations);
+        myScales = Array1D.R064.make(tmpDim);
         for (int ij = 0; ij < tmpDim; ij++) {
-            myScales.set(ij, Math.sqrt(covariances.doubleValue(ij, ij)));
+            myScales.set(ij, PrimitiveMath.SQRT.invoke(covariances.doubleValue(ij, ij)));
         }
     }
 

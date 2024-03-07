@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,49 +22,49 @@
 package org.ojalgo.series;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Map;
 import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.function.UnaryOperator;
 
-import org.ojalgo.ProgrammingError;
-import org.ojalgo.access.Access1D;
-import org.ojalgo.array.ArrayUtils;
-import org.ojalgo.constant.PrimitiveMath;
-import org.ojalgo.function.UnaryFunction;
+import org.ojalgo.structure.Access1D;
+import org.ojalgo.type.NumberDefinition;
 
-public class NumberSeries<N extends Number & Comparable<N>> extends AbstractSeries<N, N, NumberSeries<N>> implements UnaryFunction<N> {
+public class NumberSeries<N extends Comparable<N>> extends TreeSeries<N, N, NumberSeries<N>> {
 
     public NumberSeries() {
-        super();
+        super(new TreeMap<>());
     }
 
-    public NumberSeries(final Comparator<? super N> someC) {
-        super(someC);
+    public NumberSeries(final Map<? extends N, ? extends N> map) {
+        super(new TreeMap<>(map));
     }
 
-    public NumberSeries(final Map<? extends N, ? extends N> someM) {
-        super(someM);
-    }
-
-    public NumberSeries(final SortedMap<N, ? extends N> someM) {
-        super(someM);
+    public NumberSeries(final SortedMap<N, ? extends N> sortedMap) {
+        super(new TreeMap<>(sortedMap));
     }
 
     public Access1D<N> accessKeys() {
-        return ArrayUtils.wrapAccess1D(new ArrayList<N>(this.keySet()));
+        return Access1D.wrap(new ArrayList<>(this.keySet()));
     }
 
     public Access1D<N> accessValues() {
-        return ArrayUtils.wrapAccess1D(new ArrayList<N>(this.values()));
+        return Access1D.wrap(new ArrayList<>(this.values()));
     }
 
-    public double invoke(final double arg) {
-        ProgrammingError.throwForIllegalInvocation();
-        return PrimitiveMath.NaN;
+    public double doubleValue(final N key) {
+        return NumberDefinition.doubleValue(this.get(key));
     }
 
-    public N invoke(final N arg) {
-        return this.get(arg);
+    @Override
+    public N get(final N key) {
+        return this.get((Object) key);
+    }
+
+    public BasicSeries<N, N> resample(final UnaryOperator<N> keyTranslator) {
+        NumberSeries<N> retVal = new NumberSeries<>();
+        this.resample(keyTranslator, retVal);
+        return retVal;
     }
 
 }

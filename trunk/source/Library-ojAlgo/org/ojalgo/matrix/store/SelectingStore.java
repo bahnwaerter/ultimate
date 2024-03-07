@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,20 +21,19 @@
  */
 package org.ojalgo.matrix.store;
 
-abstract class SelectingStore<N extends Number> extends LogicalStore<N> {
+/**
+ * Selects (rearranges) existing rows and/or columns.
+ *
+ * @author apete
+ */
+abstract class SelectingStore<N extends Comparable<N>> extends LogicalStore<N> {
 
-    protected SelectingStore(final int rowCount, final int columnCount, final MatrixStore<N> base) {
-        super(base, rowCount, columnCount);
+    protected SelectingStore(final MatrixStore<N> base, final int rowsCount, final int columnsCount) {
+        super(base, rowsCount, columnsCount);
     }
 
-    @Override
-    public void supplyTo(final ElementsConsumer<N> consumer) {
-        this.supplyNonZerosTo(consumer);
-    }
-
-    @Override
-    protected void supplyNonZerosTo(final ElementsConsumer<N> consumer) {
-        consumer.fillMatching(this);
+    protected SelectingStore(final MatrixStore<N> base, final long rowsCount, final long columnsCount) {
+        super(base, rowsCount, columnsCount);
     }
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,257 +21,409 @@
  */
 package org.ojalgo.matrix;
 
-import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
-import org.ojalgo.access.Access2D;
+import org.ojalgo.ProgrammingError;
 import org.ojalgo.algebra.NormedVectorSpace;
+import org.ojalgo.function.BinaryFunction;
 import org.ojalgo.function.UnaryFunction;
+import org.ojalgo.function.aggregator.Aggregator;
+import org.ojalgo.function.constant.PrimitiveMath;
 import org.ojalgo.matrix.decomposition.Cholesky;
 import org.ojalgo.matrix.decomposition.Eigenvalue;
+import org.ojalgo.matrix.decomposition.Eigenvalue.Eigenpair;
+import org.ojalgo.matrix.decomposition.LDL;
+import org.ojalgo.matrix.decomposition.LDU;
 import org.ojalgo.matrix.decomposition.LU;
+import org.ojalgo.matrix.decomposition.MatrixDecomposition;
 import org.ojalgo.matrix.decomposition.QR;
 import org.ojalgo.matrix.decomposition.SingularValue;
+import org.ojalgo.matrix.store.ElementsSupplier;
 import org.ojalgo.matrix.store.MatrixStore;
 import org.ojalgo.matrix.store.PhysicalStore;
-import org.ojalgo.scalar.ComplexNumber;
+import org.ojalgo.matrix.store.TransformableRegion;
+import org.ojalgo.matrix.task.DeterminantTask;
+import org.ojalgo.matrix.task.InverterTask;
+import org.ojalgo.matrix.task.SolverTask;
 import org.ojalgo.scalar.Scalar;
+import org.ojalgo.structure.Access1D;
+import org.ojalgo.structure.Access2D;
+import org.ojalgo.structure.Operate2D;
+import org.ojalgo.structure.Structure2D;
+import org.ojalgo.structure.Transformation2D;
+import org.ojalgo.type.NumberDefinition;
 import org.ojalgo.type.context.NumberContext;
 
 /**
- * <p>
- * This interface declares a set of high level methods for linear algebra. Only the most basic set of matrix
- * functionality is defined here. Various matrix decompositions may be used to do some of the more advanced
- * tasks.
- * </p>
- * <p>
- * A vector is a matrix with column (or perhaps row) dimension 1.
- * </p>
+ * A base class for, easy to use, immutable (thread safe) matrices with a rich feature set. This class handles
+ * a lot of complexity, and makes choices, for you. If you want more control, and to be exposed to all the
+ * implementation details, then look at the various interfaces/classes in the
+ * {@linkplain org.ojalgo.matrix.store} and {@linkplain org.ojalgo.matrix.decomposition} packages.
  *
- * @see LU
- * @see Cholesky
- * @see QR
- * @see Eigenvalue
- * @see SingularValue
- * @see MatrixStore
  * @author apete
  */
-public interface BasicMatrix extends Access2D<Number>, NormedVectorSpace<BasicMatrix, Number> {
+public abstract class BasicMatrix<N extends Comparable<N>, M extends BasicMatrix<N, M>>
+        implements Matrix2D<N, M>, Structure2D.ReducibleTo1D<M>, NumberContext.Enforceable<M>, Access2D.Collectable<N, TransformableRegion<N>>,
+        Provider2D.Inverse<M>, Provider2D.Condition, Provider2D.Rank, Provider2D.Symmetric, Provider2D.Hermitian, Provider2D.Trace<N>,
+        Provider2D.Determinant<N>, Provider2D.Solution<M>, Provider2D.Eigenpairs, Structure2D.Logical<Access2D<N>, M>, Operate2D<N, M> {
 
-    /**
-     * @author apete
-     */
-    public static interface Factory<I extends BasicMatrix> extends Access2D.Factory<I> {
-
-        Access2D.Builder<I> getBuilder(int count);
-
-        Access2D.Builder<I> getBuilder(int rows, int columns);
-
-    }
-
-    /**
-     * Adds the elements of aMtrx to the elements of this matrix. The matrices must have equal dimensions.
-     *
-     * @param addend What to add.
-     * @return A new matrix whos elements are the sum of this' and aMtrx'.
-     */
-    BasicMatrix add(Access2D<?> addend);
-
-    /**
-     * @param row The row index of where to superimpose the top left element of aMtrx
-     * @param col The column index of where to superimpose the top left element of aMtrx
-     * @param addend A matrix to superimpose
-     * @return A new matrix
-     */
-    BasicMatrix add(int row, int col, Access2D<?> addend);
-
-    /**
-     * Do not use this method to populate large dense matrices! Only use it to change a few (a small number)
-     * of elements.
-     */
-    BasicMatrix add(int row, int col, Number value);
-
-    /**
-     * Adds value to the elements of this.
-     *
-     * @param value What to add
-     * @return A new matrix whos elements are the sum of this' elements and value.
-     */
-    BasicMatrix add(Number value);
-
-    /**
-     * @return A fully mutable matrix builder with the elements initially set to a copy of this matrix.
-     */
-    Builder<? extends BasicMatrix> copyToBuilder();
-
-    /**
-     * Divides the elements of this with value.
-     *
-     * @param value The denominator.
-     * @return A new matrix whos elements are the elements of this divided with value.
-     */
-    BasicMatrix divide(Number value);
-
-    /**
-     * Divides the elements of this with the elements of aMtrx. The matrices must have equal dimensions.
-     *
-     * @param aMtrx The denominator elements.
-     * @return A new matrix whos elements are the elements of this divided with the elements of aMtrx.
-     */
-    BasicMatrix divideElements(Access2D<?> aMtrx);
-
-    /**
-     * Will enforce this context
-     *
-     * @param context The context
-     * @return A new matrix with the lements enforced
-     */
-    BasicMatrix enforce(NumberContext context);
-
-    /**
-     * @return true if the frobenius norm of the difference between [this] and [aStore] is zero within the
-     *         limits of aCntxt.
-     */
-    boolean equals(Access2D<?> aMtrx, NumberContext aCntxt);
-
-    /**
-     * BasicMatrix instances are intended to be immutable. If they are it is possible to cache (partial)
-     * calculation results. Calling this method should flush any cached calculation results.
-     */
-    void flushCache();
-
-    /**
-     * @param aFirst The first column to include.
-     * @param aLimit The limit (exclusive) - the first column not to include.
-     * @return A new matrix with only the specified range of columns
-     */
-    BasicMatrix getColumnsRange(final int aFirst, final int aLimit);
-
-    /**
-     * Matrix condition (2-norm)
-     *
-     * @return ratio of largest to smallest singular value.
-     */
-    Scalar<?> getCondition();
-
-    /**
-     * @return The matrix' determinant.
-     */
-    Scalar<?> getDeterminant();
-
-    List<ComplexNumber> getEigenvalues();
+    private static final NumberContext EQUALS = NumberContext.of(12, 14);
 
     /**
      * The Frobenius norm is the square root of the sum of the squares of each element, or the square root of
      * the sum of the square of the singular values.
      *
      * @return The matrix' Frobenius norm
-     * @see #getFrobeniusNorm()
-     * @see #getInfinityNorm()
-     * @see #getKyFanNorm(int)
-     * @see #getOneNorm()
-     * @see #getOperatorNorm()
-     * @see #getTraceNorm()
-     * @see #getVectorNorm(int)
      */
-    Scalar<?> getFrobeniusNorm();
+    public static <M extends BasicMatrix<?, M>> double calculateFrobeniusNorm(final M matrix) {
+        return matrix.norm();
+    }
 
     /**
-     * @return Max row sum
-     * @see #getFrobeniusNorm()
-     * @see #getInfinityNorm()
-     * @see #getKyFanNorm(int)
-     * @see #getOneNorm()
-     * @see #getOperatorNorm()
-     * @see #getTraceNorm()
-     * @see #getVectorNorm(int)
+     * @return The inf-norm or maximum row sum
      */
-    Scalar<?> getInfinityNorm();
+    public static <M extends BasicMatrix<?, M>> double calculateInfinityNorm(final M matrix) {
+
+        double retVal = PrimitiveMath.ZERO;
+
+        long tmpLimit = matrix.countRows();
+        for (long i = 0L; i < tmpLimit; i++) {
+            retVal = PrimitiveMath.MAX.invoke(retVal, NumberDefinition.doubleValue(matrix.aggregateRow(i, Aggregator.NORM1)));
+        }
+
+        return retVal;
+    }
 
     /**
-     * @see #getFrobeniusNorm()
-     * @see #getInfinityNorm()
-     * @see #getKyFanNorm(int)
-     * @see #getOneNorm()
-     * @see #getOperatorNorm()
-     * @see #getTraceNorm()
-     * @see #getVectorNorm(int)
+     * @return The 1-norm or maximum column sum
      */
-    Scalar<?> getKyFanNorm(int k);
+    public static <M extends BasicMatrix<?, M>> double calculateOneNorm(final M matrix) {
+
+        double retVal = PrimitiveMath.ZERO;
+
+        long tmpLimit = matrix.countColumns();
+        for (long j = 0L; j < tmpLimit; j++) {
+            retVal = PrimitiveMath.MAX.invoke(retVal, NumberDefinition.doubleValue(matrix.aggregateColumn(j, Aggregator.NORM1)));
+        }
+
+        return retVal;
+    }
+
+    private transient MatrixDecomposition<N> myDecomposition = null;
+    private final PhysicalStore.Factory<N, ?> myFactory;
+    private transient int myHashCode = 0;
+    private transient Boolean myHermitian = null;
+    private transient Boolean mySPD = null;
+    private MatrixStore<N> myStore;
+    private final ElementsSupplier<N> mySupplier;
+    private transient Boolean mySymmetric = null;
+
+    BasicMatrix(final PhysicalStore.Factory<N, ?> factory, final ElementsSupplier<N> supplier) {
+
+        super();
+
+        myFactory = factory;
+
+        mySupplier = supplier;
+
+        if (supplier instanceof MatrixStore<?>) {
+            myStore = (MatrixStore<N>) supplier;
+        } else {
+            myStore = null;
+        }
+    }
+
+    @Override
+    public M above(final Access2D<N>... above) {
+        return this.newInstance(this.store().above(above));
+    }
+
+    @Override
+    public M above(final Access2D<N> above) {
+        return this.newInstance(this.store().above(above));
+    }
+
+    @Override
+    public M above(final long numberOfRows) {
+        return this.newInstance(this.store().above(numberOfRows));
+    }
+
+    @Override
+    public M add(final double scalarAddend) {
+        return this.newInstance(this.store().add(scalarAddend));
+    }
+
+    @Override
+    public M add(final M addend) {
+        ProgrammingError.throwIfNotEqualDimensions(this.store(), addend);
+        return this.newInstance(this.store().add(addend.store()));
+    }
+
+    @Override
+    public M add(final N scalarAddend) {
+        return this.newInstance(this.store().add(scalarAddend));
+    }
+
+    @Override
+    public N aggregateColumn(final long row, final long col, final Aggregator aggregator) {
+        return this.store().aggregateColumn(row, col, aggregator);
+    }
+
+    @Override
+    public N aggregateDiagonal(final long row, final long col, final Aggregator aggregator) {
+        return this.store().aggregateDiagonal(row, col, aggregator);
+    }
+
+    @Override
+    public N aggregateRange(final long first, final long limit, final Aggregator aggregator) {
+        return this.store().aggregateRange(first, limit, aggregator);
+    }
+
+    @Override
+    public N aggregateRow(final long row, final long col, final Aggregator aggregator) {
+        return this.store().aggregateRow(row, col, aggregator);
+    }
+
+    @Override
+    public M below(final Access2D<N>... below) {
+        return this.newInstance(this.store().below(below));
+    }
+
+    @Override
+    public M below(final Access2D<N> below) {
+        return this.newInstance(this.store().below(below));
+    }
+
+    @Override
+    public M below(final long numberOfRows) {
+        return this.newInstance(this.store().below(numberOfRows));
+    }
+
+    @Override
+    public M bidiagonal(final boolean upper) {
+        return this.newInstance(this.store().bidiagonal(upper));
+    }
+
+    @Override
+    public M column(final int column) {
+        return this.newInstance(this.store().column(column));
+    }
+
+    @Override
+    public M column(final long column) {
+        return this.newInstance(this.store().column(column));
+    }
+
+    @Override
+    public M columns(final int... columns) {
+        return this.newInstance(this.store().columns(columns));
+    }
+
+    @Override
+    public M columns(final long... columns) {
+        return this.newInstance(this.store().columns(columns));
+    }
+
+    @Override
+    public M conjugate() {
+        return this.newInstance(this.store().conjugate());
+    }
 
     /**
-     * @return Max col sum
-     * @see #getFrobeniusNorm()
-     * @see #getInfinityNorm()
-     * @see #getKyFanNorm(int)
-     * @see #getOneNorm()
-     * @see #getOperatorNorm()
-     * @see #getTraceNorm()
-     * @see #getVectorNorm(int)
-     */
-    Scalar<?> getOneNorm();
-
-    /**
-     * 2-norm, max singular value
+     * The returned instance can have its elements mutated in various ways, while the size/shape is fixed.
      *
-     * @see #getFrobeniusNorm()
-     * @see #getInfinityNorm()
-     * @see #getKyFanNorm(int)
-     * @see #getOneNorm()
-     * @see #getOperatorNorm()
-     * @see #getTraceNorm()
-     * @see #getVectorNorm(int)
+     * @return A fully mutable matrix builder with the elements initially set to a copy of this matrix –
+     *         always creates a full dense copy.
+     * @see #logical()
      */
-    Scalar<?> getOperatorNorm();
+    public abstract Mutator2D<N, M, PhysicalStore<N>> copy();
+
+    @Override
+    public long count() {
+        return mySupplier.count();
+    }
+
+    @Override
+    public long countColumns() {
+        return mySupplier.countColumns();
+    }
+
+    @Override
+    public long countRows() {
+        return mySupplier.countRows();
+    }
+
+    @Override
+    public M diagonal() {
+        return this.newInstance(this.store().diagonal());
+    }
+
+    @Override
+    public M diagonally(final Access2D<N>... diagonally) {
+        return this.newInstance(this.store().diagonally(diagonally));
+    }
+
+    @Override
+    public M divide(final double scalarDivisor) {
+        return this.newInstance(this.store().divide(scalarDivisor));
+    }
+
+    @Override
+    public M divide(final N scalarDivisor) {
+        return this.newInstance(this.store().divide(scalarDivisor));
+    }
+
+    @Override
+    public double doubleValue(final long index) {
+        return this.store().doubleValue(index);
+    }
+
+    @Override
+    public double doubleValue(final int row, final int col) {
+        return this.store().doubleValue(row, col);
+    }
+
+    @Override
+    public M enforce(final NumberContext context) {
+
+        PhysicalStore<N> tmpCopy = this.store().copy();
+
+        tmpCopy.modifyAll(this.store().physical().function().enforce(context));
+
+        return this.newInstance(tmpCopy);
+    }
+
+    /**
+     * true if "other" is an {@link Access2D} of the same size/shape and the elements are equal to high
+     * precision (12 significant digits).
+     */
+    @Override
+    public boolean equals(final Object other) {
+        if (other instanceof Access2D<?>) {
+            return Access2D.equals(this.store(), (Access2D<?>) other, EQUALS);
+        }
+        return super.equals(other);
+    }
+
+    /**
+     * BasicMatrix instances are intended to be immutable. If they are it is possible to cache (partial)
+     * calculation results. Calling this method should flush any cached calculation results.
+     *
+     * @deprecated v50 Caching, if necessary, is handled for you. If you want control of this then use the
+     *             lower level stuff in org.ojagl.matrix.store and org.ojagl.matrix.decomposition instead.
+     */
+    @Deprecated
+    public void flushCache() {
+
+        myHashCode = 0;
+
+        if (myDecomposition != null) {
+            myDecomposition.reset();
+            myDecomposition = null;
+        }
+
+        myHermitian = null;
+        mySymmetric = null;
+        mySPD = null;
+    }
+
+    /**
+     * @deprecated v50 No need for this!
+     */
+    @Deprecated
+    public M get() {
+        return (M) this;
+    }
+
+    @Override
+    public N get(final long index) {
+        return this.store().get(index);
+    }
+
+    @Override
+    public N get(final long row, final long col) {
+        return this.store().get(row, col);
+    }
+
+    /**
+     * Matrix condition (2-norm)
+     *
+     * @return ratio of largest to smallest singular value.
+     */
+    @Override
+    public double getCondition() {
+        return this.getConditionProvider().getCondition();
+    }
+
+    /**
+     * @return The matrix' determinant.
+     */
+    @Override
+    public N getDeterminant() {
+        return this.getDeterminantProvider().getDeterminant();
+    }
+
+    @Override
+    public List<Eigenpair> getEigenpairs() {
+
+        if (!this.isSquare()) {
+            throw new ProgrammingError("Only defined for square matrices!");
+        }
+
+        return this.getEigenpairsProvider().getEigenpairs();
+    }
 
     /**
      * The rank of a matrix is the (maximum) number of linearly independent rows or columns it contains. It is
      * also equal to the number of nonzero singular values of the matrix.
      *
      * @return The matrix' rank.
+     * @see org.ojalgo.matrix.decomposition.MatrixDecomposition.RankRevealing
      */
-    int getRank();
-
-    /**
-     * @param aFirst The first row to include.
-     * @param aLimit The limit (exclusive) - the first row not to include.
-     * @return A new matrix with only the specified range of rows
-     */
-    BasicMatrix getRowsRange(final int aFirst, final int aLimit);
-
-    List<? extends Number> getSingularValues();
+    @Override
+    public int getRank() {
+        return this.getRankProvider().getRank();
+    }
 
     /**
      * The sum of the diagonal elements.
      *
      * @return The matrix' trace.
      */
-    Scalar<?> getTrace();
+    @Override
+    public N getTrace() {
+        return this.aggregateDiagonal(Aggregator.SUM);
+    }
 
-    /**
-     * @see #getFrobeniusNorm()
-     * @see #getInfinityNorm()
-     * @see #getKyFanNorm(int)
-     * @see #getOneNorm()
-     * @see #getOperatorNorm()
-     * @see #getTraceNorm()
-     * @see #getVectorNorm(int)
-     */
-    Scalar<?> getTraceNorm();
+    @Override
+    public int hashCode() {
+        if (myHashCode == 0) {
+            final Access1D<?> access = this.store();
+            int limit = access.size();
+            int retVal = limit + 31;
+            for (int ij = 0; ij < limit; ij++) {
+                retVal *= access.intValue(ij);
+            }
+            myHashCode = retVal;
+        }
+        return myHashCode;
+    }
 
-    /**
-     * Treats [this] as if it is one dimensional (a vector) and calculates the vector norm. The interface only
-     * requires that implementations can handle arguments 0, 1, 2 and {@linkplain Integer#MAX_VALUE}.
-     *
-     * @see #getFrobeniusNorm()
-     * @see #getInfinityNorm()
-     * @see #getKyFanNorm(int)
-     * @see #getOneNorm()
-     * @see #getOperatorNorm()
-     * @see #getTraceNorm()
-     * @see #getVectorNorm(int)
-     */
-    Scalar<?> getVectorNorm(int aDegree);
+    @Override
+    public M hermitian(final boolean upper) {
+        return this.newInstance(this.store().hermitian(upper));
+    }
+
+    @Override
+    public M hessenberg(final boolean upper) {
+        return this.newInstance(this.store().hessenberg(upper));
+    }
+
+    @Override
+    public long indexOfLargest() {
+        return this.store().indexOfLargest();
+    }
 
     /**
      * <p>
@@ -279,225 +431,274 @@ public interface BasicMatrix extends Access2D<Number>, NormedVectorSpace<BasicMa
      * </p>
      * <ul>
      * <li>"right inverse": [this][right inverse]=[I]. You may calculate it using
-     * {@linkplain #solve(Access2D)}.</li>
+     * {@linkplain #solve(Access2D)}.
      * <li>"left inverse": [left inverse][this]=[I]. You may calculate it using {@linkplain #solve(Access2D)}
-     * and transposing.</li>
+     * and transposing.
      * <li>"generalised inverse": [this][generalised inverse][this]=[this]. Note that if [this] is singular or
-     * non-square, then [generalised inverse] is not unique.</li>
+     * non-square, then [generalised inverse] is not unique.
      * <li>"pseudoinverse": The generalised inverse (there are typically/possibly many) with the smallest
-     * frobenius norm is called the pseudoinverse. You may calculate it using the {@linkplain QR} or
-     * {@linkplain SingularValue} decompositions.</li>
+     * frobenius norm is called the (Moore-Penrose) pseudoinverse. You may calculate it using the
+     * {@linkplain QR} or {@linkplain SingularValue} decompositions.
      * <li>"inverse":
      * <ul>
-     * <li>If [left inverse]=[right inverse] then it is also [inverse].</li>
+     * <li>If [left inverse]=[right inverse] then it is also [inverse].
      * <li>If [this] is square and has full rank then the [generalised inverse] is unique, with the
-     * [pseudoinverse] given, and equal to [inverse].</li>
+     * [pseudoinverse] given, and equal to [inverse].
      * </ul>
-     * </li>
      * </ul>
      *
      * @return The "best possible" inverse....
      */
-    BasicMatrix invert();
+    @Override
+    public M invert() {
+        return this.newInstance(this.getInverseProvider(false).invert().orElseGet(() -> this.getInverseProvider(true).invert().get()));
+    }
+
+    @Override
+    public boolean isHermitian() {
+        if (myHermitian == null) {
+            myHermitian = Boolean.valueOf(this.isSquare() && this.store().equals(this.store().conjugate(), EQUALS));
+        }
+        return myHermitian.booleanValue();
+    }
+
+    @Override
+    public boolean isSmall(final double comparedTo) {
+        return this.store().isSmall(comparedTo);
+    }
+
+    @Override
+    public boolean isSymmetric() {
+        if (mySymmetric == null) {
+            mySymmetric = Boolean.valueOf(this.isSquare() && this.store().equals(this.store().transpose(), EQUALS));
+        }
+        return mySymmetric.booleanValue();
+    }
+
+    @Override
+    public M left(final Access2D<N>... left) {
+        return this.newInstance(this.store().left(left));
+    }
+
+    @Override
+    public M left(final Access2D<N> left) {
+        return this.newInstance(this.store().left(left));
+    }
+
+    @Override
+    public M left(final long numberOfColumns) {
+        return this.newInstance(this.store().left(numberOfColumns));
+    }
+
+    @Override
+    public M limits(final long rowLimit, final long columnLimit) {
+        return this.newInstance(this.store().limits(rowLimit, columnLimit));
+    }
 
     /**
-     * Matrices are either square, tall, fat or empty. m &lt;= 0 or n &lt;= 0
+     * Compared to {@link #copy()} this does not create a copy – not initially anyway. The returned instance
+     * is a starting point for logically composing a new matrix.
      *
-     * @return true if matrix is empty
+     * @return A logical builder that tries to avoid unnecessary copying.
+     * @see #copy()
+     * @deprecated v50 No need for this!
      */
-    boolean isEmpty();
+    @Deprecated
+    public final M logical() {
+        return (M) this;
+    }
+
+    @Override
+    public M multiply(final double scalarMultiplicand) {
+        return this.newInstance(this.store().multiply(scalarMultiplicand));
+    }
+
+    @Override
+    public M multiply(final M multiplicand) {
+
+        ProgrammingError.throwIfMultiplicationNotPossible(this.store(), multiplicand);
+
+        return this.newInstance(this.store().multiply(multiplicand.store()));
+    }
+
+    @Override
+    public M multiply(final N scalarMultiplicand) {
+        return this.newInstance(this.store().multiply(scalarMultiplicand));
+    }
+
+    @Override
+    public M negate() {
+        return this.newInstance(this.store().negate());
+    }
 
     /**
-     * Matrices are either square, tall, fat or empty. 1 &lt;= m &lt; n
+     * The Frobenius norm is the square root of the sum of the squares of each element, or the square root of
+     * the sum of the square of the singular values. This definition fits the requirements of
+     * {@linkplain NormedVectorSpace#norm()}.
      *
-     * @return true if matrix is fat
+     * @return The matrix' Frobenius norm
      */
-    boolean isFat();
+    @Override
+    public double norm() {
+        return this.store().norm();
+    }
 
-    /**
-     * @return true if {@linkplain #getRank()} == min({@linkplain #countRows()}, {@linkplain #countColumns()})
-     */
-    boolean isFullRank();
+    @Override
+    public M offsets(final long rowOffset, final long columnOffset) {
+        return this.newInstance(this.store().offsets(rowOffset, columnOffset));
+    }
 
-    boolean isHermitian();
+    @Override
+    public M onAll(final UnaryFunction<N> operator) {
+        return this.newInstance(this.supplier().onAll(operator));
+    }
 
-    /**
-     * @return true if this is a 1x1 matrix
-     */
-    boolean isScalar();
+    @Override
+    public M onAny(final Transformation2D<N> operator) {
+        return this.newInstance(this.supplier().onAny(operator));
+    }
 
-    /**
-     * Matrices are either square, tall, fat or empty. m = n &lt;&gt; 0
-     *
-     * @return true if matrix is square
-     */
-    boolean isSquare();
+    @Override
+    public M onColumns(final BinaryFunction<N> operator, final Access1D<N> right) {
+        return this.newInstance(this.supplier().onColumns(operator, right));
+    }
 
-    boolean isSymmetric();
+    @Override
+    public M onMatching(final Access2D<N> left, final BinaryFunction<N> operator) {
+        return this.newInstance(this.supplier().onMatching(left, operator));
+    }
 
-    /**
-     * Matrices are either square, tall, fat or empty. m &lt; n &gt;= 1
-     *
-     * @return true if matrix is tall
-     */
-    boolean isTall();
+    @Override
+    public M onMatching(final BinaryFunction<N> operator, final Access2D<N> right) {
+        return this.newInstance(this.supplier().onMatching(operator, right));
+    }
 
-    /**
-     * @return true if the row or column dimensions are equal to 1.
-     */
-    boolean isVector();
+    @Override
+    public M onRows(final BinaryFunction<N> operator, final Access1D<N> right) {
+        return this.newInstance(this.supplier().onRows(operator, right));
+    }
 
-    /**
-     * [aMtrx] is appended to the bottom of [this]. The two matrices must have the same number of columns.
-     *
-     * @param aMtrx The matrix to merge.
-     * @return A new matrix with more rows.
-     */
-    BasicMatrix mergeColumns(Access2D<?> aMtrx);
+    @Override
+    public M power(final int power) {
+        return this.newInstance(this.store().power(power));
+    }
 
-    /**
-     * [aMtrx] is appended to the right side of [this]. The two matrices must have the same number of rows.
-     *
-     * @param aMtrx The matrix to merge.
-     * @return A new matrix with more columns.
-     */
-    BasicMatrix mergeRows(Access2D<?> aMtrx);
+    @Override
+    public M reduceColumns(final Aggregator aggregator) {
+        return this.newInstance(this.store().reduceColumns(aggregator).collect(this.store().physical()));
+    }
 
-    BasicMatrix modify(UnaryFunction<? extends Number> aFunc);
+    @Override
+    public M reduceRows(final Aggregator aggregator) {
+        return this.newInstance(this.store().reduceRows(aggregator).collect(this.store().physical()));
+    }
 
-    /**
-     * Matrix multiplication: [this][aMtrx] <br>
-     * The column dimension of the left matrix must equal the row dimension of the right matrix.
-     *
-     * @param right The right matrix.
-     * @return The product.
-     * @see org.ojalgo.matrix.BasicMatrix#multiplyLeft(Access2D)
-     */
-    BasicMatrix multiply(Access2D<?> right);
+    @Override
+    public M repeat(final int rowsRepetitions, final int columnsRepetitions) {
+        return this.newInstance(this.store().repeat(rowsRepetitions, columnsRepetitions));
+    }
 
-    /**
-     * Multiplies the elements of this matrix with the elements of aMtrx. The matrices must have equal
-     * dimensions.
-     *
-     * @param aMtrx The elements to multiply by.
-     * @return A new matrix whos elements are the elements of this multiplied with the elements of aMtrx.
-     */
-    BasicMatrix multiplyElements(Access2D<?> aMtrx);
+    @Override
+    public M right(final Access2D<N>... right) {
+        return this.newInstance(this.store().right(right));
+    }
 
-    /**
-     * Matrix multiplication: [aMtrx][this] <br>
-     * The column dimension of the left matrix must equal the row dimension of the right matrix.
-     *
-     * @param aMtrx The left matrix.
-     * @return The product.
-     * @see org.ojalgo.matrix.BasicMatrix#multiply(Access2D)
-     */
-    BasicMatrix multiplyLeft(Access2D<?> aMtrx);
+    @Override
+    public M right(final Access2D<N> right) {
+        return this.newInstance(this.store().right(right));
+    }
 
-    /**
-     * Assumes that both [this] and [aVctr] have row or column dimension, doesn't matter which, equal to 1.
-     * The two vectors must have the same number of elements.
-     */
-    Scalar<?> multiplyVectors(Access2D<?> aVctr);
+    @Override
+    public M right(final long numberOfColumns) {
+        return this.newInstance(this.store().right(numberOfColumns));
+    }
 
-    /**
-     * @param someCols An ordered array of column indeces.
-     * @return A matrix with a subset of, reordered, columns.
-     */
-    BasicMatrix selectColumns(int... someCols);
+    @Override
+    public M row(final int row) {
+        return this.newInstance(this.store().row(row));
+    }
 
-    /**
-     * @param someRows An ordered array of row indeces.
-     * @return A matrix with a subset of, reordered, rows.
-     */
-    BasicMatrix selectRows(int... someRows);
+    @Override
+    public M row(final long row) {
+        return this.newInstance(this.store().row(row));
+    }
+
+    @Override
+    public M rows(final int... rows) {
+        return this.newInstance(this.store().rows(rows));
+    }
+
+    @Override
+    public M rows(final long... rows) {
+        return this.newInstance(this.store().rows(rows));
+    }
+
+    @Override
+    public M select(final int[] rows, final int[] columns) {
+        return this.newInstance(this.store().select(rows, columns));
+    }
+
+    @Override
+    public M select(final long[] rows, final long[] columns) {
+        return this.newInstance(this.store().select(rows, columns));
+    }
+
+    @Override
+    public M signum() {
+        return this.newInstance(this.store().signum());
+    }
 
     /**
      * <p>
-     * This method solves a system of linear equations: [this][X]=[aRHS]. A combination of columns in [this]
-     * should produce a column in [aRHS]. It is ok for [aRHS] to have more than 1 column.
+     * This method solves a system of linear equations: [this][X]=[rhs]. A combination of columns in [this]
+     * should produce a column(s) in [rhs]. It is ok for [rhs] to have more than 1 column.
      * </p>
      * <ul>
      * <li>If the problem is over-qualified an approximate solution is returned.</li>
      * <li>If the problem is under-qualified one possible solution is returned.</li>
      * </ul>
      * <p>
-     * Remember that: [X][this]=[aRHS] is equivalent to [this]<sup>T</sup>[X]<sup>T</sup>=[aRHS]<sup>T</sup>
+     * Remember that: [X][this]=[rhs] is equivalent to [this]<sup>T</sup>[X]<sup>T</sup>=[rhs]<sup>T</sup>
      * </p>
      *
-     * @param aRHS The right hand side of the equation.
+     * @param rhs The right hand side of the equation.
      * @return The solution, [X].
      */
-    BasicMatrix solve(Access2D<?> aRHS);
+    @Override
+    public M solve(final Access2D<?> rhs) {
+        return this.newInstance(this.getSolutionProvider(false, rhs).solve(rhs).orElseGet(() -> this.getSolutionProvider(true, rhs).solve(rhs).get()));
+    }
 
-    /**
-     * Subtracts the elements of aMtrx from the elements of this matrix. The matrices must have equal
-     * dimensions.
-     *
-     * @param aMtrx What to subtract.
-     * @return A new matrix whos elements are the difference of this' and aMtrx'.
-     */
-    BasicMatrix subtract(Access2D<?> aMtrx);
+    @Override
+    public M subtract(final double scalarSubtrahend) {
+        return this.newInstance(this.store().subtract(scalarSubtrahend));
+    }
 
-    /**
-     * Subtracts value from the elements of this matrix.
-     *
-     * @param value What to subtract.
-     * @return A new matrix whos elements are the differences between this' elements and value.
-     */
-    BasicMatrix subtract(Number value);
+    @Override
+    public M subtract(final M subtrahend) {
+        ProgrammingError.throwIfNotEqualDimensions(this.store(), subtrahend);
+        return this.newInstance(this.store().subtract(subtrahend.store()));
+    }
 
-    /**
-     * Extracts one element of this matrix as a BigDecimal.
-     *
-     * @param row A row index.
-     * @param column A column index.
-     * @return One matrix element
-     */
-    BigDecimal toBigDecimal(int row, int column);
+    @Override
+    public M subtract(final N scalarSubtrahend) {
+        return this.newInstance(this.store().subtract(scalarSubtrahend));
+    }
 
-    /**
-     * Must be a copy that is safe to modify.
-     *
-     * @see org.ojalgo.matrix.BasicMatrix#toComplexStore()
-     * @see org.ojalgo.matrix.BasicMatrix#toPrimitiveStore()
-     */
-    PhysicalStore<BigDecimal> toBigStore();
+    @Override
+    public M superimpose(final long row, final long col, final Access2D<N> matrix) {
+        return this.newInstance(this.store().superimpose(row, col, matrix));
+    }
 
-    /**
-     * Extracts one element of this matrix as a ComplexNumber.
-     *
-     * @param row A row index.
-     * @param column A column index.
-     * @return One matrix element
-     */
-    ComplexNumber toComplexNumber(int row, int column);
+    @Override
+    public void supplyTo(final TransformableRegion<N> receiver) {
+        this.supplier().supplyTo(receiver);
+    }
 
-    /**
-     * Must be a copy that is safe to modify.
-     *
-     * @see org.ojalgo.matrix.BasicMatrix#toBigStore()
-     * @see org.ojalgo.matrix.BasicMatrix#toPrimitiveStore()
-     */
-    PhysicalStore<ComplexNumber> toComplexStore();
-
-    List<BasicMatrix> toListOfColumns();
-
-    /**
-     * It is also possible to call {@linkplain #toBigStore()}, {@linkplain #toComplexStore()} or
-     * {@linkplain #toPrimitiveStore()} and then {@linkplain PhysicalStore#asList()}.
-     */
-    List<? extends Number> toListOfElements();
-
-    List<BasicMatrix> toListOfRows();
-
-    /**
-     * Must be a copy that is safe to modify.
-     *
-     * @see org.ojalgo.matrix.BasicMatrix#toBigStore()
-     * @see org.ojalgo.matrix.BasicMatrix#toComplexStore()
-     */
-    PhysicalStore<Double> toPrimitiveStore();
+    @Override
+    public M symmetric(final boolean upper) {
+        return this.newInstance(this.store().symmetric(upper));
+    }
 
     /**
      * Extracts one element of this matrix as a Scalar.
@@ -505,10 +706,17 @@ public interface BasicMatrix extends Access2D<Number>, NormedVectorSpace<BasicMa
      * @param row A row index.
      * @param col A column index.
      * @return One matrix element
+     * @deprecated v50 Use {@link #get(long, long)} instead
      */
-    Scalar<?> toScalar(long row, long col);
+    @Deprecated
+    public Scalar<N> toScalar(final long row, final long col) {
+        return this.store().toScalar(row, col);
+    }
 
-    String toString(int row, int col);
+    @Override
+    public String toString() {
+        return Access2D.toString(this);
+    }
 
     /**
      * Transposes this matrix. For complex matrices conjugate() and transpose() are NOT EQUAL.
@@ -516,6 +724,159 @@ public interface BasicMatrix extends Access2D<Number>, NormedVectorSpace<BasicMa
      * @return A matrix that is the transpose of this matrix.
      * @see org.ojalgo.matrix.BasicMatrix#conjugate()
      */
-    BasicMatrix transpose();
+    @Override
+    public M transpose() {
+        return this.newInstance(this.supplier().transpose());
+    }
+
+    @Override
+    public M triangular(final boolean upper, final boolean assumeOne) {
+        return this.newInstance(this.store().triangular(upper, assumeOne));
+    }
+
+    @Override
+    public M tridiagonal() {
+        return this.newInstance(this.store().tridiagonal());
+    }
+
+    private Provider2D.Condition getConditionProvider() {
+
+        if (myDecomposition instanceof Provider2D.Condition) {
+            return (Provider2D.Condition) myDecomposition;
+        }
+
+        SingularValue<N> provider = this.newSingularValue(this.supplier());
+        provider.decompose(this.supplier());
+        myDecomposition = provider;
+
+        return provider;
+    }
+
+    private Provider2D.Determinant<N> getDeterminantProvider() {
+
+        if (myDecomposition instanceof Provider2D.Determinant) {
+            return (Provider2D.Determinant<N>) myDecomposition;
+        }
+
+        DeterminantTask<N> task = this.newDeterminantTask(this.supplier());
+
+        if (task instanceof MatrixDecomposition) {
+            myDecomposition = (MatrixDecomposition<N>) task;
+        }
+
+        return task.toDeterminantProvider(this.supplier(), this::store);
+    }
+
+    private Provider2D.Eigenpairs getEigenpairsProvider() {
+
+        if (myDecomposition instanceof Provider2D.Eigenpairs) {
+            return (Provider2D.Eigenpairs) myDecomposition;
+        }
+
+        Eigenvalue<N> provider = this.newEigenvalue(this.supplier());
+        provider.decompose(this.supplier());
+        myDecomposition = provider;
+
+        return provider;
+    }
+
+    private Provider2D.Inverse<Optional<MatrixStore<N>>> getInverseProvider(final boolean safe) {
+
+        if (safe ? myDecomposition instanceof SingularValue<?> : myDecomposition instanceof Provider2D.Inverse) {
+            return (Provider2D.Inverse<Optional<MatrixStore<N>>>) myDecomposition;
+        }
+
+        InverterTask<N> task = safe ? this.newSingularValue(this.supplier()) : this.newInverterTask(this.supplier());
+
+        if (task instanceof MatrixDecomposition) {
+            myDecomposition = (MatrixDecomposition<N>) task;
+        }
+
+        return task.toInverseProvider(this.supplier(), this::store);
+    }
+
+    private Provider2D.Rank getRankProvider() {
+
+        if (!(myDecomposition instanceof Provider2D.Rank)) {
+
+            if (this.store().isTall()) {
+                myDecomposition = this.newQR(this.supplier());
+            } else if (this.store().isFat()) {
+                myDecomposition = this.newSingularValue(this.supplier());
+            } else {
+                myDecomposition = this.newLDU(this.supplier());
+            }
+
+            myDecomposition.decompose(this.supplier());
+        }
+
+        return (Provider2D.Rank) myDecomposition;
+    }
+
+    private Provider2D.Solution<Optional<MatrixStore<N>>> getSolutionProvider(final boolean safe, final Access2D<?> rhs) {
+
+        if (safe ? myDecomposition instanceof SingularValue<?> : myDecomposition instanceof Provider2D.Inverse) {
+            return (Provider2D.Solution<Optional<MatrixStore<N>>>) myDecomposition;
+        }
+
+        SolverTask<N> task = safe ? this.newSingularValue(this.supplier()) : this.newSolverTask(this.supplier(), rhs);
+
+        if (task instanceof MatrixDecomposition) {
+            myDecomposition = (MatrixDecomposition<N>) task;
+        }
+
+        return task.toSolutionProvider(this.supplier(), this::store, rhs);
+    }
+
+    abstract Cholesky<N> newCholesky(Structure2D typical);
+
+    abstract DeterminantTask<N> newDeterminantTask(Structure2D template);
+
+    abstract Eigenvalue<N> newEigenvalue(Structure2D typical);
+
+    abstract M newInstance(ElementsSupplier<N> store);
+
+    abstract InverterTask<N> newInverterTask(Structure2D template);
+
+    abstract LDL<N> newLDL(Structure2D typical);
+
+    final LDU<N> newLDU(final Structure2D typical) {
+
+        if (mySPD != null && mySPD.booleanValue()) {
+            return this.newCholesky(typical);
+        }
+
+        if (myHermitian != null && myHermitian.booleanValue()) {
+            return this.newLDL(typical);
+        }
+
+        return this.newLU(typical);
+    }
+
+    abstract LU<N> newLU(Structure2D typical);
+
+    abstract QR<N> newQR(Structure2D typical);
+
+    abstract SingularValue<N> newSingularValue(Structure2D typical);
+
+    abstract SolverTask<N> newSolverTask(Structure2D templateBody, Structure2D templateRHS);
+
+    MatrixStore<N> store() {
+
+        if (myStore == null) {
+            myStore = mySupplier.collect(myFactory);
+        }
+
+        return myStore;
+    }
+
+    ElementsSupplier<N> supplier() {
+
+        if (myStore != null) {
+            return myStore;
+        }
+
+        return mySupplier;
+    }
 
 }

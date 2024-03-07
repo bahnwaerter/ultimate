@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,7 +21,10 @@
  */
 package org.ojalgo.random;
 
-import static org.ojalgo.constant.PrimitiveMath.*;
+import static org.ojalgo.function.constant.PrimitiveMath.*;
+
+import org.ojalgo.function.constant.PrimitiveMath;
+import org.ojalgo.function.special.MissingMath;
 
 /**
  * The Poisson distribution is a discrete probability distribution that expresses the probability of a given
@@ -35,7 +38,9 @@ import static org.ojalgo.constant.PrimitiveMath.*;
  */
 public class Poisson extends AbstractDiscrete {
 
-    private static final long serialVersionUID = -5382163736545207782L;
+    public static Poisson of(final double lambda) {
+        return new Poisson(lambda);
+    }
 
     private final double myLambda; // rate or intensity
 
@@ -43,19 +48,19 @@ public class Poisson extends AbstractDiscrete {
         this(ONE);
     }
 
-    public Poisson(final double aLambda) {
+    public Poisson(final double lambda) {
 
         super();
 
-        myLambda = aLambda;
+        myLambda = lambda;
     }
 
     public double getExpected() {
         return myLambda;
     }
 
-    public double getProbability(final int aVal) {
-        return (Math.exp(-myLambda) * Math.pow(myLambda, aVal)) / RandomUtils.factorial(aVal);
+    public double getProbability(final int value) {
+        return (PrimitiveMath.EXP.invoke(-myLambda) * PrimitiveMath.POW.invoke(myLambda, value)) / MissingMath.factorial(value);
     }
 
     @Override
@@ -73,7 +78,7 @@ public class Poisson extends AbstractDiscrete {
 
             retVal++;
 
-            tmpVal -= Math.log(this.random().nextDouble()) / myLambda;
+            tmpVal -= PrimitiveMath.LOG.invoke(this.random().nextDouble()) / myLambda;
         }
 
         return retVal;

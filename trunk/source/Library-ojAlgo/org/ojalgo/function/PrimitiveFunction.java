@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,10 +21,11 @@
  */
 package org.ojalgo.function;
 
-import static org.ojalgo.constant.PrimitiveMath.*;
-
-import org.ojalgo.ProgrammingError;
-import org.ojalgo.type.TypeUtils;
+import org.ojalgo.function.aggregator.AggregatorSet;
+import org.ojalgo.function.aggregator.PrimitiveAggregator;
+import org.ojalgo.function.constant.PrimitiveMath;
+import org.ojalgo.function.special.PowerOf2;
+import org.ojalgo.type.context.NumberContext;
 
 /**
  * Only the primitive parameter (double) methods are actually implemented. The methods with the reference type
@@ -37,381 +38,106 @@ import org.ojalgo.type.TypeUtils;
 public final class PrimitiveFunction extends FunctionSet<Double> {
 
     @FunctionalInterface
-    public static interface Binary extends BinaryFunction<Double> {
+    public interface Binary extends BinaryFunction<Double> {
 
+        @Override
+        default Double invoke(final Double arg1, final double arg2) {
+            return Double.valueOf(this.invoke(arg1.doubleValue(), arg2));
+        }
+
+        @Override
         default Double invoke(final Double arg1, final Double arg2) {
-            return this.invoke(arg1.doubleValue(), arg2.doubleValue());
+            return Double.valueOf(this.invoke(arg1.doubleValue(), arg2.doubleValue()));
         }
 
     }
 
     @FunctionalInterface
-    public static interface Parameter extends ParameterFunction<Double> {
+    public interface Consumer extends VoidFunction<Double> {
 
+        @Override
+        default void invoke(final Double arg) {
+            this.invoke(arg.doubleValue());
+        }
+
+    }
+
+    @FunctionalInterface
+    public interface Parameter extends ParameterFunction<Double> {
+
+        @Override
         default Double invoke(final Double arg, final int param) {
-            return this.invoke(arg.doubleValue(), param);
+            return Double.valueOf(this.invoke(arg.doubleValue(), param));
         }
 
     }
 
     @FunctionalInterface
-    public static interface Unary extends UnaryFunction<Double> {
+    public interface Predicate extends PredicateFunction<Double> {
 
-        default Double invoke(final Double arg) {
+        @Override
+        default boolean invoke(final Double arg) {
             return this.invoke(arg.doubleValue());
         }
 
     }
 
-    public static final UnaryFunction<Double> ABS = new Unary() {
+    public static final class SampleDomain {
 
-        public final double invoke(final double arg) {
-            return Math.abs(arg);
+        private final double myIncrement;
+        private final double myPeriod;
+        private final int myNumberOfSamples;
+
+        public SampleDomain(final double period, final int nbSamples) {
+            super();
+            myPeriod = period;
+            myNumberOfSamples = nbSamples;
+            myIncrement = period / nbSamples;
         }
 
-    };
-
-    public static final UnaryFunction<Double> ACOS = new Unary() {
-
-        public final double invoke(final double arg) {
-            return Math.acos(arg);
+        /**
+         * Adjusts the number of samples to the smallest power of 2 that is not less than the current number
+         * of samples.
+         */
+        public SampleDomain adjustToPowerOf2() {
+            return new SampleDomain(myPeriod, PowerOf2.smallestNotLessThan(myNumberOfSamples));
         }
 
-    };
-
-    public static final UnaryFunction<Double> ACOSH = new Unary() {
-
-        public final double invoke(final double arg) {
-            return Math.log(arg + Math.sqrt((arg * arg) - ONE));
+        public double argumant(final int index) {
+            return index * myIncrement;
         }
 
-    };
-
-    public static final BinaryFunction<Double> ADD = new Binary() {
-
-        @Override
-        public final double invoke(final double arg1, final double arg2) {
-            return arg1 + arg2;
-        }
-
-    };
-
-    public static final UnaryFunction<Double> ASIN = new Unary() {
-
-        public final double invoke(final double arg) {
-            return Math.asin(arg);
-        }
-
-    };
-
-    public static final UnaryFunction<Double> ASINH = new Unary() {
-
-        public final double invoke(final double arg) {
-            return Math.log(arg + Math.sqrt((arg * arg) + ONE));
-        }
-
-    };
-
-    public static final UnaryFunction<Double> ATAN = new Unary() {
-
-        public final double invoke(final double arg) {
-            return Math.atan(arg);
-        }
-
-    };
-
-    public static final UnaryFunction<Double> ATANH = new Unary() {
-
-        public final double invoke(final double arg) {
-            return Math.log((ONE + arg) / (ONE - arg)) / TWO;
-        }
-
-    };
-
-    public static final UnaryFunction<Double> CARDINALITY = new Unary() {
-
-        public final double invoke(final double arg) {
-            return TypeUtils.isZero(arg) ? ZERO : ONE;
-        }
-
-    };
-
-    public static final UnaryFunction<Double> CONJUGATE = new Unary() {
-
-        public final double invoke(final double arg) {
-            return arg;
-        }
-
-    };
-
-    public static final UnaryFunction<Double> COS = new Unary() {
-
-        public final double invoke(final double arg) {
-            return Math.cos(arg);
-        }
-
-    };
-
-    public static final UnaryFunction<Double> COSH = new Unary() {
-
-        public final double invoke(final double arg) {
-            return Math.cosh(arg);
-        }
-
-    };
-
-    public static final BinaryFunction<Double> DIVIDE = new Binary() {
-
-        @Override
-        public final double invoke(final double arg1, final double arg2) {
-            return arg1 / arg2;
-        }
-
-    };
-
-    public static final UnaryFunction<Double> EXP = new Unary() {
-
-        public final double invoke(final double arg) {
-            return Math.exp(arg);
-        }
-
-    };
-
-    public static final UnaryFunction<Double> EXPM1 = new Unary() {
-
-        public final double invoke(final double arg) {
-            return Math.expm1(arg);
-        }
-
-    };
-
-    public static final BinaryFunction<Double> HYPOT = new Binary() {
-
-        @Override
-        public final double invoke(final double arg1, final double arg2) {
-            double retVal;
-            if (Math.abs(arg1) > Math.abs(arg2)) {
-                retVal = arg2 / arg1;
-                retVal = Math.abs(arg1) * Math.sqrt(ONE + (retVal * retVal));
-            } else if (arg2 != ZERO) {
-                retVal = arg1 / arg2;
-                retVal = Math.abs(arg2) * Math.sqrt(ONE + (retVal * retVal));
-            } else {
-                retVal = ZERO;
+        public double[] arguments() {
+            double[] retVal = new double[myNumberOfSamples];
+            for (int i = 0; i < myNumberOfSamples; i++) {
+                retVal[i] = i * myIncrement;
             }
             return retVal;
         }
 
-    };
-
-    public static final UnaryFunction<Double> INVERT = new Unary() {
-
-        public final double invoke(final double arg) {
-            return ONE / arg;
+        public double increment() {
+            return myIncrement;
         }
 
-    };
-
-    public static final UnaryFunction<Double> LOG = new Unary() {
-
-        public final double invoke(final double arg) {
-            return Math.log(arg);
+        public double period() {
+            return myPeriod;
         }
 
-    };
-
-    public static final UnaryFunction<Double> LOG10 = new Unary() {
-
-        public final double invoke(final double arg) {
-            return Math.log10(arg);
+        public int size() {
+            return myNumberOfSamples;
         }
 
-    };
+    }
 
-    public static final UnaryFunction<Double> LOG1P = new Unary() {
-
-        public final double invoke(final double arg) {
-            return Math.log1p(arg);
-        }
-
-    };
-
-    public static final BinaryFunction<Double> MAX = new Binary() {
+    @FunctionalInterface
+    public interface Unary extends UnaryFunction<Double> {
 
         @Override
-        public final double invoke(final double arg1, final double arg2) {
-            return Math.max(arg1, arg2);
+        default Double invoke(final Double arg) {
+            return Double.valueOf(this.invoke(arg.doubleValue()));
         }
 
-    };
-
-    public static final BinaryFunction<Double> MIN = new Binary() {
-
-        @Override
-        public final double invoke(final double arg1, final double arg2) {
-            return Math.min(arg1, arg2);
-        }
-
-    };
-
-    public static final BinaryFunction<Double> MULTIPLY = new Binary() {
-
-        @Override
-        public final double invoke(final double arg1, final double arg2) {
-            return arg1 * arg2;
-        }
-
-    };
-
-    public static final UnaryFunction<Double> NEGATE = new Unary() {
-
-        public final double invoke(final double arg) {
-            return -arg;
-        }
-
-    };
-
-    public static final BinaryFunction<Double> POW = new Binary() {
-
-        @Override
-        public final double invoke(final double arg1, final double arg2) {
-            return Math.pow(arg1, arg2);
-        }
-
-    };
-
-    public static final ParameterFunction<Double> POWER = new Parameter() {
-
-        @Override
-        public final double invoke(final double arg, int param) {
-
-            if (param < 0) {
-
-                return INVERT.invoke(POWER.invoke(arg, -param));
-
-            } else {
-
-                double retVal = ONE;
-
-                while (param > 0) {
-                    retVal = retVal * arg;
-                    param--;
-                }
-
-                return retVal;
-            }
-        }
-
-    };
-
-    public static final ParameterFunction<Double> ROOT = new Parameter() {
-
-        @Override
-        public final double invoke(final double arg, final int param) {
-
-            if (param != 0) {
-                return Math.pow(arg, ONE / param);
-            } else {
-                throw new IllegalArgumentException();
-            }
-        }
-
-    };
-
-    public static final ParameterFunction<Double> SCALE = new Parameter() {
-
-        @Override
-        public final double invoke(final double arg, int param) {
-
-            if (param < 0) {
-                throw new ProgrammingError("Cannot have exponents smaller than zero.");
-            }
-
-            long tmpFactor = 1l;
-            final long tmp10 = (long) TEN;
-
-            while (param > 0) {
-                tmpFactor *= tmp10;
-                param--;
-            }
-
-            return Math.rint(tmpFactor * arg) / tmpFactor;
-        }
-
-    };
-
-    public static final UnaryFunction<Double> SIGNUM = new Unary() {
-
-        public final double invoke(final double arg) {
-            return Math.signum(arg);
-        }
-
-    };
-
-    public static final UnaryFunction<Double> SIN = new Unary() {
-
-        public final double invoke(final double arg) {
-            return Math.sin(arg);
-        }
-
-    };
-
-    public static final UnaryFunction<Double> SINH = new Unary() {
-
-        public final double invoke(final double arg) {
-            return Math.sinh(arg);
-        }
-
-    };
-
-    public static final UnaryFunction<Double> SQRT = new Unary() {
-
-        public final double invoke(final double arg) {
-            return Math.sqrt(arg);
-        }
-
-    };
-
-    public static final UnaryFunction<Double> SQRT1PX2 = new Unary() {
-
-        public final double invoke(final double arg) {
-            return Math.sqrt(ONE + (arg * arg));
-        }
-
-    };
-
-    public static final BinaryFunction<Double> SUBTRACT = new Binary() {
-
-        @Override
-        public final double invoke(final double arg1, final double arg2) {
-            return arg1 - arg2;
-        }
-
-    };
-
-    public static final UnaryFunction<Double> TAN = new Unary() {
-
-        public final double invoke(final double arg) {
-            return Math.tan(arg);
-        }
-
-    };
-
-    public static final UnaryFunction<Double> TANH = new Unary() {
-
-        public final double invoke(final double arg) {
-            return Math.tanh(arg);
-        }
-
-    };
-
-    public static final UnaryFunction<Double> VALUE = new Unary() {
-
-        public final double invoke(final double arg) {
-            return arg;
-        }
-
-    };
+    }
 
     private static final PrimitiveFunction SET = new PrimitiveFunction();
 
@@ -425,187 +151,232 @@ public final class PrimitiveFunction extends FunctionSet<Double> {
 
     @Override
     public UnaryFunction<Double> abs() {
-        return ABS;
+        return PrimitiveMath.ABS;
     }
 
     @Override
     public UnaryFunction<Double> acos() {
-        return ACOS;
+        return PrimitiveMath.ACOS;
     }
 
     @Override
     public UnaryFunction<Double> acosh() {
-        return ACOSH;
+        return PrimitiveMath.ACOSH;
     }
 
     @Override
     public BinaryFunction<Double> add() {
-        return ADD;
+        return PrimitiveMath.ADD;
+    }
+
+    @Override
+    public AggregatorSet<Double> aggregator() {
+        return PrimitiveAggregator.getSet();
     }
 
     @Override
     public UnaryFunction<Double> asin() {
-        return ASIN;
+        return PrimitiveMath.ASIN;
     }
 
     @Override
     public UnaryFunction<Double> asinh() {
-        return ASINH;
+        return PrimitiveMath.ASINH;
     }
 
     @Override
     public UnaryFunction<Double> atan() {
-        return ATAN;
+        return PrimitiveMath.ATAN;
+    }
+
+    @Override
+    public BinaryFunction<Double> atan2() {
+        return PrimitiveMath.ATAN2;
     }
 
     @Override
     public UnaryFunction<Double> atanh() {
-        return ATANH;
+        return PrimitiveMath.ATANH;
     }
 
     @Override
     public UnaryFunction<Double> cardinality() {
-        return CARDINALITY;
+        return PrimitiveMath.CARDINALITY;
+    }
+
+    @Override
+    public UnaryFunction<Double> cbrt() {
+        return PrimitiveMath.CBRT;
+    }
+
+    @Override
+    public UnaryFunction<Double> ceil() {
+        return PrimitiveMath.CEIL;
     }
 
     @Override
     public UnaryFunction<Double> conjugate() {
-        return CONJUGATE;
+        return PrimitiveMath.CONJUGATE;
     }
 
     @Override
     public UnaryFunction<Double> cos() {
-        return COS;
+        return PrimitiveMath.COS;
     }
 
     @Override
     public UnaryFunction<Double> cosh() {
-        return COSH;
+        return PrimitiveMath.COSH;
     }
 
     @Override
     public BinaryFunction<Double> divide() {
-        return DIVIDE;
+        return PrimitiveMath.DIVIDE;
+    }
+
+    @Override
+    public Unary enforce(final NumberContext context) {
+        return t -> context.enforce(t);
     }
 
     @Override
     public UnaryFunction<Double> exp() {
-        return EXP;
+        return PrimitiveMath.EXP;
     }
 
     @Override
     public UnaryFunction<Double> expm1() {
-        return EXPM1;
+        return PrimitiveMath.EXPM1;
+    }
+
+    @Override
+    public UnaryFunction<Double> floor() {
+        return PrimitiveMath.FLOOR;
     }
 
     @Override
     public BinaryFunction<Double> hypot() {
-        return HYPOT;
+        return PrimitiveMath.HYPOT;
     }
 
     @Override
     public UnaryFunction<Double> invert() {
-        return INVERT;
+        return PrimitiveMath.INVERT;
     }
 
     @Override
     public UnaryFunction<Double> log() {
-        return LOG;
+        return PrimitiveMath.LOG;
     }
 
     @Override
     public UnaryFunction<Double> log10() {
-        return LOG10;
+        return PrimitiveMath.LOG10;
     }
 
     @Override
     public UnaryFunction<Double> log1p() {
-        return LOG1P;
+        return PrimitiveMath.LOG1P;
+    }
+
+    @Override
+    public UnaryFunction<Double> logistic() {
+        return PrimitiveMath.LOGISTIC;
+    }
+
+    @Override
+    public UnaryFunction<Double> logit() {
+        return PrimitiveMath.LOGIT;
     }
 
     @Override
     public BinaryFunction<Double> max() {
-        return MAX;
+        return PrimitiveMath.MAX;
     }
 
     @Override
     public BinaryFunction<Double> min() {
-        return MIN;
+        return PrimitiveMath.MIN;
     }
 
     @Override
     public BinaryFunction<Double> multiply() {
-        return MULTIPLY;
+        return PrimitiveMath.MULTIPLY;
     }
 
     @Override
     public UnaryFunction<Double> negate() {
-        return NEGATE;
+        return PrimitiveMath.NEGATE;
     }
 
     @Override
     public BinaryFunction<Double> pow() {
-        return POW;
+        return PrimitiveMath.POW;
     }
 
     @Override
     public ParameterFunction<Double> power() {
-        return POWER;
+        return PrimitiveMath.POWER;
+    }
+
+    @Override
+    public UnaryFunction<Double> rint() {
+        return PrimitiveMath.RINT;
     }
 
     @Override
     public ParameterFunction<Double> root() {
-        return ROOT;
+        return PrimitiveMath.ROOT;
     }
 
     @Override
     public ParameterFunction<Double> scale() {
-        return SCALE;
+        return PrimitiveMath.SCALE;
     }
 
     @Override
     public UnaryFunction<Double> signum() {
-        return SIGNUM;
+        return PrimitiveMath.SIGNUM;
     }
 
     @Override
     public UnaryFunction<Double> sin() {
-        return SIN;
+        return PrimitiveMath.SIN;
     }
 
     @Override
     public UnaryFunction<Double> sinh() {
-        return SINH;
+        return PrimitiveMath.SINH;
     }
 
     @Override
     public UnaryFunction<Double> sqrt() {
-        return SQRT;
+        return PrimitiveMath.SQRT;
     }
 
     @Override
     public UnaryFunction<Double> sqrt1px2() {
-        return SQRT1PX2;
+        return PrimitiveMath.SQRT1PX2;
     }
 
     @Override
     public BinaryFunction<Double> subtract() {
-        return SUBTRACT;
+        return PrimitiveMath.SUBTRACT;
     }
 
     @Override
     public UnaryFunction<Double> tan() {
-        return TAN;
+        return PrimitiveMath.TAN;
     }
 
     @Override
     public UnaryFunction<Double> tanh() {
-        return TANH;
+        return PrimitiveMath.TANH;
     }
 
     @Override
     public UnaryFunction<Double> value() {
-        return VALUE;
+        return PrimitiveMath.VALUE;
     }
 
 }

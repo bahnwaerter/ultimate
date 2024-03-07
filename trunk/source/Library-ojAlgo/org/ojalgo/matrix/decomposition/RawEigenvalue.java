@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,21 +21,29 @@
  */
 package org.ojalgo.matrix.decomposition;
 
-import static org.ojalgo.constant.PrimitiveMath.*;
+import static org.ojalgo.function.constant.PrimitiveMath.*;
 
-import org.ojalgo.access.Access2D;
+import java.util.Arrays;
+import java.util.Optional;
+
+import org.ojalgo.RecoverableCondition;
 import org.ojalgo.array.Array1D;
-import org.ojalgo.constant.PrimitiveMath;
+import org.ojalgo.array.ArrayR064;
+import org.ojalgo.array.operation.AXPY;
+import org.ojalgo.array.operation.DOT;
+import org.ojalgo.array.operation.FillMatchingSingle;
 import org.ojalgo.function.aggregator.AggregatorFunction;
 import org.ojalgo.function.aggregator.ComplexAggregator;
-import org.ojalgo.matrix.MatrixUtils;
-import org.ojalgo.matrix.store.ElementsSupplier;
+import org.ojalgo.matrix.decomposition.function.ExchangeColumns;
+import org.ojalgo.matrix.decomposition.function.RotateRight;
 import org.ojalgo.matrix.store.MatrixStore;
-import org.ojalgo.matrix.store.PrimitiveDenseStore;
+import org.ojalgo.matrix.store.PhysicalStore;
 import org.ojalgo.matrix.store.RawStore;
-import org.ojalgo.matrix.store.operation.HouseholderHermitian;
 import org.ojalgo.scalar.ComplexNumber;
-import org.ojalgo.type.TypeUtils;
+import org.ojalgo.scalar.PrimitiveScalar;
+import org.ojalgo.structure.Access2D;
+import org.ojalgo.structure.Access2D.Collectable;
+import org.ojalgo.structure.Structure2D;
 import org.ojalgo.type.context.NumberContext;
 
 /**
@@ -55,21 +63,31 @@ abstract class RawEigenvalue extends RawDecomposition implements Eigenvalue<Doub
 
     static final class Dynamic extends RawEigenvalue {
 
+        private transient Boolean mySymmetric = null;
+
         Dynamic() {
             super();
         }
 
         public boolean isHermitian() {
-            return this.checkSymmetry();
+            if (mySymmetric == null) {
+                mySymmetric = Boolean.valueOf(this.checkSymmetry());
+            }
+            return mySymmetric.booleanValue();
+        }
+
+        public boolean isOrdered() {
+            // The symmetric implementation is sorted, the general is not.
+            return this.isHermitian();
         }
 
         @Override
-        boolean doDecompose(final double[][] data) {
+        protected boolean doDecompose(final double[][] data, final boolean valuesOnly) {
 
-            if (this.checkSymmetry()) {
-                this.doDecomposeSymmetric(data);
+            if (this.isHermitian()) {
+                this.doSymmetric(data, valuesOnly);
             } else {
-                this.doDecomposeGeneral(data);
+                this.doGeneral(data, valuesOnly);
             }
 
             return this.computed(true);
@@ -87,10 +105,14 @@ abstract class RawEigenvalue extends RawDecomposition implements Eigenvalue<Doub
             return false;
         }
 
-        @Override
-        boolean doDecompose(final double[][] data) {
+        public boolean isOrdered() {
+            return false;
+        }
 
-            this.doDecomposeGeneral(data);
+        @Override
+        protected boolean doDecompose(final double[][] data, final boolean valuesOnly) {
+
+            this.doGeneral(data, valuesOnly);
 
             return this.computed(true);
         }
@@ -103,52 +125,66 @@ abstract class RawEigenvalue extends RawDecomposition implements Eigenvalue<Doub
             super();
         }
 
+        public void btran(final PhysicalStore<Double> arg) {
+            arg.fillByMultiplying(this.getInverse(), arg.copy());
+        }
+
+        public MatrixStore<Double> getSolution(final Collectable<Double, ? super PhysicalStore<Double>> rhs) {
+            long numberOfEquations = rhs.countRows();
+            DecompositionStore<Double> tmpPreallocated = this.allocate(numberOfEquations, numberOfEquations);
+            return this.getSolution(rhs, tmpPreallocated);
+        }
+
         public boolean isHermitian() {
             return true;
         }
 
-        @Override
-        boolean doDecompose(final double[][] data) {
+        public boolean isOrdered() {
+            return true;
+        }
 
-            this.doDecomposeSymmetric(data);
+        @Override
+        public boolean isSolvable() {
+            return super.isSolvable();
+        }
+
+        public PhysicalStore<Double> preallocate(final Structure2D template) {
+            long numberOfEquations = template.countRows();
+            return this.allocate(numberOfEquations, numberOfEquations);
+        }
+
+        public PhysicalStore<Double> preallocate(final Structure2D templateBody, final Structure2D templateRHS) {
+            return this.allocate(templateBody.countRows(), templateRHS.countColumns());
+        }
+
+        @Override
+        protected boolean doDecompose(final double[][] data, final boolean valuesOnly) {
+
+            this.doSymmetric(data, valuesOnly);
 
             return this.computed(true);
         }
 
-    }
+        @Override
+        protected MatrixStore<Double> makeD(final double[] d, final double[] e) {
+            return RawDecomposition.makeDiagonal(ArrayR064.wrap(d)).get();
+        }
 
-    private transient double cdivr, cdivi;
+    }
 
     /**
      * Arrays for internal storage of eigenvalues.
      *
      * @serial internal storage of eigenvalues.
      */
-    private double[] d;
-    private double[] e;
-
-    /**
-     * Array for internal storage of nonsymmetric Hessenberg form.
-     *
-     * @serial internal storage of nonsymmetric Hessenberg form.
-     */
-    private double[][] H;
-
-    private RawStore myInverse;
-
-    /**
-     * Row and column dimension (square matrix).
-     *
-     * @serial matrix dimension.
-     */
-    private int n;
-
+    private double[] d = null, e = null;
+    private transient MatrixStore<Double> myInverse = null;
     /**
      * Array for internal storage of eigenvectors.
      *
      * @serial internal storage of eigenvectors.
      */
-    private double[][] Vt;
+    private double[][] myTransposedV = null;
 
     protected RawEigenvalue() {
         super();
@@ -156,35 +192,31 @@ abstract class RawEigenvalue extends RawDecomposition implements Eigenvalue<Doub
 
     public Double calculateDeterminant(final Access2D<?> matrix) {
 
-        final double[][] tmpData = this.reset(matrix, false);
+        double[][] tmpData = this.reset(matrix, false);
 
-        this.getRawInPlaceStore().fillMatching(matrix);
+        this.getInternalStore().fillMatching(matrix);
 
-        this.doDecompose(tmpData);
+        this.doDecompose(tmpData, true);
 
         return this.getDeterminant();
     }
 
-    public boolean computeValuesOnly(final ElementsSupplier<Double> matrix) {
+    public boolean computeValuesOnly(final Access2D.Collectable<Double, ? super PhysicalStore<Double>> matrix) {
 
-        final double[][] tmpData = this.reset(matrix, false);
+        double[][] tmpData = this.reset(matrix, false);
 
-        matrix.supplyTo(this.getRawInPlaceStore());
+        matrix.supplyTo(this.getInternalStore());
 
-        return this.doDecompose(tmpData);
+        return this.doDecompose(tmpData, true);
     }
 
-    public boolean decompose(final ElementsSupplier<Double> matrix) {
+    public boolean decompose(final Access2D.Collectable<Double, ? super PhysicalStore<Double>> matrix) {
 
-        final double[][] tmpData = this.reset(matrix, false);
+        double[][] tmpData = this.reset(matrix, false);
 
-        matrix.supplyTo(this.getRawInPlaceStore());
+        matrix.supplyTo(this.getInternalStore());
 
-        return this.doDecompose(tmpData);
-    }
-
-    public boolean equals(final MatrixStore<Double> aStore, final NumberContext context) {
-        return MatrixUtils.equals(aStore, this, context);
+        return this.doDecompose(tmpData, false);
     }
 
     /**
@@ -192,83 +224,94 @@ abstract class RawEigenvalue extends RawDecomposition implements Eigenvalue<Doub
      *
      * @return D
      */
-    public RawStore getD() {
-        final RawStore X = new RawStore(n, n);
-        final double[][] D = X.data;
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
-                D[i][j] = ZERO;
-            }
-            D[i][i] = d[i];
-            if (e[i] > 0) {
-                D[i][i + 1] = e[i];
-            } else if (e[i] < 0) {
-                D[i][i - 1] = e[i];
-            }
-        }
-        return X;
+    public MatrixStore<Double> getD() {
+        return this.makeD(d, e);
     }
 
     public Double getDeterminant() {
 
-        final AggregatorFunction<ComplexNumber> tmpVisitor = ComplexAggregator.getSet().product();
+        AggregatorFunction<ComplexNumber> tmpVisitor = ComplexAggregator.getSet().product();
 
         this.getEigenvalues().visitAll(tmpVisitor);
 
-        return tmpVisitor.getNumber().doubleValue();
+        return tmpVisitor.get().doubleValue();
     }
 
     public Array1D<ComplexNumber> getEigenvalues() {
 
-        final double[] tmpRe = this.getRealEigenvalues();
-        final double[] tmpIm = this.getImagEigenvalues();
+        double[] tmpRe = this.getRealParts();
+        double[] tmpIm = this.getImaginaryParts();
 
-        final Array1D<ComplexNumber> retVal = Array1D.COMPLEX.makeZero(tmpRe.length);
+        Array1D<ComplexNumber> retVal = Array1D.C128.make(tmpRe.length);
 
         for (int i = 0; i < retVal.size(); i++) {
             retVal.set(i, ComplexNumber.of(tmpRe[i], tmpIm[i]));
         }
 
-        retVal.sortDescending();
+        // retVal.sortDescending();
 
         return retVal;
     }
 
-    @Override
-    public RawStore getInverse() {
+    public void getEigenvalues(final double[] realParts, final Optional<double[]> imaginaryParts) {
+
+        int length = realParts.length;
+
+        System.arraycopy(this.getRealParts(), 0, realParts, 0, length);
+
+        if (imaginaryParts.isPresent()) {
+            System.arraycopy(this.getImaginaryParts(), 0, imaginaryParts.get(), 0, length);
+        }
+    }
+
+    public MatrixStore<Double> getInverse() {
+        int n = this.getRowDim();
+        return this.getInverse(this.allocate(n, n));
+    }
+
+    public MatrixStore<Double> getInverse(final PhysicalStore<Double> preallocated) {
 
         if (myInverse == null) {
 
-            final double[][] tmpQ1 = this.getV().data;
-            final double[] tmpEigen = this.getRealEigenvalues();
+            int dim = d.length;
 
-            final RawStore tmpMtrx = new RawStore(tmpEigen.length, tmpQ1.length);
+            RawStore tmpMtrx = this.newRawStore(dim, dim);
 
-            for (int i = 0; i < tmpEigen.length; i++) {
-                if (TypeUtils.isZero(tmpEigen[i])) {
-                    for (int j = 0; j < tmpQ1.length; j++) {
-                        tmpMtrx.set(i, j, PrimitiveMath.ZERO);
+            double max = ONE;
+
+            for (int i = 0; i < dim; i++) {
+                double val = d[i];
+                max = MAX.invoke(max, ABS.invoke(val));
+                if (PrimitiveScalar.isSmall(max, val)) {
+                    for (int j = 0; j < dim; j++) {
+                        tmpMtrx.set(i, j, ZERO);
                     }
                 } else {
-                    for (int j = 0; j < tmpQ1.length; j++) {
-                        tmpMtrx.set(i, j, tmpQ1[j][i] / tmpEigen[i]);
+                    double[] colVi = myTransposedV[i];
+                    for (int j = 0; j < dim; j++) {
+                        tmpMtrx.set(i, j, colVi[j] / val);
                     }
                 }
             }
 
-            myInverse = new RawStore(this.getV().multiply(tmpMtrx));
+            myInverse = this.getV().multiply(tmpMtrx);
         }
 
         return myInverse;
     }
 
+    public MatrixStore<Double> getSolution(final Collectable<Double, ? super PhysicalStore<Double>> rhs, final PhysicalStore<Double> preallocated) {
+        preallocated.fillByMultiplying(this.getInverse(), this.collect(rhs));
+        return preallocated;
+    }
+
     public ComplexNumber getTrace() {
 
-        final AggregatorFunction<ComplexNumber> tmpVisitor = ComplexAggregator.getSet().sum();
+        AggregatorFunction<ComplexNumber> tmpVisitor = ComplexAggregator.getSet().sum();
 
         this.getEigenvalues().visitAll(tmpVisitor);
 
-        return tmpVisitor.getNumber();
+        return tmpVisitor.get();
     }
 
     /**
@@ -276,32 +319,22 @@ abstract class RawEigenvalue extends RawDecomposition implements Eigenvalue<Doub
      *
      * @return V
      */
-    public RawStore getV() {
-        return new RawStore(Vt, n, n).transpose();
+    public MatrixStore<Double> getV() {
+        return this.wrap(myTransposedV).transpose();
     }
 
-    @Override
-    public MatrixStore<Double> invert(final Access2D<?> original, final DecompositionStore<Double> preallocated) {
+    public MatrixStore<Double> invert(final Access2D<?> original, final PhysicalStore<Double> preallocated) throws RecoverableCondition {
 
-        final double[][] tmpData = this.reset(original, false);
+        double[][] tmpData = this.reset(original, false);
 
-        this.getRawInPlaceStore().fillMatching(original);
+        this.getInternalStore().fillMatching(original);
 
-        this.doDecompose(tmpData);
+        this.doDecompose(tmpData, false);
 
-        return this.getInverse(preallocated);
-    }
-
-    public boolean isOrdered() {
-        return !this.isHermitian();
-    }
-
-    public boolean isSolvable() {
-        return this.isComputed() && this.isHermitian();
-    }
-
-    public MatrixStore<Double> reconstruct() {
-        return MatrixUtils.reconstruct(this);
+        if (this.isSolvable()) {
+            return this.getInverse(preallocated);
+        }
+        throw RecoverableCondition.newMatrixNotInvertible();
     }
 
     @Override
@@ -309,765 +342,239 @@ abstract class RawEigenvalue extends RawDecomposition implements Eigenvalue<Doub
         myInverse = null;
     }
 
-    @Override
-    public MatrixStore<Double> solve(final Access2D<?> body, final Access2D<?> rhs, final DecompositionStore<Double> preallocated) {
+    public MatrixStore<Double> solve(final Access2D<?> body, final Access2D<?> rhs, final PhysicalStore<Double> preallocated) throws RecoverableCondition {
 
-        final double[][] tmpData = this.reset(body, false);
+        double[][] tmpData = this.reset(body, false);
 
-        this.getRawInPlaceStore().fillMatching(body);
+        this.getInternalStore().fillMatching(body);
 
-        this.doDecompose(tmpData);
+        this.doDecompose(tmpData, false);
 
-        preallocated.fillMatching(rhs);
+        if (this.isSolvable()) {
 
-        return this.getInverse().multiply(preallocated);
-    }
+            preallocated.fillMatching(rhs);
 
-    @Override
-    public MatrixStore<Double> solve(final ElementsSupplier<Double> rhs, final DecompositionStore<Double> preallocated) {
-        return null;
+            return this.getInverse().multiply(preallocated);
+
+        }
+        throw RecoverableCondition.newEquationSystemNotSolvable();
     }
 
     public MatrixStore<Double> solve(final MatrixStore<Double> rhs, final DecompositionStore<Double> preallocated) {
         return null;
     }
 
-    /**
-     * Complex scalar division.
-     */
-    private void cdiv(final double xr, final double xi, final double yr, final double yi) {
-        double r, d;
-        if (Math.abs(yr) > Math.abs(yi)) {
-            r = yi / yr;
-            d = yr + (r * yi);
-            cdivr = (xr + (r * xi)) / d;
-            cdivi = (xi - (r * xr)) / d;
-        } else {
-            r = yr / yi;
-            d = yi + (r * yr);
-            cdivr = ((r * xr) + xi) / d;
-            cdivi = ((r * xi) - xr) / d;
-        }
-    }
-
-    private void hqr2() {
-
-        //  This is derived from the Algol procedure hqr2,
-        //  by Martin and Wilkinson, Handbook for Auto. Comp.,
-        //  Vol.ii-Linear Algebra, and the corresponding
-        //  Fortran subroutine in EISPACK.
-
-        // Initialize
-
-        final int nn = n;
-        int n = nn - 1;
-        final int low = 0;
-        final int high = nn - 1;
-        final double eps = MACHINE_EPSILON;
-        double exshift = ZERO;
-        double p = 0, q = 0, r = 0, s = 0, z = 0, t, w, x, y;
-
-        // Store roots isolated by balanc and compute matrix norm
-
-        double norm = ZERO;
-        for (int i = 0; i < nn; i++) {
-            if ((i < low) | (i > high)) {
-                d[i] = H[i][i];
-                e[i] = ZERO;
-            }
-            for (int j = Math.max(i - 1, 0); j < nn; j++) {
-                norm = norm + Math.abs(H[i][j]);
-            }
-        }
-
-        // Outer loop over eigenvalue index
-
-        int iter = 0;
-        while (n >= low) {
-
-            // Look for single small sub-diagonal element
-
-            int l = n;
-            while (l > low) {
-                s = Math.abs(H[l - 1][l - 1]) + Math.abs(H[l][l]);
-                if (s == ZERO) {
-                    s = norm;
-                }
-                if (Math.abs(H[l][l - 1]) < (eps * s)) {
-                    break;
-                }
-                l--;
-            }
-
-            // Check for convergence
-            // One root found
-
-            if (l == n) {
-                H[n][n] = H[n][n] + exshift;
-                d[n] = H[n][n];
-                e[n] = ZERO;
-                n--;
-                iter = 0;
-
-                // Two roots found
-
-            } else if (l == (n - 1)) {
-                w = H[n][n - 1] * H[n - 1][n];
-                p = (H[n - 1][n - 1] - H[n][n]) / TWO;
-                q = (p * p) + w;
-                z = Math.sqrt(Math.abs(q));
-                H[n][n] = H[n][n] + exshift;
-                H[n - 1][n - 1] = H[n - 1][n - 1] + exshift;
-                x = H[n][n];
-
-                // Real pair
-
-                if (q >= 0) {
-                    if (p >= 0) {
-                        z = p + z;
-                    } else {
-                        z = p - z;
-                    }
-                    d[n - 1] = x + z;
-                    d[n] = d[n - 1];
-                    if (z != ZERO) {
-                        d[n] = x - (w / z);
-                    }
-                    e[n - 1] = ZERO;
-                    e[n] = ZERO;
-                    x = H[n][n - 1];
-                    s = Math.abs(x) + Math.abs(z);
-                    p = x / s;
-                    q = z / s;
-                    r = Math.sqrt((p * p) + (q * q));
-                    p = p / r;
-                    q = q / r;
-
-                    // Row modification
-
-                    for (int j = n - 1; j < nn; j++) {
-                        z = H[n - 1][j];
-                        H[n - 1][j] = (q * z) + (p * H[n][j]);
-                        H[n][j] = (q * H[n][j]) - (p * z);
-                    }
-
-                    // Column modification
-
-                    for (int i = 0; i <= n; i++) {
-                        z = H[i][n - 1];
-                        H[i][n - 1] = (q * z) + (p * H[i][n]);
-                        H[i][n] = (q * H[i][n]) - (p * z);
-                    }
-
-                    // Accumulate transformations
-
-                    for (int i = low; i <= high; i++) {
-                        //z = V[i][n - 1];
-                        z = Vt[n - 1][i];
-                        //V[i][n - 1] = (q * z) + (p * V[i][n]);
-                        Vt[n - 1][i] = (q * z) + (p * Vt[n][i]);
-                        //V[i][n] = (q * V[i][n]) - (p * z);
-                        Vt[n][i] = (q * Vt[n][i]) - (p * z);
-                    }
-
-                    // Complex pair
-
-                } else {
-                    d[n - 1] = x + p;
-                    d[n] = x + p;
-                    e[n - 1] = z;
-                    e[n] = -z;
-                }
-                n = n - 2;
-                iter = 0;
-
-                // No convergence yet
-
-            } else {
-
-                // Form shift
-
-                x = H[n][n];
-                y = ZERO;
-                w = ZERO;
-                if (l < n) {
-                    y = H[n - 1][n - 1];
-                    w = H[n][n - 1] * H[n - 1][n];
-                }
-
-                // Wilkinson's original ad hoc shift
-
-                if (iter == 10) {
-                    exshift += x;
-                    for (int i = low; i <= n; i++) {
-                        H[i][i] -= x;
-                    }
-                    s = Math.abs(H[n][n - 1]) + Math.abs(H[n - 1][n - 2]);
-                    x = y = 0.75 * s;
-                    w = -0.4375 * s * s;
-                }
-
-                // MATLAB's new ad hoc shift
-
-                if (iter == 30) {
-                    s = (y - x) / TWO;
-                    s = (s * s) + w;
-                    if (s > 0) {
-                        s = Math.sqrt(s);
-                        if (y < x) {
-                            s = -s;
-                        }
-                        s = x - (w / (((y - x) / TWO) + s));
-                        for (int i = low; i <= n; i++) {
-                            H[i][i] -= s;
-                        }
-                        exshift += s;
-                        x = y = w = 0.964;
-                    }
-                }
-
-                iter = iter + 1; // (Could check iteration count here.)
-
-                // Look for two consecutive small sub-diagonal elements
-
-                int m = n - 2;
-                while (m >= l) {
-                    z = H[m][m];
-                    r = x - z;
-                    s = y - z;
-                    p = (((r * s) - w) / H[m + 1][m]) + H[m][m + 1];
-                    q = H[m + 1][m + 1] - z - r - s;
-                    r = H[m + 2][m + 1];
-                    s = Math.abs(p) + Math.abs(q) + Math.abs(r);
-                    p = p / s;
-                    q = q / s;
-                    r = r / s;
-                    if (m == l) {
-                        break;
-                    }
-                    if ((Math.abs(H[m][m - 1]) * (Math.abs(q) + Math.abs(r))) < (eps
-                            * (Math.abs(p) * (Math.abs(H[m - 1][m - 1]) + Math.abs(z) + Math.abs(H[m + 1][m + 1]))))) {
-                        break;
-                    }
-                    m--;
-                }
-
-                for (int i = m + 2; i <= n; i++) {
-                    H[i][i - 2] = ZERO;
-                    if (i > (m + 2)) {
-                        H[i][i - 3] = ZERO;
-                    }
-                }
-
-                // Double QR step involving rows l:n and columns m:n
-
-                for (int k = m; k <= (n - 1); k++) {
-                    final boolean notlast = (k != (n - 1));
-                    if (k != m) {
-                        p = H[k][k - 1];
-                        q = H[k + 1][k - 1];
-                        r = (notlast ? H[k + 2][k - 1] : ZERO);
-                        x = Math.abs(p) + Math.abs(q) + Math.abs(r);
-                        if (x == ZERO) {
-                            continue;
-                        }
-                        p = p / x;
-                        q = q / x;
-                        r = r / x;
-                    }
-
-                    s = Math.sqrt((p * p) + (q * q) + (r * r));
-                    if (p < 0) {
-                        s = -s;
-                    }
-                    if (s != 0) {
-                        if (k != m) {
-                            H[k][k - 1] = -s * x;
-                        } else if (l != m) {
-                            H[k][k - 1] = -H[k][k - 1];
-                        }
-                        p = p + s;
-                        x = p / s;
-                        y = q / s;
-                        z = r / s;
-                        q = q / p;
-                        r = r / p;
-
-                        // Row modification
-                        for (int j = k; j < nn; j++) {
-                            p = H[k][j] + (q * H[k + 1][j]);
-                            if (notlast) {
-                                p = p + (r * H[k + 2][j]);
-                                H[k + 2][j] = H[k + 2][j] - (p * z);
-                            }
-                            H[k][j] = H[k][j] - (p * x);
-                            H[k + 1][j] = H[k + 1][j] - (p * y);
-                        }
-
-                        // Column modification
-                        for (int i = 0; i <= Math.min(n, k + 3); i++) {
-                            p = (x * H[i][k]) + (y * H[i][k + 1]);
-                            if (notlast) {
-                                p = p + (z * H[i][k + 2]);
-                                H[i][k + 2] = H[i][k + 2] - (p * r);
-                            }
-                            H[i][k] = H[i][k] - p;
-                            H[i][k + 1] = H[i][k + 1] - (p * q);
-                        }
-
-                        // Accumulate transformations
-                        for (int i = low; i <= high; i++) {
-                            //p = (x * V[i][k]) + (y * V[i][k + 1]);
-                            p = (x * Vt[k][i]) + (y * Vt[k + 1][i]);
-                            if (notlast) {
-                                //p = p + (z * V[i][k + 2]);
-                                p = p + (z * Vt[k + 2][i]);
-                                //V[i][k + 2] = V[i][k + 2] - (p * r);
-                                Vt[k + 2][i] = Vt[k + 2][i] - (p * r);
-                            }
-                            //V[i][k] = V[i][k] - p;
-                            Vt[k][i] = Vt[k][i] - p;
-                            //V[i][k + 1] = V[i][k + 1] - (p * q);
-                            Vt[k + 1][i] = Vt[k + 1][i] - (p * q);
-                        }
-                    } // (s != 0)
-                } // k loop
-            } // check convergence
-        } // while (n >= low)
-
-        // Backsubstitute to find vectors of upper triangular form
-
-        if (norm == ZERO) {
-            return;
-        }
-
-        for (n = nn - 1; n >= 0; n--) {
-            p = d[n];
-            q = e[n];
-
-            // Real vector
-
-            if (q == 0) {
-                int l = n;
-                H[n][n] = ONE;
-                for (int i = n - 1; i >= 0; i--) {
-                    w = H[i][i] - p;
-                    r = ZERO;
-                    for (int j = l; j <= n; j++) {
-                        r = r + (H[i][j] * H[j][n]);
-                    }
-                    if (e[i] < ZERO) {
-                        z = w;
-                        s = r;
-                    } else {
-                        l = i;
-                        if (e[i] == ZERO) {
-                            if (w != ZERO) {
-                                H[i][n] = -r / w;
-                            } else {
-                                H[i][n] = -r / (eps * norm);
-                            }
-
-                            // Solve real equations
-
-                        } else {
-                            x = H[i][i + 1];
-                            y = H[i + 1][i];
-                            q = ((d[i] - p) * (d[i] - p)) + (e[i] * e[i]);
-                            t = ((x * s) - (z * r)) / q;
-                            H[i][n] = t;
-                            if (Math.abs(x) > Math.abs(z)) {
-                                H[i + 1][n] = (-r - (w * t)) / x;
-                            } else {
-                                H[i + 1][n] = (-s - (y * t)) / z;
-                            }
-                        }
-
-                        // Overflow control
-
-                        t = Math.abs(H[i][n]);
-                        if (((eps * t) * t) > 1) {
-                            for (int j = i; j <= n; j++) {
-                                H[j][n] = H[j][n] / t;
-                            }
-                        }
-                    }
-                }
-
-                // Complex vector
-
-            } else if (q < 0) {
-                int l = n - 1;
-
-                // Last vector component imaginary so matrix is triangular
-
-                if (Math.abs(H[n][n - 1]) > Math.abs(H[n - 1][n])) {
-                    H[n - 1][n - 1] = q / H[n][n - 1];
-                    H[n - 1][n] = -(H[n][n] - p) / H[n][n - 1];
-                } else {
-                    this.cdiv(ZERO, -H[n - 1][n], H[n - 1][n - 1] - p, q);
-                    H[n - 1][n - 1] = cdivr;
-                    H[n - 1][n] = cdivi;
-                }
-                H[n][n - 1] = ZERO;
-                H[n][n] = ONE;
-                for (int i = n - 2; i >= 0; i--) {
-                    double ra, sa, vr, vi;
-                    ra = ZERO;
-                    sa = ZERO;
-                    for (int j = l; j <= n; j++) {
-                        ra = ra + (H[i][j] * H[j][n - 1]);
-                        sa = sa + (H[i][j] * H[j][n]);
-                    }
-                    w = H[i][i] - p;
-
-                    if (e[i] < ZERO) {
-                        z = w;
-                        r = ra;
-                        s = sa;
-                    } else {
-                        l = i;
-                        if (e[i] == 0) {
-                            this.cdiv(-ra, -sa, w, q);
-                            H[i][n - 1] = cdivr;
-                            H[i][n] = cdivi;
-                        } else {
-
-                            // Solve complex equations
-
-                            x = H[i][i + 1];
-                            y = H[i + 1][i];
-                            vr = (((d[i] - p) * (d[i] - p)) + (e[i] * e[i])) - (q * q);
-                            vi = (d[i] - p) * TWO * q;
-                            if ((vr == ZERO) & (vi == ZERO)) {
-                                vr = eps * norm * (Math.abs(w) + Math.abs(q) + Math.abs(x) + Math.abs(y) + Math.abs(z));
-                            }
-                            this.cdiv(((x * r) - (z * ra)) + (q * sa), (x * s) - (z * sa) - (q * ra), vr, vi);
-                            H[i][n - 1] = cdivr;
-                            H[i][n] = cdivi;
-                            if (Math.abs(x) > (Math.abs(z) + Math.abs(q))) {
-                                H[i + 1][n - 1] = ((-ra - (w * H[i][n - 1])) + (q * H[i][n])) / x;
-                                H[i + 1][n] = (-sa - (w * H[i][n]) - (q * H[i][n - 1])) / x;
-                            } else {
-                                this.cdiv(-r - (y * H[i][n - 1]), -s - (y * H[i][n]), z, q);
-                                H[i + 1][n - 1] = cdivr;
-                                H[i + 1][n] = cdivi;
-                            }
-                        }
-
-                        // Overflow control
-                        t = Math.max(Math.abs(H[i][n - 1]), Math.abs(H[i][n]));
-                        if (((eps * t) * t) > 1) {
-                            for (int j = i; j <= n; j++) {
-                                H[j][n - 1] = H[j][n - 1] / t;
-                                H[j][n] = H[j][n] / t;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Vectors of isolated roots
-        for (int i = 0; i < nn; i++) {
-            if ((i < low) | (i > high)) {
-                for (int j = i; j < nn; j++) {
-                    //V[i][j] = H[i][j];
-                    Vt[j][i] = H[i][j];
-                }
-            }
-        }
-
-        // Back transformation to get eigenvectors of original matrix
-        for (int j = nn - 1; j >= low; j--) {
-            for (int i = low; i <= high; i++) {
-                z = ZERO;
-                for (int k = low; k <= Math.min(j, high); k++) {
-                    //z = z + (V[i][k] * H[k][j]);
-                    z = z + (Vt[k][i] * H[k][j]);
-                }
-                //V[i][j] = z;
-                Vt[j][i] = z;
-            }
-        }
-    }
-
-    private void orthes() {
-
-        //  This is derived from the Algol procedures orthes and ortran,
-        //  by Martin and Wilkinson, Handbook for Auto. Comp.,
-        //  Vol.ii-Linear Algebra, and the corresponding
-        //  Fortran subroutines in EISPACK.
-
-        final int low = 0;
-        final int high = n - 1;
-
-        /**
-         * Working storage for nonsymmetric algorithm.
-         *
-         * @serial working storage for nonsymmetric algorithm.
-         */
-        final double[] ort = new double[n];
-
-        for (int m = low + 1; m <= (high - 1); m++) {
-
-            // Scale column.
-
-            double scale = ZERO;
-            for (int i = m; i <= high; i++) {
-                scale = scale + Math.abs(H[i][m - 1]);
-            }
-            if (scale != ZERO) {
-
-                // Compute Householder transformation.
-
-                double h = ZERO;
-                for (int i = high; i >= m; i--) {
-                    ort[i] = H[i][m - 1] / scale;
-                    h += ort[i] * ort[i];
-                }
-                double g = Math.sqrt(h);
-                if (ort[m] > 0) {
-                    g = -g;
-                }
-                h = h - (ort[m] * g);
-                ort[m] = ort[m] - g;
-
-                // Apply Householder similarity transformation
-                // H = (I-u*u'/h)*H*(I-u*u')/h)
-
-                for (int j = m; j < n; j++) {
-                    double f = ZERO;
-                    for (int i = high; i >= m; i--) {
-                        f += ort[i] * H[i][j];
-                    }
-                    f = f / h;
-                    for (int i = m; i <= high; i++) {
-                        H[i][j] -= f * ort[i];
-                    }
-                }
-
-                for (int i = 0; i <= high; i++) {
-                    double f = ZERO;
-                    for (int j = high; j >= m; j--) {
-                        f += ort[j] * H[i][j];
-                    }
-                    f = f / h;
-                    for (int j = m; j <= high; j++) {
-                        H[i][j] -= f * ort[j];
-                    }
-                }
-                ort[m] = scale * ort[m];
-                H[m][m - 1] = scale * g;
-            }
-        }
-
-        // Accumulate transformations (Algol's ortran).
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
-                //V[i][j] = (i == j ? ONE : ZERO);
-                Vt[j][i] = (i == j ? ONE : ZERO);
-            }
-        }
-
-        for (int m = high - 1; m >= (low + 1); m--) {
-            if (H[m][m - 1] != ZERO) {
-                for (int i = m + 1; i <= high; i++) {
-                    ort[i] = H[i][m - 1];
-                }
-                for (int j = m; j <= high; j++) {
-                    double g = ZERO;
-                    for (int i = m; i <= high; i++) {
-                        //g += ort[i] * V[i][j];
-                        g += ort[i] * Vt[j][i];
-                    }
-                    // Double division avoids possible underflow
-                    g = (g / ort[m]) / H[m][m - 1];
-                    for (int i = m; i <= high; i++) {
-                        //V[i][j] += g * ort[i];
-                        Vt[j][i] += g * ort[i];
-                    }
-                }
-            }
-        }
-    }
-
-    private void rot1(final double[] tmpVt_i, final double[] tmpVt_i1, final double c, final double s) {
-        double h;
-        for (int k = 0; k < n; k++) {
-            //h = V[k][i + 1];
-            h = tmpVt_i1[k];
-            //V[k][i + 1] = (s * V[k][i]) + (c * h);
-            tmpVt_i1[k] = (s * tmpVt_i[k]) + (c * h);
-            //V[k][i] = (c * V[k][i]) - (s * h);
-            tmpVt_i[k] = (c * tmpVt_i[k]) - (s * h);
-        }
-    }
-
-    private void tql2() {
-        //  This is derived from the Algol procedures tql2, by
-        //  Bowdler, Martin, Reinsch, and Wilkinson, Handbook for
-        //  Auto. Comp., Vol.ii-Linear Algebra, and the corresponding
-        //  Fortran subroutine in EISPACK.
-
-        for (int i = 1; i < n; i++) {
-            e[i - 1] = e[i];
-        }
-        e[n - 1] = ZERO;
-
-        double f = ZERO;
-        double tst1 = ZERO;
-        for (int l = 0; l < n; l++) {
-
-            // Find small subdiagonal element
-            tst1 = Math.max(tst1, Math.abs(d[l]) + Math.abs(e[l]));
-            int m = l;
-            while (m < n) {
-                if (Math.abs(e[m]) <= (MACHINE_EPSILON * tst1)) {
-                    break;
-                }
-                m++;
-            }
-
-            // If m == l, d[l] is an eigenvalue, otherwise, iterate.
-            if (m > l) {
-                int iter = 0;
-                do {
-                    iter = iter + 1; // (Could check iteration count here.)
-
-                    // Compute implicit shift
-                    double g = d[l];
-                    double p = (d[l + 1] - g) / (TWO * e[l]);
-                    double r = Maths.hypot(p, ONE);
-                    if (p < 0) {
-                        r = -r;
-                    }
-                    d[l] = e[l] / (p + r);
-                    d[l + 1] = e[l] * (p + r);
-                    final double dl1 = d[l + 1];
-                    double h = g - d[l];
-                    for (int i = l + 2; i < n; i++) {
-                        d[i] -= h;
-                    }
-                    f = f + h;
-
-                    // Implicit QL transformation.
-                    p = d[m];
-                    double c = ONE;
-                    double c2 = c;
-                    double c3 = c;
-                    final double el1 = e[l + 1];
-                    double s = ZERO;
-                    double s2 = ZERO;
-                    for (int i = m - 1; i >= l; i--) {
-                        c3 = c2;
-                        c2 = c;
-                        s2 = s;
-                        g = c * e[i];
-                        h = c * p;
-                        r = Maths.hypot(p, e[i]);
-                        e[i + 1] = s * r;
-                        s = e[i] / r;
-                        c = p / r;
-                        p = (c * d[i]) - (s * g);
-                        d[i + 1] = h + (s * ((c * g) + (s * d[i])));
-
-                        // Accumulate transformation.
-                        this.rot1(Vt[i], Vt[i + 1], c, s);
-                    }
-                    p = (-s * s2 * c3 * el1 * e[l]) / dl1;
-                    e[l] = s * p;
-                    d[l] = c * p;
-
-                    // Check for convergence.
-                } while (Math.abs(e[l]) > (MACHINE_EPSILON * tst1));
-            }
-            d[l] = d[l] + f;
-            e[l] = ZERO;
-        }
-
-        // Sort eigenvalues and corresponding vectors.
-        for (int i = 0; i < (n - 1); i++) {
-
-            double[] tmpCol;
-
-            int k = i;
-            double p = d[i];
-            for (int j = i + 1; j < n; j++) {
-                if (d[j] < p) {
-                    k = j;
-                    p = d[j];
-                }
-            }
-            if (k != i) {
-                d[k] = d[i];
-                d[i] = p;
-
-                tmpCol = Vt[i];
-                Vt[i] = Vt[k];
-                Vt[k] = tmpCol;
-
-                //                for (int j = 0; j < n; j++) {
-                //                    //p = V[j][i];
-                //                    p = Vt[i][j];
-                //                    //V[j][i] = V[j][k];
-                //                    Vt[i][j] = Vt[k][j];
-                //                    //V[j][k] = p;
-                //                    Vt[k][j] = p;
-                //                }
-            }
-        }
-    }
-
     @Override
-    protected MatrixStore<Double> doGetInverse(final PrimitiveDenseStore preallocated) {
-        // TODO Auto-generated method stub
-        return null;
+    protected boolean checkSolvability() {
+        return this.isComputed() && this.isHermitian();
     }
 
-    abstract boolean doDecompose(final double[][] data);
+    protected abstract boolean doDecompose(double[][] data, boolean valuesOnly);
 
-    void doDecomposeGeneral(final double[][] data) {
+    protected MatrixStore<Double> makeD(final double[] d, final double[] e) {
+        int n = this.getRowDim();
+        RawStore fullD = this.newRawStore(n, n);
+        double[][] D = fullD.data;
+        for (int i = 0; i < n; i++) {
+            D[i][i] = d[i];
+            if (e[i] > 0) {
+                D[i][i + 1] = e[i];
+            } else if (e[i] < 0) {
+                D[i][i - 1] = e[i];
+            }
+        }
+        return fullD.tridiagonal();
+    }
 
-        n = data.length;
-        Vt = new double[n][n];
-        d = new double[n];
-        e = new double[n];
+    void doGeneral(final double[][] data, final boolean valuesOnly) {
 
-        H = data;
+        int n = data.length;
 
-        //        for (int j = 0; j < n; j++) {
-        //            for (int i = 0; i < n; i++) {
-        //                H[i][j] = A[i][j];
-        //            }
-        //        }
+        if (d == null || n != d.length) {
+            if (valuesOnly) {
+                myTransposedV = null;
+            } else {
+                myTransposedV = new double[n][n];
+            }
+            d = new double[n];
+            e = new double[n];
+        }
 
         // Reduce to Hessenberg form.
-        this.orthes();
+        EvD2D.orthes(data, myTransposedV, d);
 
         // Reduce Hessenberg to real Schur form.
-        this.hqr2();
+        EvD2D.hqr2(data, d, e, myTransposedV);
 
     }
 
-    void doDecomposeSymmetric(final double[][] data) {
+    void doSymmetric(final double[][] data, final boolean valuesOnly) {
 
-        n = data.length;
-        Vt = data;
-        d = new double[n];
-        e = new double[n];
+        int size = data.length;
+        int last = size - 1;
 
-        //        for (int i = 0; i < n; i++) {
-        //            for (int j = 0; j < n; j++) {
-        //                V[i][j] = A[i][j];
-        //            }
-        //        }
+        if (d == null || size != d.length) {
+            d = new double[size]; // householder > main diagonal
+            e = new double[size]; // work > off diagonal
+        }
+        myTransposedV = valuesOnly ? null : data;
+        // Stores the columns of V in the rows of 'data'
 
-        // Tridiagonalize.
-        HouseholderHermitian.tred2jj(Vt, d, e, true);
+        // > Tridiagonalize (Householder reduction)
 
-        // Diagonalize.
-        this.tql2();
+        double scale;
+        double h;
+        double f;
+        double g;
+        double val;
+        double[] row;
+
+        // Copy the last column (same as the last row) of z to d
+        // The last row/column is the first to be worked on in the main loop
+
+        FillMatchingSingle.invoke(data[last], 0, d, 0, 0, size);
+
+        for (int m = last; m > 0; m--) { // row index of target householder point
+            // col index of target householder point
+
+            // Calculate the norm of the row/col to zero out - to avoid under/overflow.
+            scale = ZERO;
+            for (int k = 0; k < m; k++) {
+                scale = MAX.invoke(scale, ABS.invoke(d[k]));
+            }
+
+            h = ZERO;
+
+            if (NumberContext.compare(scale, ZERO) == 0) {
+                // Skip generation, already zero
+
+                e[m] = d[m - 1];
+                for (int j = 0; j < m; j++) {
+                    d[j] = data[j][m - 1]; // Copy "next" row/column to work on
+                    //                    data[j][m] = ZERO; // Are both needed? - neither needed?
+                    //                    data[m][j] = ZERO; // Could cause cache-misses - it was already zero!
+                }
+
+            } else {
+                // Generate Householder vector.
+
+                for (int k = 0; k < m; k++) {
+                    val = d[k] /= scale;
+                    h += val * val; // d[k] * d[k]
+                }
+                f = d[m - 1];
+                g = SQRT.invoke(h);
+                if (f > 0) {
+                    g = -g;
+                }
+                e[m] = scale * g;
+                h = h - f * g;
+                d[m - 1] = f - g;
+
+                Arrays.fill(e, 0, m, ZERO);
+
+                // Apply similarity transformation to rows and columns to left and above 'm'
+                // Only update elements below the diagonal
+                for (int i = 0; i < m; i++) {
+                    row = data[i];
+                    f = d[i];
+                    data[m][i] = f;
+                    g = e[i] + row[i] * f;
+                    for (int j = i + 1; j < m; j++) {
+                        val = row[j];
+                        g += val * d[j];
+                        e[j] += val * f;
+                    }
+                    e[i] = g;
+                }
+                f = ZERO;
+                for (int j = 0; j < m; j++) {
+                    e[j] /= h;
+                    f += e[j] * d[j];
+                }
+                val = f / (h + h);
+                AXPY.invoke(e, 0, -val, d, 0, 0, m);
+                for (int i = 0; i < m; i++) {
+                    row = data[i];
+                    f = d[i];
+                    g = e[i];
+                    for (int j = i; j < m; j++) { // rank-2 update
+                        row[j] -= f * e[j] + g * d[j];
+                    }
+                    d[i] = row[m - 1]; // Copy "next" row/column to work on
+                    row[m] = ZERO;
+                }
+            }
+            d[m] = h;
+        }
+
+        // Accumulate transformations - turn data into V
+        if (valuesOnly) {
+            for (int m = 0; m < size; m++) {
+                d[m] = data[m][m];
+            }
+        } else {
+            for (int m = 0; m < last; m++) {
+                row = data[m + 1];
+                data[m][last] = data[m][m];
+                data[m][m] = ONE;
+                h = d[m + 1];
+                if (NumberContext.compare(h, ZERO) != 0) {
+                    for (int j = 0; j <= m; j++) {
+                        d[j] = row[j] / h;
+                    }
+                    for (int i = 0; i <= m; i++) {
+                        val = DOT.invoke(row, 0, data[i], 0, 0, m + 1);
+                        AXPY.invoke(data[i], 0, -val, d, 0, 0, m + 1);
+                    }
+                }
+                Arrays.fill(row, 0, m + 1, ZERO);
+            }
+            for (int i = 0; i < last; i++) {
+                d[i] = data[i][last];
+                data[i][last] = ZERO;
+            }
+            d[last] = data[last][last];
+            data[last][last] = ONE;
+        }
+
+        for (int k = 1; k < size; k++) {
+            e[k - 1] = e[k];
+        }
+        e[last] = ZERO;
+
+        // Tridiagonalize > Diagonalize
+
+        RotateRight tmpRotateRight = valuesOnly ? RotateRight.NULL : (low, high, cos, sin) -> {
+            double[] tmpVi0 = data[low];
+            double tmpVi0k;
+            double[] tmpVi1 = data[high];
+            double tmpVi1k;
+
+            for (int k = 0; k < size; k++) {
+
+                tmpVi0k = tmpVi0[k];
+                tmpVi1k = tmpVi1[k];
+
+                tmpVi0[k] = cos * tmpVi0k - sin * tmpVi1k;
+                tmpVi1[k] = sin * tmpVi0k + cos * tmpVi1k;
+            }
+
+        };
+        HermitianEvD.tql2(d, e, tmpRotateRight);
+
+        // Diagonalize > Sort
+
+        if (this.isOrdered()) {
+            ExchangeColumns tmpExchangeColumns = valuesOnly ? ExchangeColumns.NULL : (colA, colB) -> {
+                double[] tmp = data[colA];
+                data[colA] = data[colB];
+                data[colB] = tmp;
+
+            };
+            EigenvalueDecomposition.sort(d, tmpExchangeColumns);
+        }
+
     }
 
     /**
@@ -1075,7 +582,7 @@ abstract class RawEigenvalue extends RawDecomposition implements Eigenvalue<Doub
      *
      * @return imag(diag(D))
      */
-    double[] getImagEigenvalues() {
+    double[] getImaginaryParts() {
         return e;
     }
 
@@ -1084,8 +591,33 @@ abstract class RawEigenvalue extends RawDecomposition implements Eigenvalue<Doub
      *
      * @return real(diag(D))
      */
-    double[] getRealEigenvalues() {
+    double[] getRealParts() {
         return d;
     }
+
+    //    public MatrixStore<Double> getExponential() {
+    //
+    //          MatrixStore<Double> mtrxV = this.getV();
+    //
+    //          PhysicalStore<Double> tmpD = this.getD().copy();
+    //        tmpD.modifyDiagonal(mtrxV.physical().function().exp());
+    //          MatrixStore<Double> mtrxD = tmpD.diagonal();
+    //
+    //        return mtrxV.multiply(mtrxD).multiply(mtrxV.conjugate());
+    //    }
+    //
+    //    public MatrixStore<Double> getPower(  int exponent) {
+    //
+    //          MatrixStore<Double> mtrxV = this.getV();
+    //          MatrixStore<Double> mtrxD = this.getD();
+    //
+    //        MatrixStore<Double> retVal = mtrxV;
+    //        for (int e = 0; e < exponent; e++) {
+    //            retVal = retVal.multiply(mtrxD);
+    //        }
+    //        retVal = retVal.multiply(mtrxV.conjugate());
+    //
+    //        return retVal;
+    //    }
 
 }

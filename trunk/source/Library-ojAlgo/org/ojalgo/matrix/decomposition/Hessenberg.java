@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,13 +21,14 @@
  */
 package org.ojalgo.matrix.decomposition;
 
-import java.math.BigDecimal;
-
-import org.ojalgo.access.Access2D;
-import org.ojalgo.matrix.MatrixUtils;
-import org.ojalgo.matrix.store.ElementsSupplier;
 import org.ojalgo.matrix.store.MatrixStore;
+import org.ojalgo.matrix.store.PhysicalStore;
 import org.ojalgo.scalar.ComplexNumber;
+import org.ojalgo.scalar.Quadruple;
+import org.ojalgo.scalar.Quaternion;
+import org.ojalgo.scalar.RationalNumber;
+import org.ojalgo.structure.Access2D;
+import org.ojalgo.type.context.NumberContext;
 
 /**
  * Hessenberg: [A] = [Q][H][Q]<sup>T</sup> A general square matrix [A] can be decomposed by orthogonal
@@ -39,37 +40,58 @@ import org.ojalgo.scalar.ComplexNumber;
  *
  * @author apete
  */
-public interface Hessenberg<N extends Number> extends MatrixDecomposition<N> {
+public interface Hessenberg<N extends Comparable<N>> extends MatrixDecomposition<N> {
 
-    @SuppressWarnings("unchecked")
-    public static <N extends Number> Hessenberg<N> make(final Access2D<N> typical) {
+    interface Factory<N extends Comparable<N>> extends MatrixDecomposition.Factory<Hessenberg<N>> {
 
-        final N tmpNumber = typical.get(0, 0);
-
-        if (tmpNumber instanceof BigDecimal) {
-            return (Hessenberg<N>) Hessenberg.makeBig();
-        } else if (tmpNumber instanceof ComplexNumber) {
-            return (Hessenberg<N>) Hessenberg.makeComplex();
-        } else if (tmpNumber instanceof Double) {
-            return (Hessenberg<N>) Hessenberg.makePrimitive();
-        } else {
-            throw new IllegalArgumentException();
-        }
     }
 
-    public static Hessenberg<BigDecimal> makeBig() {
-        return new HessenbergDecomposition.Big();
+    Factory<ComplexNumber> C128 = typical -> new HessenbergDecomposition.C128();
+
+    Factory<Quadruple> R128 = typical -> new HessenbergDecomposition.R128();
+
+    Factory<Double> R064 = typical -> new HessenbergDecomposition.R064();
+
+    Factory<Quaternion> H256 = typical -> new HessenbergDecomposition.H256();
+
+    Factory<RationalNumber> Q128 = typical -> new HessenbergDecomposition.Q128();
+
+    /**
+     * @deprecated
+     */
+    @Deprecated
+    Factory<ComplexNumber> COMPLEX = C128;
+
+    /**
+     * @deprecated
+     */
+    @Deprecated
+    Factory<Double> PRIMITIVE = R064;
+
+    /**
+     * @deprecated
+     */
+    @Deprecated
+    Factory<Quaternion> QUATERNION = H256;
+
+    /**
+     * @deprecated
+     */
+    @Deprecated
+    Factory<RationalNumber> RATIONAL = Q128;
+
+    static <N extends Comparable<N>> boolean equals(final MatrixStore<N> matrix, final Hessenberg<N> decomposition, final NumberContext context) {
+
+        final MatrixStore<N> tmpH = decomposition.getH();
+        final MatrixStore<N> tmpQ = decomposition.getQ();
+
+        final MatrixStore<N> tmpStore1 = matrix.multiply(tmpQ);
+        final MatrixStore<N> tmpStore2 = tmpQ.multiply(tmpH);
+
+        return Access2D.equals(tmpStore1, tmpStore2, context);
     }
 
-    public static Hessenberg<ComplexNumber> makeComplex() {
-        return new HessenbergDecomposition.Complex();
-    }
-
-    public static Hessenberg<Double> makePrimitive() {
-        return new HessenbergDecomposition.Primitive();
-    }
-
-    boolean compute(ElementsSupplier<N> matrix, boolean upper);
+    boolean compute(Access2D.Collectable<N, ? super PhysicalStore<N>> matrix, boolean upper);
 
     MatrixStore<N> getH();
 
@@ -78,6 +100,8 @@ public interface Hessenberg<N extends Number> extends MatrixDecomposition<N> {
     boolean isUpper();
 
     default MatrixStore<N> reconstruct() {
-        return MatrixUtils.reconstruct(this);
+        MatrixStore<N> mtrxQ = this.getQ();
+        MatrixStore<N> mtrxH = this.getH();
+        return mtrxQ.multiply(mtrxH).multiply(mtrxQ.transpose());
     }
 }

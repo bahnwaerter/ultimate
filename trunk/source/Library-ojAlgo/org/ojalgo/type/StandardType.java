@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -65,7 +65,7 @@ public abstract class StandardType {
      * <li>Style: {@linkplain NumberStyle#GENERAL}</li>
      * </ul>
      */
-    public static final NumberContext DECIMAL_032 = NumberContext.getGeneral(MathContext.DECIMAL32);
+    public static final NumberContext DECIMAL_032 = NumberContext.ofMath(MathContext.DECIMAL32).withScale(MathContext.DECIMAL32.getPrecision() / 2);
     /**
      * <ul>
      * <li>Precision: 16</li>
@@ -75,7 +75,7 @@ public abstract class StandardType {
      * <li>Style: {@linkplain NumberStyle#GENERAL}</li>
      * </ul>
      */
-    public static final NumberContext DECIMAL_064 = NumberContext.getGeneral(MathContext.DECIMAL64);
+    public static final NumberContext DECIMAL_064 = NumberContext.ofMath(MathContext.DECIMAL64).withScale(MathContext.DECIMAL64.getPrecision() / 2);
     /**
      * <ul>
      * <li>Precision: 34</li>
@@ -85,7 +85,7 @@ public abstract class StandardType {
      * <li>Style: {@linkplain NumberStyle#GENERAL}</li>
      * </ul>
      */
-    public static final NumberContext DECIMAL_128 = NumberContext.getGeneral(MathContext.DECIMAL128);
+    public static final NumberContext DECIMAL_128 = NumberContext.ofMath(MathContext.DECIMAL128).withScale(MathContext.DECIMAL128.getPrecision() / 2);
     /**
      * <ul>
      * <li>Precision: 7</li>
@@ -95,7 +95,7 @@ public abstract class StandardType {
      * <li>Style: {@linkplain NumberStyle#GENERAL}</li>
      * </ul>
      */
-    public static final NumberContext MATH_032 = NumberContext.getMath(MathContext.DECIMAL32);
+    public static final NumberContext MATH_032 = NumberContext.ofMath(MathContext.DECIMAL32).withScale(MathContext.DECIMAL32.getPrecision());
     /**
      * <ul>
      * <li>Precision: 16</li>
@@ -105,7 +105,7 @@ public abstract class StandardType {
      * <li>Style: {@linkplain NumberStyle#GENERAL}</li>
      * </ul>
      */
-    public static final NumberContext MATH_064 = NumberContext.getMath(MathContext.DECIMAL64);
+    public static final NumberContext MATH_064 = NumberContext.ofMath(MathContext.DECIMAL64).withScale(MathContext.DECIMAL64.getPrecision());
     /**
      * <ul>
      * <li>Precision: 34</li>
@@ -115,7 +115,7 @@ public abstract class StandardType {
      * <li>Style: {@linkplain NumberStyle#GENERAL}</li>
      * </ul>
      */
-    public static final NumberContext MATH_128 = NumberContext.getMath(MathContext.DECIMAL128);
+    public static final NumberContext MATH_128 = NumberContext.ofMath(MathContext.DECIMAL128).withScale(MathContext.DECIMAL128.getPrecision());
     /**
      * <ul>
      * <li>Precision: 7</li>
@@ -138,7 +138,7 @@ public abstract class StandardType {
      * Typically you have {@linkplain #QUANTITY} x {@linkplain #PRICE} = {@linkplain #AMOUNT}, an alternative
      * is {@linkplain #QUANTITY} x {@linkplain #PRICE} = {@linkplain #QUANTITY}.
      */
-    public static final NumberContext PRICE = NumberContext.getGeneral(8);
+    public static final NumberContext PRICE = NumberContext.ofScale(8);
     /**
      * <ul>
      * <li>Precision: 16</li>
@@ -150,7 +150,7 @@ public abstract class StandardType {
      * Typically you have {@linkplain #QUANTITY} x {@linkplain #PRICE} = {@linkplain #AMOUNT}, an alternative
      * is {@linkplain #QUANTITY} x {@linkplain #PRICE} = {@linkplain #QUANTITY}.
      */
-    public static final NumberContext QUANTITY = NumberContext.getGeneral(6);
+    public static final NumberContext QUANTITY = NumberContext.ofScale(6);
     public static final DateContext SQL_DATE = new DateContext(DatePart.DATE, DateStyle.SQL, null);
     public static final DateContext SQL_DATETIME = new DateContext(DatePart.DATETIME, DateStyle.SQL, null);
     public static final DateContext SQL_TIME = new DateContext(DatePart.TIME, DateStyle.SQL, null);
@@ -204,7 +204,7 @@ public abstract class StandardType {
     /**
      * {@linkplain #getQuantity()} * {@linkplain #getPrice()} = {@linkplain #getAmount()}
      */
-    public TypeContext<Number> getAmount() {
+    public TypeContext<Comparable<?>> getAmount() {
         return AMOUNT;
     }
 
@@ -216,27 +216,27 @@ public abstract class StandardType {
         return DATE;
     }
 
-    public TypeContext<Number> getDecimal032() {
+    public TypeContext<Comparable<?>> getDecimal032() {
         return DECIMAL_032;
     }
 
-    public TypeContext<Number> getDecimal064() {
+    public TypeContext<Comparable<?>> getDecimal064() {
         return DECIMAL_064;
     }
 
-    public TypeContext<Number> getDecimal128() {
+    public TypeContext<Comparable<?>> getDecimal128() {
         return DECIMAL_128;
     }
 
-    public TypeContext<Number> getMath032() {
+    public TypeContext<Comparable<?>> getMath032() {
         return MATH_032;
     }
 
-    public TypeContext<Number> getMath064() {
+    public TypeContext<Comparable<?>> getMath064() {
         return MATH_064;
     }
 
-    public TypeContext<Number> getMath128() {
+    public TypeContext<Comparable<?>> getMath128() {
         return MATH_128;
     }
 
@@ -244,29 +244,29 @@ public abstract class StandardType {
         return DATETIME;
     }
 
-    public TypeContext<Number> getMoney() {
+    public TypeContext<Comparable<?>> getMoney() {
         return AMOUNT;
     }
 
-    public TypeContext<Number> getParameter() {
+    public TypeContext<Comparable<?>> getParameter() {
         return DECIMAL_064;
     }
 
-    public TypeContext<Number> getPercent() {
+    public TypeContext<Comparable<?>> getPercent() {
         return PERCENT;
     }
 
     /**
      * {@linkplain #getQuantity()} * {@linkplain #getPrice()} = {@linkplain #getAmount()}
      */
-    public TypeContext<Number> getPrice() {
+    public TypeContext<Comparable<?>> getPrice() {
         return PRICE;
     }
 
     /**
      * {@linkplain #getQuantity()} * {@linkplain #getPrice()} = {@linkplain #getAmount()}
      */
-    public TypeContext<Number> getQuantity() {
+    public TypeContext<Comparable<?>> getQuantity() {
         return QUANTITY;
     }
 

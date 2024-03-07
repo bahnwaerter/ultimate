@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,30 +22,37 @@
 package org.ojalgo.random;
 
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
-import org.ojalgo.access.Access2D;
 import org.ojalgo.array.Array1D;
 import org.ojalgo.matrix.decomposition.Cholesky;
 import org.ojalgo.matrix.store.MatrixStore;
-import org.ojalgo.matrix.store.PrimitiveDenseStore;
-import org.ojalgo.type.Alternator;
+import org.ojalgo.matrix.store.Primitive64Store;
+import org.ojalgo.structure.Access2D;
 
-public class Random1D {
+public final class Random1D {
+
+    public static void setSeed(final long seed) {
+        Random1D.random().setSeed(seed);
+    }
+
+    private static Random random() {
+        return ThreadLocalRandom.current();
+    }
 
     public final int length;
 
-    private final Alternator<Random> myAlternator = RandomNumber.makeRandomAlternator();
     private final MatrixStore<Double> myCholeskiedCorrelations;
 
-    public Random1D(final Access2D<?> aCorrelationsMatrix) {
+    public Random1D(final Access2D<?> correlations) {
 
         super();
 
-        final Cholesky<Double> tmpCholesky = Cholesky.makePrimitive();
-        tmpCholesky.decompose(MatrixStore.PRIMITIVE.makeWrapper(aCorrelationsMatrix));
-        myCholeskiedCorrelations = tmpCholesky.getL();
+        Cholesky<Double> cholesky = Cholesky.PRIMITIVE.make();
+        cholesky.decompose(Primitive64Store.FACTORY.makeWrapper(correlations));
+        myCholeskiedCorrelations = cholesky.getL();
 
-        tmpCholesky.reset();
+        cholesky.reset();
 
         length = (int) myCholeskiedCorrelations.countRows();
     }
@@ -53,13 +60,13 @@ public class Random1D {
     /**
      * If the variables are uncorrelated.
      */
-    public Random1D(final int aLength) {
+    public Random1D(final int size) {
 
         super();
 
         myCholeskiedCorrelations = null;
 
-        length = aLength;
+        length = size;
     }
 
     @SuppressWarnings("unused")
@@ -72,16 +79,16 @@ public class Random1D {
      */
     public Array1D<Double> nextDouble() {
 
-        final PrimitiveDenseStore tmpUncorrelated = PrimitiveDenseStore.FACTORY.makeZero(length, 1);
+        Primitive64Store uncorrelated = Primitive64Store.FACTORY.make(length, 1);
 
         for (int i = 0; i < length; i++) {
-            tmpUncorrelated.set(i, 0, this.random().nextDouble());
+            uncorrelated.set(i, 0, Random1D.random().nextDouble());
         }
 
         if (myCholeskiedCorrelations != null) {
-            return ((PrimitiveDenseStore) myCholeskiedCorrelations.multiply(tmpUncorrelated)).asList();
+            return ((Primitive64Store) myCholeskiedCorrelations.multiply(uncorrelated)).asList();
         } else {
-            return tmpUncorrelated.asList();
+            return uncorrelated.asList();
         }
     }
 
@@ -90,25 +97,21 @@ public class Random1D {
      */
     public Array1D<Double> nextGaussian() {
 
-        final PrimitiveDenseStore tmpUncorrelated = PrimitiveDenseStore.FACTORY.makeZero(length, 1);
+        Primitive64Store uncorrelated = Primitive64Store.FACTORY.make(length, 1);
 
         for (int i = 0; i < length; i++) {
-            tmpUncorrelated.set(i, 0, this.random().nextGaussian());
+            uncorrelated.set(i, 0, Random1D.random().nextGaussian());
         }
 
         if (myCholeskiedCorrelations != null) {
-            return ((PrimitiveDenseStore) myCholeskiedCorrelations.multiply(tmpUncorrelated)).asList();
+            return ((Primitive64Store) myCholeskiedCorrelations.multiply(uncorrelated)).asList();
         } else {
-            return tmpUncorrelated.asList();
+            return uncorrelated.asList();
         }
     }
 
     public int size() {
         return length;
-    }
-
-    protected Random random() {
-        return myAlternator.get();
     }
 
 }

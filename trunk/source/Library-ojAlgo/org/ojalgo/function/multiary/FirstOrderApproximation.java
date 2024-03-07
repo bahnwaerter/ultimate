@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,22 +21,24 @@
  */
 package org.ojalgo.function.multiary;
 
-import org.ojalgo.access.Access1D;
 import org.ojalgo.matrix.store.MatrixStore;
-import org.ojalgo.matrix.store.PhysicalStore.Factory;
+import org.ojalgo.matrix.store.PhysicalStore;
+import org.ojalgo.structure.Access1D;
 
-public final class FirstOrderApproximation<N extends Number> extends ApproximateFunction<N> {
+public final class FirstOrderApproximation<N extends Comparable<N>> extends ApproximateFunction<N> {
 
-    private final LinearFunction<N> myDelegate;
+    private final AffineFunction<N> myDelegate;
 
     public FirstOrderApproximation(final MultiaryFunction.TwiceDifferentiable<N> function, final Access1D<N> point) {
 
         super(function, point);
 
-        final MatrixStore<N> tmpGradient = function.getGradient(point).builder().transpose().build();
+        final MatrixStore<N> linear = function.getGradient(point);
 
-        myDelegate = new LinearFunction<N>(tmpGradient);
-        myDelegate.setConstant(function.invoke(point));
+        N constant = function.invoke(point);
+
+        myDelegate = new AffineFunction<>(linear);
+        myDelegate.setConstant(constant);
     }
 
     public int arity() {
@@ -48,10 +50,7 @@ public final class FirstOrderApproximation<N extends Number> extends Approximate
         if (this == obj) {
             return true;
         }
-        if (obj == null) {
-            return false;
-        }
-        if (!(obj instanceof FirstOrderApproximation)) {
+        if ((obj == null) || !(obj instanceof FirstOrderApproximation)) {
             return false;
         }
         final FirstOrderApproximation<?> other = (FirstOrderApproximation<?>) obj;
@@ -65,11 +64,11 @@ public final class FirstOrderApproximation<N extends Number> extends Approximate
         return true;
     }
 
-    public MatrixStore<N> getGradient(final Access1D<N> arg) {
+    public MatrixStore<N> getGradient(final Access1D<N> point) {
         return myDelegate.getGradient(null);
     }
 
-    public MatrixStore<N> getHessian(final Access1D<N> arg) {
+    public MatrixStore<N> getHessian(final Access1D<N> point) {
         return myDelegate.getHessian(null);
     }
 
@@ -77,8 +76,7 @@ public final class FirstOrderApproximation<N extends Number> extends Approximate
     public int hashCode() {
         final int prime = 31;
         int result = 1;
-        result = (prime * result) + ((myDelegate == null) ? 0 : myDelegate.hashCode());
-        return result;
+        return (prime * result) + ((myDelegate == null) ? 0 : myDelegate.hashCode());
     }
 
     public N invoke(final Access1D<N> arg) {
@@ -91,7 +89,7 @@ public final class FirstOrderApproximation<N extends Number> extends Approximate
     }
 
     @Override
-    protected Factory<N, ?> factory() {
+    PhysicalStore.Factory<N, ?> factory() {
         return myDelegate.factory();
     }
 

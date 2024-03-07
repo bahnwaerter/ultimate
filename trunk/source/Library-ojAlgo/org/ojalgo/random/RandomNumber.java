@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,31 +21,30 @@
  */
 package org.ojalgo.random;
 
-import static org.ojalgo.constant.PrimitiveMath.*;
+import static org.ojalgo.function.constant.PrimitiveMath.*;
 
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.ojalgo.function.NullaryFunction;
-import org.ojalgo.type.Alternator;
+import org.ojalgo.function.constant.PrimitiveMath;
+import org.ojalgo.type.ComparableNumber;
 
 /**
  * RandomNumber
  *
  * @author apete
  */
-public abstract class RandomNumber extends Number implements Distribution, NullaryFunction<Double> {
+public abstract class RandomNumber implements Distribution, NullaryFunction<Double>, ComparableNumber<RandomNumber> {
 
-    private static final Random SEED = new Random();
-    private static final long serialVersionUID = -5871398825698010936L;
-
-    static Alternator<Random> makeRandomAlternator() {
-        return new Alternator<Random>(new Random(SEED.nextLong()), new Random(SEED.nextLong()));
-    }
-
-    private final Alternator<Random> myAlternator = RandomNumber.makeRandomAlternator();
+    private Random myRandom = null;
 
     protected RandomNumber() {
         super();
+    }
+
+    public int compareTo(final RandomNumber o) {
+        return Double.compare(this.getExpected(), o.getExpected());
     }
 
     @Override
@@ -60,28 +59,28 @@ public abstract class RandomNumber extends Number implements Distribution, Nulla
 
     /**
      * Subclasses must override either getStandardDeviation() or getVariance()!
-     * 
+     *
      * @see org.ojalgo.random.Distribution#getStandardDeviation()
      * @see org.ojalgo.random.Distribution#getVariance()
      */
     public double getStandardDeviation() {
-        return Math.sqrt(this.getVariance());
+        return PrimitiveMath.SQRT.invoke(this.getVariance());
     }
 
     /**
      * Subclasses must override either getStandardDeviation() or getVariance()!
-     * 
+     *
      * @see org.ojalgo.random.Distribution#getStandardDeviation()
      * @see org.ojalgo.random.Distribution#getVariance()
      */
     public double getVariance() {
-        final double tmpStandardDeviation = this.getStandardDeviation();
-        return tmpStandardDeviation * tmpStandardDeviation;
+        final double stdDev = this.getStandardDeviation();
+        return stdDev * stdDev;
     }
 
     @Override
     public final int intValue() {
-        return (int) this.generate();
+        return (int) this.longValue();
     }
 
     public final Double invoke() {
@@ -90,7 +89,28 @@ public abstract class RandomNumber extends Number implements Distribution, Nulla
 
     @Override
     public final long longValue() {
-        return (long) this.generate();
+        return Math.round(this.generate());
+    }
+
+    public SampleSet newSampleSet(final int numberOfSamples) {
+        return SampleSet.make(this, numberOfSamples);
+    }
+
+    /**
+     * Lets you choose between different {@link Random} implementations:
+     * <ul>
+     * <li>{@link java.util.Random}
+     * <li>{@link java.util.concurrent.ThreadLocalRandom}
+     * <li>{@link java.security.SecureRandom}
+     * <li>...
+     * </ul>
+     */
+    public void setRandom(final Random random) {
+        myRandom = random;
+    }
+
+    public void setSeed(final long seed) {
+        this.setRandom(new Random(seed));
     }
 
     @Override
@@ -98,8 +118,8 @@ public abstract class RandomNumber extends Number implements Distribution, Nulla
         return this.getExpected() + "±" + this.getStandardDeviation();
     }
 
-    protected void checkProbabilty(final double aProbabilty) {
-        if ((aProbabilty < ZERO) || (ONE < aProbabilty)) {
+    protected void checkProbabilty(final double probabilty) {
+        if ((probabilty < ZERO) || (ONE < probabilty)) {
             throw new IllegalArgumentException("Probabilty must be [0,1]");
         }
     }
@@ -107,6 +127,9 @@ public abstract class RandomNumber extends Number implements Distribution, Nulla
     protected abstract double generate();
 
     protected final Random random() {
-        return myAlternator.get();
+        if (myRandom != null) {
+            return myRandom;
+        }
+        return ThreadLocalRandom.current();
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,9 +21,9 @@
  */
 package org.ojalgo.random;
 
-import static org.ojalgo.constant.PrimitiveMath.*;
+import static org.ojalgo.function.constant.PrimitiveMath.*;
 
-import org.ojalgo.type.TypeUtils;
+import org.ojalgo.scalar.PrimitiveScalar;
 
 /**
  * Distribution of the sum of aCount random variables with an exponential distribution with parameter aLambda.
@@ -31,8 +31,6 @@ import org.ojalgo.type.TypeUtils;
  * @author apete
  */
 public class Gamma extends RandomNumber {
-
-    private static final long serialVersionUID = 6544837857838057678L;
 
     private final double myShape;
     private final double myRate;
@@ -60,7 +58,7 @@ public class Gamma extends RandomNumber {
 
     /**
      * A Convenient Way of Generating Gamma Random Variables Using Generalized Exponential Distribution
-     * 
+     *
      * @see org.ojalgo.random.RandomNumber#generate()
      */
     @Override
@@ -71,11 +69,11 @@ public class Gamma extends RandomNumber {
 
         double tmpIntegralPart = ZERO;
         for (int i = 0; i < tmpInteger; i++) {
-            tmpIntegralPart -= Math.log(this.random().nextDouble());
+            tmpIntegralPart -= LOG.invoke(this.random().nextDouble());
         }
 
         double tmpFractionalPart = ZERO;
-        if (!TypeUtils.isZero(tmpFraction)) {
+        if (!PrimitiveScalar.isSmall(ONE, tmpFraction)) {
 
             final double tmpFractionMinusOne = tmpFraction - ONE;
 
@@ -85,11 +83,11 @@ public class Gamma extends RandomNumber {
 
             do {
 
-                tmpFractionalPart = -TWO * Math.log(ONE - Math.pow(this.random().nextDouble(), ONE / tmpFraction));
+                tmpFractionalPart = -TWO * LOG.invoke(ONE - POW.invoke(this.random().nextDouble(), ONE / tmpFraction));
                 tmpNegHalfFraction = -tmpFractionalPart / TWO;
 
-                tmpNumer = Math.pow(tmpFractionalPart, tmpFractionMinusOne) * Math.exp(tmpNegHalfFraction);
-                tmpDenom = Math.pow(TWO, tmpFractionMinusOne) * Math.pow(-Math.expm1(tmpNegHalfFraction), tmpFractionMinusOne);
+                tmpNumer = POW.invoke(tmpFractionalPart, tmpFractionMinusOne) * EXP.invoke(tmpNegHalfFraction);
+                tmpDenom = POW.invoke(TWO, tmpFractionMinusOne) * POW.invoke(-EXPM1.invoke(tmpNegHalfFraction), tmpFractionMinusOne);
 
             } while (this.random().nextDouble() > (tmpNumer / tmpDenom));
         }

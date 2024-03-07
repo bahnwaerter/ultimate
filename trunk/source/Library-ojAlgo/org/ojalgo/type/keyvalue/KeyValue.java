@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,25 +21,175 @@
  */
 package org.ojalgo.type.keyvalue;
 
+import java.util.Map;
+
+import org.ojalgo.type.PrimitiveNumber;
+
 /**
- * <p>
- * A key-value pair or key-to-value map. The intention is that {@linkplain java.lang.Object#equals(Object)},
- * {@linkplain java.lang.Object#hashCode()} and {@linkplain java.lang.Comparable#compareTo(Object)} operates
- * on the key part only.
- * </p>
- * <p>
- * This is NOT compatible with how for instance {@linkplain java.util.Map.Entry} implements those methods.
- * </p>
- * <p>
- * Further it is indented that implementations should be immutable.
- * </p>
+ * A pair, like {@link Map.Entry} without {@link Map.Entry#setValue(Object)}.
  *
  * @author apete
  */
-public interface KeyValue<K extends Object, V extends Object> extends Comparable<KeyValue<K, ?>> {
+public interface KeyValue<K, V> {
+
+    /**
+     * A pair of the same type.
+     *
+     * @author apete
+     */
+    final class Dual<T> implements KeyValue<T, T> {
+
+        public final T first;
+        public final T second;
+
+        Dual(final T obj1, final T obj2) {
+
+            super();
+
+            first = obj1;
+            second = obj2;
+        }
+
+        @Override
+        public boolean equals(final Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (!(obj instanceof Dual)) {
+                return false;
+            }
+            Dual<?> other = (Dual<?>) obj;
+            if (first == null) {
+                if (other.first != null) {
+                    return false;
+                }
+            } else if (!first.equals(other.first)) {
+                return false;
+            }
+            if (second == null) {
+                if (other.second != null) {
+                    return false;
+                }
+            } else if (!second.equals(other.second)) {
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        public T first() {
+            return first;
+        }
+
+        @Override
+        public T getKey() {
+            return first;
+        }
+
+        @Override
+        public T getValue() {
+            return second;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + (first == null ? 0 : first.hashCode());
+            return prime * result + (second == null ? 0 : second.hashCode());
+        }
+
+        @Override
+        public T left() {
+            return first;
+        }
+
+        @Override
+        public T right() {
+            return second;
+        }
+
+        @Override
+        public T second() {
+            return second;
+        }
+
+    }
+
+    static <K> KeyValue<K, PrimitiveNumber> of(final K key, final byte value) {
+        return EntryPair.of(key, value);
+    }
+
+    static <K> KeyValue<K, PrimitiveNumber> of(final K key, final double value) {
+        return EntryPair.of(key, value);
+    }
+
+    static <K> KeyValue<K, PrimitiveNumber> of(final K key, final float value) {
+        return EntryPair.of(key, value);
+    }
+
+    static <K> KeyValue<K, PrimitiveNumber> of(final K key, final int value) {
+        return EntryPair.of(key, value);
+    }
+
+    static <K> KeyValue<KeyValue.Dual<K>, PrimitiveNumber> of(final K key1, final K key2, final byte value) {
+        return EntryPair.of(key1, key2, value);
+    }
+
+    static <K> KeyValue<KeyValue.Dual<K>, PrimitiveNumber> of(final K key1, final K key2, final double value) {
+        return EntryPair.of(key1, key2, value);
+    }
+
+    static <K> KeyValue<KeyValue.Dual<K>, PrimitiveNumber> of(final K key1, final K key2, final float value) {
+        return EntryPair.of(key1, key2, value);
+    }
+
+    static <K> KeyValue<KeyValue.Dual<K>, PrimitiveNumber> of(final K key1, final K key2, final int value) {
+        return EntryPair.of(key1, key2, value);
+    }
+
+    static <K> KeyValue<KeyValue.Dual<K>, PrimitiveNumber> of(final K key1, final K key2, final long value) {
+        return EntryPair.of(key1, key2, value);
+    }
+
+    static <K> KeyValue<KeyValue.Dual<K>, PrimitiveNumber> of(final K key1, final K key2, final short value) {
+        return EntryPair.of(key1, key2, value);
+    }
+
+    static <K, V> KeyValue<KeyValue.Dual<K>, V> of(final K key1, final K key2, final V value) {
+        return EntryPair.of(key1, key2, value);
+    }
+
+    static <K> KeyValue<K, PrimitiveNumber> of(final K key, final long value) {
+        return EntryPair.of(key, value);
+    }
+
+    static <K> KeyValue<K, PrimitiveNumber> of(final K key, final short value) {
+        return EntryPair.of(key, value);
+    }
+
+    static <K, V> KeyValue<K, V> of(final K key, final V value) {
+        return EntryPair.of(key, value);
+    }
+
+    default K first() {
+        return this.getKey();
+    }
 
     K getKey();
 
     V getValue();
+
+    default K left() {
+        return this.getKey();
+    }
+
+    default V right() {
+        return this.getValue();
+    }
+
+    default V second() {
+        return this.getValue();
+    }
 
 }

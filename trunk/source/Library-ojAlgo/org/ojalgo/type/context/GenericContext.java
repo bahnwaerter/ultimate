@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -49,13 +49,12 @@ public final class GenericContext<T> extends FormatContext<T> {
         if (myDelegate != null) {
             return myDelegate.enforce(object);
         } else {
-            return this.parse(this.format(object));
+            return super.enforce(object);
         }
     }
 
     @Override
-    protected void configureFormat(final Format format, final Object object) {
-    }
+    protected void configureFormat(final Format format, final Object object) {}
 
     @Override
     protected String handleFormatException(final Format format, final Object object) {

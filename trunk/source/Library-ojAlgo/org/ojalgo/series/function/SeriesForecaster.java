@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,10 +23,10 @@ package org.ojalgo.series.function;
 
 import java.util.Map;
 
-import org.ojalgo.access.Access1D;
 import org.ojalgo.series.BasicSeries;
 import org.ojalgo.series.CalendarDateSeries;
 import org.ojalgo.series.CoordinationSet;
+import org.ojalgo.structure.Access1D;
 import org.ojalgo.type.CalendarDate;
 import org.ojalgo.type.CalendarDateDuration;
 import org.ojalgo.type.CalendarDateUnit;
@@ -34,10 +34,10 @@ import org.ojalgo.type.CalendarDateUnit;
 /**
  * A forecaster is restricted to {@linkplain CalendarDate} keys and is intended to predict something related
  * to future keys/dates.
- * 
+ *
  * @author apete
  */
-public abstract class SeriesForecaster extends SeriesFunction<CalendarDate> {
+public abstract class SeriesForecaster extends SeriesExtrapolator<CalendarDate> {
 
     private final CalendarDate myLastKey;
     private final CalendarDateUnit myResolution;
@@ -50,7 +50,7 @@ public abstract class SeriesForecaster extends SeriesFunction<CalendarDate> {
         myResolution = null;
     }
 
-    private SeriesForecaster(final Map<String, ? extends BasicSeries<CalendarDate, ? extends Number>> data) {
+    private SeriesForecaster(final Map<String, ? extends BasicSeries<CalendarDate, ? extends Comparable<?>>> data) {
 
         super(data);
 
@@ -58,7 +58,7 @@ public abstract class SeriesForecaster extends SeriesFunction<CalendarDate> {
         myResolution = null;
     }
 
-    protected SeriesForecaster(final CalendarDateSeries<? extends Number> data) {
+    protected SeriesForecaster(final CalendarDateSeries<? extends Comparable<?>> data) {
 
         super(data);
 
@@ -66,7 +66,7 @@ public abstract class SeriesForecaster extends SeriesFunction<CalendarDate> {
         myResolution = data.getResolution();
     }
 
-    protected SeriesForecaster(final CoordinationSet<? extends Number> coordinatedHistoricalData) {
+    protected SeriesForecaster(final CoordinationSet<? extends Comparable<?>> coordinatedHistoricalData) {
 
         super(coordinatedHistoricalData);
 

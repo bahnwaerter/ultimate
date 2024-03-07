@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,16 +21,17 @@
  */
 package org.ojalgo.random;
 
-import static org.ojalgo.constant.PrimitiveMath.*;
+import static org.ojalgo.function.constant.PrimitiveMath.*;
+
+import org.ojalgo.function.constant.PrimitiveMath;
+import org.ojalgo.function.special.GammaFunction;
 
 /**
  * Useful as length of life distribution in reliability theory.
- * 
+ *
  * @author apete
  */
 public class Weibull extends RandomNumber {
-
-    private static final long serialVersionUID = 7315696913427382955L;
 
     private final double myShape; // beta
     private final double myRate; // lamda
@@ -39,30 +40,30 @@ public class Weibull extends RandomNumber {
         this(ONE, ONE);
     }
 
-    public Weibull(final double aLambda, final double aBeta) {
+    public Weibull(final double lambda, final double beta) {
 
         super();
 
-        myRate = aLambda;
-        myShape = aBeta;
+        myRate = lambda;
+        myShape = beta;
     }
 
     public double getExpected() {
-        return RandomUtils.gamma(ONE + (ONE / myShape)) / myRate;
+        return GammaFunction.gamma(ONE + (ONE / myShape)) / myRate;
     }
 
     @Override
     public double getVariance() {
 
-        final double tmpA = RandomUtils.gamma(ONE + (TWO / myShape));
-        final double tmpB = RandomUtils.gamma(ONE + (ONE / myShape));
+        final double tmpA = GammaFunction.gamma(ONE + (TWO / myShape));
+        final double tmpB = GammaFunction.gamma(ONE + (ONE / myShape));
 
         return (tmpA - (tmpB * tmpB)) / (myRate * myRate);
     }
 
     @Override
     protected double generate() {
-        return Math.pow(-Math.log(this.random().nextDouble()), ONE / myShape) / myRate;
+        return PrimitiveMath.POW.invoke(-PrimitiveMath.LOG.invoke(this.random().nextDouble()), ONE / myShape) / myRate;
     }
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,6 +33,6 @@ package org.ojalgo.algebra;
  * @see <a href="https://en.wikipedia.org/wiki/Distributive_property">Distributive property</a>
  * @see <a href="https://en.wikipedia.org/wiki/Associative_property">Associative property</a>
  */
-public interface Ring<S> extends Group.Additive<S>, Operation.Multiplication<S> {
+public interface Ring<T> extends Group.Additive<T>, Operation.Multiplication<T> {
 
 }

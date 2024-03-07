@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,88 +21,154 @@
  */
 package org.ojalgo.function.multiary;
 
-import java.math.BigDecimal;
-
-import org.ojalgo.access.Access1D;
-import org.ojalgo.matrix.store.BigDenseStore;
-import org.ojalgo.matrix.store.ComplexDenseStore;
+import org.ojalgo.matrix.store.GenericStore;
 import org.ojalgo.matrix.store.MatrixStore;
 import org.ojalgo.matrix.store.PhysicalStore;
-import org.ojalgo.matrix.store.PhysicalStore.Factory;
-import org.ojalgo.matrix.store.PrimitiveDenseStore;
+import org.ojalgo.matrix.store.Primitive64Store;
 import org.ojalgo.scalar.ComplexNumber;
+import org.ojalgo.scalar.RationalNumber;
+import org.ojalgo.scalar.Scalar;
+import org.ojalgo.structure.Access1D;
 
 /**
  * Constant valued function - always returns the same value.
  *
  * @author apete
  */
-public final class ConstantFunction<N extends Number> extends AbstractMultiary<N, ConstantFunction<N>> {
+public final class ConstantFunction<N extends Comparable<N>> implements MultiaryFunction.TwiceDifferentiable<N>, MultiaryFunction.Constant<N> {
 
-    public static ConstantFunction<BigDecimal> makeBig(final int arity) {
-        return new ConstantFunction<BigDecimal>(arity, BigDenseStore.FACTORY, null);
+    public static final class Factory<N extends Comparable<N>> {
+
+        private Comparable<?> myConstant = null;
+        private final PhysicalStore.Factory<N, ?> myFactory;
+
+        Factory(final PhysicalStore.Factory<N, ?> factory) {
+            super();
+            myFactory = factory;
+        }
+
+        public Factory<N> constant(final Comparable<?> constant) {
+            myConstant = constant;
+            return this;
+        }
+
+        public ConstantFunction<N> make(final int arity) {
+            return new ConstantFunction<>(arity, myFactory, myConstant);
+        }
+
     }
 
-    public static ConstantFunction<BigDecimal> makeBig(final int arity, final Number constant) {
-        return new ConstantFunction<BigDecimal>(arity, BigDenseStore.FACTORY, constant);
+    public static <N extends Comparable<N>> Factory<N> factory(final PhysicalStore.Factory<N, ?> factory) {
+        return new Factory<>(factory);
     }
 
+    /**
+     * @deprecated v53 Use {@link #factory(PhysicalStore.Factory)} instead.
+     */
+    @Deprecated
     public static ConstantFunction<ComplexNumber> makeComplex(final int arity) {
-        return new ConstantFunction<ComplexNumber>(arity, ComplexDenseStore.FACTORY, null);
+        // return new ConstantFunction<>(arity, GenericStore.C128);
+        return ConstantFunction.factory(GenericStore.C128).make(arity);
     }
 
-    public static ConstantFunction<ComplexNumber> makeComplex(final int arity, final Number constant) {
-        return new ConstantFunction<ComplexNumber>(arity, ComplexDenseStore.FACTORY, constant);
+    /**
+     * @deprecated v53 Use {@link #factory(PhysicalStore.Factory)} instead.
+     */
+    @Deprecated
+    public static ConstantFunction<ComplexNumber> makeComplex(final int arity, final Comparable<?> constant) {
+        // return new ConstantFunction<>(arity, GenericStore.C128, constant);
+        return ConstantFunction.factory(GenericStore.C128).constant(constant).make(arity);
     }
 
+    /**
+     * @deprecated v53 Use {@link #factory(PhysicalStore.Factory)} instead.
+     */
+    @Deprecated
     public static ConstantFunction<Double> makePrimitive(final int arity) {
-        return new ConstantFunction<Double>(arity, PrimitiveDenseStore.FACTORY, null);
+        // return new ConstantFunction<>(arity, Primitive64Store.FACTORY);
+        return ConstantFunction.factory(Primitive64Store.FACTORY).make(arity);
     }
 
-    public static ConstantFunction<Double> makePrimitive(final int arity, final Number constant) {
-        return new ConstantFunction<Double>(arity, PrimitiveDenseStore.FACTORY, constant);
+    /**
+     * @deprecated v53 Use {@link #factory(PhysicalStore.Factory)} instead.
+     */
+    @Deprecated
+    public static ConstantFunction<Double> makePrimitive(final int arity, final Comparable<?> constant) {
+        // return new ConstantFunction<>(arity, Primitive64Store.FACTORY, constant);
+        return ConstantFunction.factory(Primitive64Store.FACTORY).constant(constant).make(arity);
+    }
+
+    /**
+     * @deprecated v53 Use {@link #factory(PhysicalStore.Factory)} instead.
+     */
+    @Deprecated
+    public static ConstantFunction<RationalNumber> makeRational(final int arity) {
+        // return new ConstantFunction<>(arity, GenericStore.Q128);
+        return ConstantFunction.factory(GenericStore.Q128).make(arity);
+    }
+
+    /**
+     * @deprecated v53 Use {@link #factory(PhysicalStore.Factory)} instead.
+     */
+    @Deprecated
+    public static ConstantFunction<RationalNumber> makeRational(final int arity, final Comparable<?> constant) {
+        // return new ConstantFunction<>(arity, GenericStore.Q128, constant);
+        return ConstantFunction.factory(GenericStore.Q128).constant(constant).make(arity);
     }
 
     private final int myArity;
-
+    private Scalar<N> myConstant = null;
     private final PhysicalStore.Factory<N, ?> myFactory;
 
-    @SuppressWarnings("unused")
-    private ConstantFunction() {
-        this(0, null, null);
+    ConstantFunction(final int arity, final PhysicalStore.Factory<N, ?> factory, final Comparable<?> constant) {
+
+        this(arity, factory);
+
+        this.setConstant(constant);
     }
 
-    ConstantFunction(final int arity, final PhysicalStore.Factory<N, ?> factory, final Number constant) {
+    ConstantFunction(final long arity, final PhysicalStore.Factory<N, ?> factory) {
 
         super();
 
-        myArity = arity;
+        myArity = Math.toIntExact(arity);
         myFactory = factory;
-
-        this.setConstant(constant);
     }
 
     public int arity() {
         return myArity;
     }
 
-    public MatrixStore<N> getGradient(final Access1D<N> arg) {
-        //return new ZeroStore<>(this.factory(), this.arity(), 1);
-        return this.factory().builder().makeZero(this.arity(), 1).get();
+    public N getConstant() {
+        return this.getScalarConstant().get();
     }
 
-    public MatrixStore<N> getHessian(final Access1D<N> arg) {
-        //return new ZeroStore<>(this.factory(), this.arity(), this.arity());
-        return this.factory().builder().makeZero(this.arity(), this.arity()).get();
+    public MatrixStore<N> getGradient(final Access1D<N> point) {
+        return this.getLinearFactors(false);
+    }
+
+    public MatrixStore<N> getHessian(final Access1D<N> point) {
+        return myFactory.makeZero(myArity, myArity);
+    }
+
+    public MatrixStore<N> getLinearFactors(final boolean negated) {
+        return myFactory.makeZero(myArity, 1);
     }
 
     public N invoke(final Access1D<N> arg) {
         return this.getConstant();
     }
 
-    @Override
-    protected Factory<N, ?> factory() {
+    public void setConstant(final Comparable<?> constant) {
+        myConstant = constant != null ? myFactory.scalar().convert(constant) : null;
+    }
+
+    PhysicalStore.Factory<N, ?> factory() {
         return myFactory;
+    }
+
+    Scalar<N> getScalarConstant() {
+        return myConstant != null ? myConstant : myFactory.scalar().zero();
     }
 
 }

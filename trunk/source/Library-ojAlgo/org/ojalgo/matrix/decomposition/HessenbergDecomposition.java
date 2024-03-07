@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,41 +21,56 @@
  */
 package org.ojalgo.matrix.decomposition;
 
-import java.math.BigDecimal;
-
-import org.ojalgo.access.Access2D;
-import org.ojalgo.matrix.MatrixUtils;
-import org.ojalgo.matrix.store.BigDenseStore;
-import org.ojalgo.matrix.store.ComplexDenseStore;
-import org.ojalgo.matrix.store.ElementsSupplier;
+import org.ojalgo.matrix.store.GenericStore;
 import org.ojalgo.matrix.store.MatrixStore;
-import org.ojalgo.matrix.store.PrimitiveDenseStore;
+import org.ojalgo.matrix.store.PhysicalStore;
+import org.ojalgo.matrix.store.Primitive64Store;
 import org.ojalgo.matrix.transformation.Householder;
+import org.ojalgo.matrix.transformation.HouseholderReference;
 import org.ojalgo.scalar.ComplexNumber;
-import org.ojalgo.type.context.NumberContext;
+import org.ojalgo.scalar.Quadruple;
+import org.ojalgo.scalar.Quaternion;
+import org.ojalgo.scalar.RationalNumber;
+import org.ojalgo.structure.Access2D;
 
-abstract class HessenbergDecomposition<N extends Number> extends InPlaceDecomposition<N> implements Hessenberg<N> {
+abstract class HessenbergDecomposition<N extends Comparable<N>> extends InPlaceDecomposition<N> implements Hessenberg<N> {
 
-    static final class Big extends HessenbergDecomposition<BigDecimal> {
+    static final class C128 extends HessenbergDecomposition<ComplexNumber> {
 
-        Big() {
-            super(BigDenseStore.FACTORY);
+        C128() {
+            super(GenericStore.C128);
         }
 
     }
 
-    static final class Complex extends HessenbergDecomposition<ComplexNumber> {
+    static final class H256 extends HessenbergDecomposition<Quaternion> {
 
-        Complex() {
-            super(ComplexDenseStore.FACTORY);
+        H256() {
+            super(GenericStore.H256);
         }
 
     }
 
-    static final class Primitive extends HessenbergDecomposition<Double> {
+    static final class Q128 extends HessenbergDecomposition<RationalNumber> {
 
-        Primitive() {
-            super(PrimitiveDenseStore.FACTORY);
+        Q128() {
+            super(GenericStore.Q128);
+        }
+
+    }
+
+    static final class R064 extends HessenbergDecomposition<Double> {
+
+        R064() {
+            super(Primitive64Store.FACTORY);
+        }
+
+    }
+
+    static final class R128 extends HessenbergDecomposition<Quadruple> {
+
+        R128() {
+            super(GenericStore.R128);
         }
 
     }
@@ -68,7 +83,7 @@ abstract class HessenbergDecomposition<N extends Number> extends InPlaceDecompos
         super(aFactory);
     }
 
-    public final boolean compute(final ElementsSupplier<N> matrix, final boolean upper) {
+    public final boolean compute(final Access2D.Collectable<N, ? super PhysicalStore<N>> matrix, final boolean upper) {
 
         this.reset();
 
@@ -109,16 +124,12 @@ abstract class HessenbergDecomposition<N extends Number> extends InPlaceDecompos
         return this.computed(true);
     }
 
-    public final boolean decompose(final ElementsSupplier<N> matrix) {
+    public final boolean decompose(final Access2D.Collectable<N, ? super PhysicalStore<N>> matrix) {
         return this.compute(matrix, true);
     }
 
-    public final boolean equals(final MatrixStore<N> aStore, final NumberContext context) {
-        return MatrixUtils.equals(aStore, this, context);
-    }
-
     public final MatrixStore<N> getH() {
-        return this.getInPlace().builder().hessenberg(myUpper).build();
+        return this.getInPlace().hessenberg(myUpper);
     }
 
     public final MatrixStore<N> getQ() {
@@ -126,14 +137,6 @@ abstract class HessenbergDecomposition<N extends Number> extends InPlaceDecompos
             myQ = this.makeQ(this.makeEye(this.getRowDim(), this.getColDim()), myUpper, true);
         }
         return myQ;
-    }
-
-    public final boolean isFullSize() {
-        return true;
-    }
-
-    public final boolean isSolvable() {
-        return false;
     }
 
     public boolean isUpper() {
@@ -149,27 +152,22 @@ abstract class HessenbergDecomposition<N extends Number> extends InPlaceDecompos
         myUpper = true;
     }
 
-    public MatrixStore<N> solve(final Access2D<N> rhs, final DecompositionStore<N> preallocated) {
-        throw new UnsupportedOperationException();
-    }
+    private final DecompositionStore<N> makeQ(final DecompositionStore<N> storeToTransform, final boolean upper, final boolean eye) {
 
-    private final DecompositionStore<N> makeQ(final DecompositionStore<N> aStoreToTransform, final boolean tmpUpper, final boolean eye) {
+        final int tmpRowAndColDim = (int) storeToTransform.countRows();
 
-        final int tmpRowAndColDim = (int) aStoreToTransform.countRows();
-
-        final DecompositionStore.HouseholderReference<N> tmpHouseholderReference = new DecompositionStore.HouseholderReference<N>(this.getInPlace(), tmpUpper);
+        final HouseholderReference<N> tmpReference = HouseholderReference.make(this.getInPlace(), upper);
 
         for (int ij = tmpRowAndColDim - 3; ij >= 0; ij--) {
 
-            tmpHouseholderReference.row = tmpUpper ? ij + 1 : ij;
-            tmpHouseholderReference.col = tmpUpper ? ij : ij + 1;
+            tmpReference.point(upper ? ij + 1 : ij, upper ? ij : ij + 1);
 
-            if (!tmpHouseholderReference.isZero()) {
-                aStoreToTransform.transformLeft(tmpHouseholderReference, eye ? ij : 0);
+            if (!tmpReference.isZero()) {
+                storeToTransform.transformLeft(tmpReference, eye ? ij : 0);
             }
         }
 
-        return aStoreToTransform;
+        return storeToTransform;
     }
 
     final DecompositionStore<N> doQ(final DecompositionStore<N> aStoreToTransform) {

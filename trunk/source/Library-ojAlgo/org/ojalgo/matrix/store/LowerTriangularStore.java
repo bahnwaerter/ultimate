@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,65 +21,63 @@
  */
 package org.ojalgo.matrix.store;
 
-import org.ojalgo.ProgrammingError;
-import org.ojalgo.constant.PrimitiveMath;
+import org.ojalgo.function.constant.PrimitiveMath;
 import org.ojalgo.scalar.Scalar;
 
-final class LowerTriangularStore<N extends Number> extends ShadingStore<N> {
+final class LowerTriangularStore<N extends Comparable<N>> extends ShadingStore<N> {
 
     private final boolean myUnitDiagonal;
 
-    @SuppressWarnings("unused")
-    private LowerTriangularStore(final int aRowDim, final int aColDim, final MatrixStore<N> base) {
-
-        this(base, true);
-
-        ProgrammingError.throwForIllegalInvocation();
-    }
-
     LowerTriangularStore(final MatrixStore<N> base, final boolean unitDiagonal) {
 
-        super((int) base.countRows(), (int) Math.min(base.countRows(), base.countColumns()), base);
+        super(base);
 
         myUnitDiagonal = unitDiagonal;
     }
 
-    public double doubleValue(final long row, final long col) {
+    @Override
+    public double doubleValue(final int row, final int col) {
         if (row < col) {
             return PrimitiveMath.ZERO;
-        } else if (myUnitDiagonal && (row == col)) {
+        }
+        if (myUnitDiagonal && row == col) {
             return PrimitiveMath.ONE;
         } else {
-            return this.getBase().doubleValue(row, col);
+            return this.base().doubleValue(row, col);
         }
     }
 
+    @Override
     public int firstInColumn(final int col) {
         return col;
     }
 
-    public N get(final long row, final long col) {
+    @Override
+    public N get(final int row, final int col) {
         if (row < col) {
-            return this.factory().scalar().zero().getNumber();
-        } else if (myUnitDiagonal && (row == col)) {
-            return this.factory().scalar().one().getNumber();
+            return this.zero().get();
+        }
+        if (myUnitDiagonal && row == col) {
+            return this.one().get();
         } else {
-            return this.getBase().get(row, col);
+            return this.base().get(row, col);
         }
     }
 
     @Override
     public int limitOfRow(final int row) {
-        return row + 1;
+        return Math.min(row + 1, this.getColDim());
     }
 
+    @Override
     public Scalar<N> toScalar(final long row, final long col) {
         if (row < col) {
-            return this.factory().scalar().zero();
-        } else if (myUnitDiagonal && (row == col)) {
-            return this.factory().scalar().one();
+            return this.zero();
+        }
+        if (myUnitDiagonal && row == col) {
+            return this.one();
         } else {
-            return this.getBase().toScalar(row, col);
+            return this.base().toScalar(row, col);
         }
     }
 

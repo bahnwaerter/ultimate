@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,38 +21,45 @@
  */
 package org.ojalgo.matrix.store;
 
-abstract class ShadingStore<N extends Number> extends LogicalStore<N> {
+/**
+ * Does not change the matrix size/shape, but applies some structure to the elements. Shaded elements are
+ * assumed to be zero.
+ *
+ * @author apete
+ */
+abstract class ShadingStore<N extends Comparable<N>> extends LogicalStore<N> {
 
-    protected ShadingStore(final int rows, final int columns, final MatrixStore<N> base) {
-        super(base, rows, columns);
+    protected ShadingStore(final MatrixStore<N> base) {
+        super(base, base.getRowDim(), base.getColDim());
     }
 
     @Override
-    protected void supplyNonZerosTo(final ElementsConsumer<N> consumer) {
+    public void supplyTo(final TransformableRegion<N> consumer) {
 
-        final int tmpColDim = this.getColDim();
+        consumer.reset();
+
+        int numberOfColumns = this.getColDim();
 
         if (this.isPrimitive()) {
 
-            for (int j = 0; j < tmpColDim; j++) {
-                final int tmpFirst = this.firstInColumn(j);
-                final int tmpLimit = this.limitOfColumn(j);
-                for (int i = tmpFirst; i < tmpLimit; i++) {
+            for (int j = 0; j < numberOfColumns; j++) {
+                int first = this.firstInColumn(j);
+                int limit = this.limitOfColumn(j);
+                for (int i = first; i < limit; i++) {
                     consumer.set(i, j, this.doubleValue(i, j));
                 }
             }
 
         } else {
 
-            for (int j = 0; j < tmpColDim; j++) {
-                final int tmpFirst = this.firstInColumn(j);
-                final int tmpLimit = this.limitOfColumn(j);
-                for (int i = tmpFirst; i < tmpLimit; i++) {
+            for (int j = 0; j < numberOfColumns; j++) {
+                int first = this.firstInColumn(j);
+                int limit = this.limitOfColumn(j);
+                for (int i = first; i < limit; i++) {
                     consumer.fillOne(i, j, this.get(i, j));
                 }
             }
         }
-
     }
 
 }

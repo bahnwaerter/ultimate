@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,16 +29,79 @@ package org.ojalgo.function.aggregator;
  *
  * @author apete
  */
-public abstract class AggregatorSet<N extends Number> {
+public abstract class AggregatorSet<N extends Comparable<N>> {
 
     protected AggregatorSet() {
         super();
     }
 
     /**
+     * Average value
+     */
+    public abstract AggregatorFunction<N> average();
+
+    /**
      * Count of non-zero elements
      */
     public abstract AggregatorFunction<N> cardinality();
+
+    public final AggregatorFunction<N> get(final Aggregator aggregator) {
+
+        switch (aggregator) {
+
+        case AVERAGE:
+
+            return this.average();
+
+        case CARDINALITY:
+
+            return this.cardinality();
+
+        case LARGEST:
+
+            return this.largest();
+
+        case MAXIMUM:
+
+            return this.maximum();
+
+        case MINIMUM:
+
+            return this.minimum();
+
+        case NORM1:
+
+            return this.norm1();
+
+        case NORM2:
+
+            return this.norm2();
+
+        case PRODUCT:
+
+            return this.product();
+
+        case PRODUCT2:
+
+            return this.product2();
+
+        case SMALLEST:
+
+            return this.smallest();
+
+        case SUM:
+
+            return this.sum();
+
+        case SUM2:
+
+            return this.sum2();
+
+        default:
+
+            throw new IllegalArgumentException();
+        }
+    }
 
     /**
      * Largest absolute value
@@ -56,12 +119,12 @@ public abstract class AggregatorSet<N extends Number> {
     public abstract AggregatorFunction<N> minimum();
 
     /**
-     * Equivalent to, but probably faster than, norm(1);
+     * Sum of absolute values
      */
     public abstract AggregatorFunction<N> norm1();
 
     /**
-     * Equivalent to, but probably faster than, norm(2);
+     * Square root of sum of squared values
      */
     public abstract AggregatorFunction<N> norm2();
 

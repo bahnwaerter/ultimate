@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,16 +21,21 @@
  */
 package org.ojalgo.random;
 
-import static org.ojalgo.constant.PrimitiveMath.*;
+import static org.ojalgo.function.constant.PrimitiveMath.*;
+
+import org.ojalgo.function.constant.PrimitiveMath;
+import org.ojalgo.function.special.CombinatorialFunctions;
 
 /**
- * The frequency in aCount indepedent trials, each with probability aProbability, has a binomial distribution.
+ * The frequency in count indepedent trials, each with probability probability, has a binomial distribution.
  *
  * @author apete
  */
 public class Binomial extends AbstractDiscrete {
 
-    private static final long serialVersionUID = -3146302867013736326L;
+    public static Binomial of(final int count, final double probability) {
+        return new Binomial(count, probability);
+    }
 
     private final int myCount;
     private final double myProbability;
@@ -39,20 +44,21 @@ public class Binomial extends AbstractDiscrete {
         this(1, HALF);
     }
 
-    public Binomial(final int aCount, final double aProbability) {
+    public Binomial(final int count, final double probability) {
 
         super();
 
-        myCount = aCount;
-        myProbability = aProbability;
+        myCount = count;
+        myProbability = probability;
     }
 
     public double getExpected() {
         return myCount * myProbability;
     }
 
-    public double getProbability(final int aVal) {
-        return RandomUtils.subsets(myCount, aVal) * Math.pow(myProbability, aVal) * Math.pow(ONE - myProbability, myCount - aVal);
+    public double getProbability(final int value) {
+        return CombinatorialFunctions.subsets(myCount, value) * PrimitiveMath.POW.invoke(myProbability, value)
+                * PrimitiveMath.POW.invoke(ONE - myProbability, myCount - value);
     }
 
     @Override
@@ -66,7 +72,7 @@ public class Binomial extends AbstractDiscrete {
         int retVal = 0;
 
         for (int i = 0; i < myCount; i++) {
-            retVal += (myProbability + this.random().nextDouble());
+            retVal += (int) (myProbability + this.random().nextDouble());
         }
 
         return retVal;

@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,7 +21,9 @@
  */
 package org.ojalgo.random;
 
-import static org.ojalgo.constant.PrimitiveMath.*;
+import static org.ojalgo.function.constant.PrimitiveMath.*;
+
+import org.ojalgo.function.constant.PrimitiveMath;
 
 /**
  * The number of required trials until an event with probability aProbability occurs has a geometric
@@ -31,7 +33,9 @@ import static org.ojalgo.constant.PrimitiveMath.*;
  */
 public class Geometric extends AbstractDiscrete {
 
-    private static final long serialVersionUID = 1324905651790774444L;
+    public static Geometric of(final double probability) {
+        return new Geometric(probability);
+    }
 
     private final double myProbability;
 
@@ -39,19 +43,19 @@ public class Geometric extends AbstractDiscrete {
         this(HALF);
     }
 
-    public Geometric(final double aProbability) {
+    public Geometric(final double probability) {
 
         super();
 
-        myProbability = aProbability;
+        myProbability = probability;
     }
 
     public double getExpected() {
         return ONE / myProbability;
     }
 
-    public double getProbability(final int aVal) {
-        return myProbability * Math.pow(ONE - myProbability, aVal - ONE);
+    public double getProbability(final int value) {
+        return myProbability * PrimitiveMath.POW.invoke(ONE - myProbability, value - ONE);
     }
 
     @Override

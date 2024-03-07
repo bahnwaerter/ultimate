@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,148 +21,134 @@
  */
 package org.ojalgo.matrix.decomposition;
 
-import org.ojalgo.access.Access2D;
-import org.ojalgo.access.Structure2D;
-import org.ojalgo.matrix.MatrixUtils;
-import org.ojalgo.matrix.store.ElementsSupplier;
+import org.ojalgo.function.FunctionSet;
+import org.ojalgo.function.PrimitiveFunction;
+import org.ojalgo.matrix.store.DiagonalStore;
 import org.ojalgo.matrix.store.MatrixStore;
-import org.ojalgo.matrix.store.MatrixStore.Builder;
-import org.ojalgo.matrix.store.PrimitiveDenseStore;
+import org.ojalgo.matrix.store.PhysicalStore;
+import org.ojalgo.matrix.store.Primitive64Store;
 import org.ojalgo.matrix.store.RawStore;
+import org.ojalgo.scalar.PrimitiveScalar;
+import org.ojalgo.scalar.Scalar;
+import org.ojalgo.structure.Access1D;
+import org.ojalgo.structure.Access2D;
+import org.ojalgo.structure.Access2D.Collectable;
+import org.ojalgo.structure.Structure2D;
+import org.ojalgo.type.context.NumberContext;
 
 /**
- * In many ways similar to InPlaceDecomposition but this class is hardwired to work with double[][] data.
+ * In many ways similar to InPlaceDecomposition but this class is hardwired to work with double[][] data. Most
+ * of it's originates from JAMA, but have been significantly refactored or even (re)written from scratch.
  *
  * @author apete
  */
 abstract class RawDecomposition extends AbstractDecomposition<Double> {
 
+    static RawStore make(final int nbRows, final int nbCols) {
+        return RawStore.FACTORY.make(nbRows, nbCols);
+    }
+
+    final static <D extends Access1D<?>> DiagonalStore.Builder<Double, D> makeDiagonal(final D mainDiag) {
+        return DiagonalStore.builder(RawStore.FACTORY, mainDiag);
+    }
+
     private int myColDim;
-    private double[][] myRawInPlaceData;
-    private RawStore myRawInPlaceStore;
+    private double[][] myInternalData;
+    private RawStore myInternalStore;
     private int myRowDim;
 
     protected RawDecomposition() {
         super();
     }
 
-    public MatrixStore<Double> getInverse() {
-        return this.doGetInverse(this.preallocate(this.getColDim(), this.getColDim()));
+    @Override
+    public int getColDim() {
+        return myColDim;
     }
 
-    public final MatrixStore<Double> getInverse(final DecompositionStore<Double> preallocated) {
-        return this.doGetInverse((PrimitiveDenseStore) preallocated);
+    @Override
+    public int getRowDim() {
+        return myRowDim;
     }
 
-    public final MatrixStore<Double> invert(final Access2D<?> original) {
-        return this.invert(original, this.preallocate(original));
+    @Override
+    protected Primitive64Store allocate(final long numberOfRows, final long numberOfColumns) {
+        // TODO Should use RawStore.FACTORY rather than PrimitiveDenseStore.FACTORY
+        return Primitive64Store.FACTORY.make(numberOfRows, numberOfColumns);
     }
 
-    public abstract MatrixStore<Double> invert(final Access2D<?> original, final DecompositionStore<Double> preallocated);
-
-    public DecompositionStore<Double> preallocate(final Structure2D template) {
-        final long tmpCountRows = template.countRows();
-        return this.preallocate(tmpCountRows, tmpCountRows);
-    }
-
-    public DecompositionStore<Double> preallocate(final Structure2D templateBody, final Structure2D templateRHS) {
-        return this.preallocate(templateRHS.countRows(), templateRHS.countColumns());
-    }
-
-    public final MatrixStore<Double> solve(final Access2D<?> body, final Access2D<?> rhs) {
-        return this.solve(body, rhs, this.preallocate(body, rhs));
-    }
-
-    public abstract MatrixStore<Double> solve(final Access2D<?> body, final Access2D<?> rhs, final DecompositionStore<Double> preallocated);
-
-    public final MatrixStore<Double> solve(final ElementsSupplier<Double> rhs) {
-        return this.solve(rhs, this.preallocate(this.getRawInPlaceStore(), rhs));
-    }
-
-    public abstract MatrixStore<Double> solve(final ElementsSupplier<Double> rhs, final DecompositionStore<Double> preallocated);
-
-    protected final boolean checkSymmetry() {
+    protected boolean checkSymmetry() {
         boolean retVal = myRowDim == myColDim;
-        for (int i = 0; retVal && (i < myRowDim); i++) {
-            for (int j = 0; retVal && (j < i); j++) {
-                retVal &= (myRawInPlaceData[i][j] == myRawInPlaceData[j][i]);
+        for (int i = 0; retVal && i < myRowDim; i++) {
+            for (int j = 0; retVal && j < i; j++) {
+                retVal &= NumberContext.compare(myInternalData[i][j], myInternalData[j][i]) == 0;
             }
         }
         return retVal;
     }
 
-    protected abstract MatrixStore<Double> doGetInverse(final PrimitiveDenseStore preallocated);
-
-    protected final int getColDim() {
-        return myColDim;
-    }
-
-    protected final int getMaxDim() {
-        return Math.max(myRowDim, myColDim);
-    }
-
-    protected final int getMinDim() {
-        return Math.min(myRowDim, myColDim);
-    }
-
-    protected final double[][] getRawInPlaceData() {
-        return myRawInPlaceData;
-    }
-
-    protected final RawStore getRawInPlaceStore() {
-        return myRawInPlaceStore;
-    }
-
-    protected final int getRowDim() {
-        return myRowDim;
+    @SuppressWarnings("unchecked")
+    protected MatrixStore<Double> collect(final Access2D.Collectable<Double, ? super DecompositionStore<Double>> source) {
+        // TODO Should use RawStore.FACTORY rather than PrimitiveDenseStore.FACTORY
+        if (source instanceof MatrixStore) {
+            return (MatrixStore<Double>) source;
+        }
+        if (source instanceof Access2D) {
+            return Primitive64Store.FACTORY.makeWrapper((Access2D<?>) source);
+        }
+        return source.collect(Primitive64Store.FACTORY);
     }
 
     @Override
-    protected final PrimitiveDenseStore preallocate(final long numberOfRows, final long numberOfColumns) {
-        return PrimitiveDenseStore.FACTORY.makeZero(numberOfRows, numberOfColumns);
+    protected final FunctionSet<Double> function() {
+        return PrimitiveFunction.getSet();
     }
 
-    /**
-     * Possible to override to, possibly, only copy part of the matrix.
-     */
-    void copy(final Access2D<?> source, final int rows, final int columns, final double[][] destination) {
-        MatrixUtils.copy(source, rows, columns, destination);
+    protected double[][] getInternalData() {
+        return myInternalData;
     }
 
-    final double[][] reset(final Structure2D matrix, final boolean transpose) {
+    protected RawStore getInternalStore() {
+        return myInternalStore;
+    }
+
+    @Override
+    protected final Scalar.Factory<Double> scalar() {
+        return PrimitiveScalar.FACTORY;
+    }
+
+    protected Collectable<Double, ? super PhysicalStore<Double>> wrap(final Access2D<?> matrix) {
+        return Primitive64Store.FACTORY.makeWrapper(matrix);
+    }
+
+    RawStore newRawStore(final int m, final int n) {
+        return RawStore.FACTORY.make(m, n);
+    }
+
+    double[][] reset(final Structure2D template, final boolean transpose) {
 
         this.reset();
 
-        final int tmpInputRowDim = (int) matrix.countRows();
-        final int tmpInputColDim = (int) matrix.countColumns();
+        final int templateRows = template.getRowDim();
+        final int templateCols = template.getColDim();
 
-        final int tmpInPlaceRowDim = transpose ? tmpInputColDim : tmpInputRowDim;
-        final int tmpInPlaceColDim = transpose ? tmpInputRowDim : tmpInputColDim;
+        final int internalRows = transpose ? templateCols : templateRows;
+        final int internalCols = transpose ? templateRows : templateCols;
 
-        if ((myRawInPlaceData == null) || (myRowDim != tmpInputRowDim) || (myColDim != tmpInputColDim)) {
+        if (myInternalData == null || myRowDim != templateRows || myColDim != templateCols) {
 
-            myRawInPlaceStore = RawStore.FACTORY.makeZero(tmpInPlaceRowDim, tmpInPlaceColDim);
-            myRawInPlaceData = myRawInPlaceStore.data;
+            myInternalStore = RawStore.FACTORY.make(internalRows, internalCols);
+            myInternalData = myInternalStore.data;
 
-            myRowDim = tmpInputRowDim;
-            myColDim = tmpInputColDim;
+            myRowDim = templateRows;
+            myColDim = templateCols;
         }
 
-        this.aspectRatioNormal(tmpInputRowDim >= tmpInputColDim);
-
-        return myRawInPlaceData;
+        return myInternalData;
     }
 
-    /**
-     * Possible to override to, possibly, only copy/transpose part of the matrix.
-     */
-    void transpose(final Access2D<?> source, final int rows, final int columns, final double[][] destination) {
-        for (int j = 0; j < columns; j++) {
-            final double[] tmpColumn = destination[j];
-            for (int i = 0; i < rows; i++) {
-                tmpColumn[i] = source.doubleValue(i, j);
-            }
-        }
+    RawStore wrap(final double[][] data) {
+        return RawStore.wrap(data);
     }
 
 }

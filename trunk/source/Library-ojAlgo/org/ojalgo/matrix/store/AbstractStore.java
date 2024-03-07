@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,18 +21,84 @@
  */
 package org.ojalgo.matrix.store;
 
-import java.io.Serializable;
-
 import org.ojalgo.ProgrammingError;
-import org.ojalgo.access.Access1D;
-import org.ojalgo.access.AccessUtils;
-import org.ojalgo.function.VoidFunction;
-import org.ojalgo.function.aggregator.Aggregator;
-import org.ojalgo.function.aggregator.AggregatorFunction;
-import org.ojalgo.matrix.MatrixUtils;
-import org.ojalgo.type.context.NumberContext;
+import org.ojalgo.structure.Access1D;
+import org.ojalgo.structure.Access2D;
 
-abstract class AbstractStore<N extends Number> implements MatrixStore<N>, Serializable {
+abstract class AbstractStore<N extends Comparable<N>> implements MatrixStore<N> {
+
+    @SafeVarargs
+    static <N extends Comparable<N>> MatrixStore<N> buildColumn(final PhysicalStore.Factory<N, ?> factory, final long rowsCount,
+            final Access2D<N>... columnStores) {
+        MatrixStore<N> retVal = AbstractStore.cast(factory, columnStores[0]);
+        for (int i = 1; i < columnStores.length; i++) {
+            retVal = new AboveBelowStore<>(retVal, AbstractStore.cast(factory, columnStores[i]));
+        }
+        long rowsSoFar = retVal.countRows();
+        if (rowsSoFar < rowsCount) {
+            retVal = new AboveBelowStore<>(retVal, new ZeroStore<>(retVal.physical(), rowsCount - rowsSoFar, retVal.countColumns()));
+        }
+        return retVal;
+    }
+
+    static <N extends Comparable<N>> MatrixStore<N> buildColumn(final PhysicalStore.Factory<N, ?> factory, final long rowsCount,
+            final Access2D<N> columnStore) {
+        MatrixStore<N> retVal = AbstractStore.cast(factory, columnStore);
+        long rowsSoFar = retVal.countRows();
+        if (rowsSoFar < rowsCount) {
+            retVal = new AboveBelowStore<>(retVal, new ZeroStore<>(retVal.physical(), rowsCount - rowsSoFar, retVal.countColumns()));
+        }
+        return retVal;
+    }
+
+    @SafeVarargs
+    static <N extends Comparable<N>> MatrixStore<N> buildColumn(final PhysicalStore.Factory<N, ?> factory, final long rowsCount, final N... columnElements) {
+        MatrixStore<N> retVal = factory.columns(columnElements);
+        long rowsSoFar = retVal.countRows();
+        if (rowsSoFar < rowsCount) {
+            retVal = new AboveBelowStore<>(retVal, new ZeroStore<>(factory, rowsCount - rowsSoFar, retVal.countColumns()));
+        }
+        return retVal;
+    }
+
+    @SafeVarargs
+    static <N extends Comparable<N>> MatrixStore<N> buildRow(final PhysicalStore.Factory<N, ?> factory, final long colsCount, final Access2D<N>... rowStores) {
+        MatrixStore<N> retVal = AbstractStore.cast(factory, rowStores[0]);
+        for (int j = 1; j < rowStores.length; j++) {
+            retVal = new LeftRightStore<>(retVal, AbstractStore.cast(factory, rowStores[j]));
+        }
+        long colsSoFar = retVal.countColumns();
+        if (colsSoFar < colsCount) {
+            retVal = new LeftRightStore<>(retVal, new ZeroStore<>(retVal.physical(), retVal.countRows(), colsCount - colsSoFar));
+        }
+        return retVal;
+    }
+
+    static <N extends Comparable<N>> MatrixStore<N> buildRow(final PhysicalStore.Factory<N, ?> factory, final long colsCount, final Access2D<N> rowStore) {
+        MatrixStore<N> retVal = AbstractStore.cast(factory, rowStore);
+        long colsSoFar = retVal.countColumns();
+        if (colsSoFar < colsCount) {
+            retVal = new LeftRightStore<>(retVal, new ZeroStore<>(retVal.physical(), retVal.countRows(), colsCount - colsSoFar));
+        }
+        return retVal;
+    }
+
+    @SafeVarargs
+    static <N extends Comparable<N>> MatrixStore<N> buildRow(final PhysicalStore.Factory<N, ?> factory, final long colsCount, final N... rowElements) {
+        MatrixStore<N> retVal = new TransposedStore<>(factory.columns(rowElements));
+        long colsSoFar = retVal.countColumns();
+        if (colsSoFar < colsCount) {
+            retVal = new LeftRightStore<>(retVal, new ZeroStore<>(factory, retVal.countRows(), colsCount - colsSoFar));
+        }
+        return retVal;
+    }
+
+    static <N extends Comparable<N>> MatrixStore<N> cast(final PhysicalStore.Factory<N, ?> factory, final Access2D<?> access) {
+        if (access instanceof MatrixStore<?>) {
+            return (MatrixStore<N>) access;
+        }
+        return new WrapperStore<>(factory, access);
+    }
 
     private final int myColDim;
     private transient Class<?> myComponentType = null;
@@ -46,39 +112,16 @@ abstract class AbstractStore<N extends Number> implements MatrixStore<N>, Serial
         ProgrammingError.throwForIllegalInvocation();
     }
 
-    protected AbstractStore(final int rowsCount, final int columnsCount) {
+    protected AbstractStore(final int numberOfRows, final int numberOfColumns) {
 
         super();
 
-        myRowDim = rowsCount;
-        myColDim = columnsCount;
+        myRowDim = numberOfRows;
+        myColDim = numberOfColumns;
     }
 
-    @SuppressWarnings("unchecked")
-    public N aggregateAll(final Aggregator aggregator) {
-
-        final AggregatorFunction<N> tmpFunction = (AggregatorFunction<N>) aggregator.getFunction(this.getComponentType());
-
-        this.visitAll(tmpFunction);
-
-        return tmpFunction.getNumber();
-    }
-
-    public final MatrixStore.Builder<N> builder() {
-        return new MatrixStore.Builder<N>(this);
-    }
-
-    public final PhysicalStore<N> copy() {
-
-        final PhysicalStore<N> retVal = this.factory().makeZero(this.countRows(), this.countColumns());
-
-        this.supplyNonZerosTo(retVal);
-
-        return retVal;
-    }
-
-    public long count() {
-        return myRowDim * myColDim;
+    protected AbstractStore(final long numberOfRows, final long numberOfColumns) {
+        this(Math.toIntExact(numberOfRows), Math.toIntExact(numberOfColumns));
     }
 
     public long countColumns() {
@@ -89,38 +132,55 @@ abstract class AbstractStore<N extends Number> implements MatrixStore<N>, Serial
         return myRowDim;
     }
 
-    public final boolean equals(final MatrixStore<N> other, final NumberContext context) {
-        return AccessUtils.equals(this, other, context);
-    }
-
-    @SuppressWarnings("unchecked")
     @Override
-    public final boolean equals(final Object someObj) {
-        if (someObj instanceof MatrixStore) {
-            return this.equals((MatrixStore<N>) someObj, NumberContext.getGeneral(6));
-        } else {
-            return super.equals(someObj);
+    public boolean equals(final Object obj) {
+        if (this == obj) {
+            return true;
         }
+        if (!(obj instanceof AbstractStore)) {
+            return false;
+        }
+        AbstractStore other = (AbstractStore) obj;
+        if (myColDim != other.myColDim) {
+            return false;
+        }
+        if (myComponentType == null) {
+            if (other.myComponentType != null) {
+                return false;
+            }
+        } else if (!myComponentType.equals(other.myComponentType)) {
+            return false;
+        }
+        if (myRowDim != other.myRowDim) {
+            return false;
+        }
+        return true;
     }
 
-    public final MatrixStore<N> get() {
-        return this;
+    public final int getColDim() {
+        return myColDim;
+    }
+
+    public final int getMaxDim() {
+        return Math.max(myRowDim, myColDim);
+    }
+
+    public final int getMinDim() {
+        return Math.min(myRowDim, myColDim);
+    }
+
+    public final int getRowDim() {
+        return myRowDim;
     }
 
     @Override
-    public final int hashCode() {
-        return MatrixUtils.hashCode(this);
-    }
-
-    public boolean isAbsolute(final long row, final long column) {
-        return this.toScalar(row, column).isAbsolute();
-    }
-
-    /**
-     * @see org.ojalgo.access.Access2D.Elements#isSmall(long, long, double)
-     */
-    public boolean isSmall(final long row, final long column, final double comparedTo) {
-        return this.toScalar(row, column).isSmall(comparedTo);
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + myColDim;
+        result = prime * result + (myComponentType == null ? 0 : myComponentType.hashCode());
+        result = prime * result + myRowDim;
+        return result;
     }
 
     public int limitOfColumn(final int col) {
@@ -133,97 +193,34 @@ abstract class AbstractStore<N extends Number> implements MatrixStore<N>, Serial
 
     public N multiplyBoth(final Access1D<N> leftAndRight) {
 
-        final PhysicalStore<N> tmpStep1 = this.factory().makeZero(1L, leftAndRight.count());
-        final PhysicalStore<N> tmpStep2 = this.factory().makeZero(1L, 1L);
-
         if (this.isPrimitive()) {
+
+            final PhysicalStore<N> tmpStep1 = this.physical().make(1L, leftAndRight.count());
             tmpStep1.fillByMultiplying(leftAndRight, this);
-        } else {
-            final PhysicalStore<N> tmpLeft = this.factory().rows(leftAndRight);
-            tmpLeft.fillMatching(this.factory().function().conjugate(), leftAndRight);
-            tmpStep1.fillByMultiplying(tmpLeft, this);
+
+            final PhysicalStore<N> tmpStep2 = this.physical().make(1L, 1L);
+            tmpStep2.fillByMultiplying(tmpStep1, leftAndRight);
+
+            return tmpStep2.get(0L);
+
         }
-
-        tmpStep2.fillByMultiplying(tmpStep1, leftAndRight);
-
-        return tmpStep2.get(0L);
-    }
-
-    public void supplyTo(final ElementsConsumer<N> consumer) {
-        consumer.fillAll(this.factory().scalar().zero().getNumber());
-        this.supplyNonZerosTo(consumer);
+        return MatrixStore.super.multiplyBoth(leftAndRight);
     }
 
     @Override
     public final String toString() {
-        return MatrixUtils.toString(this);
+        return Access2D.toString(this);
     }
 
-    public void visitAll(final VoidFunction<N> visitor) {
-        final int tmpRowDim = this.getRowDim();
-        final int tmpColDim = this.getColDim();
-        for (int j = 0; j < tmpColDim; j++) {
-            for (int i = 0; i < tmpRowDim; i++) {
-                visitor.invoke(this.get(i, j));
-            }
-        }
+    protected final boolean isPrimitive() {
+        return this.getComponentType().equals(Double.class);
     }
-
-    public void visitColumn(final long row, final long column, final VoidFunction<N> visitor) {
-        final long tmpRowDim = this.countRows();
-        for (long i = row; i < tmpRowDim; i++) {
-            visitor.invoke(this.get(i, column));
-        }
-    }
-
-    public void visitDiagonal(final long row, final long column, final VoidFunction<N> visitor) {
-        final int tmpRowDim = this.getRowDim();
-        final int tmpColDim = this.getColDim();
-        for (int ij = 0; ((row + ij) < tmpRowDim) && ((column + ij) < tmpColDim); ij++) {
-            visitor.invoke(this.get(row + ij, column + ij));
-        }
-    }
-
-    public void visitRange(final long first, final long limit, final VoidFunction<N> visitor) {
-        for (long i = first; i < limit; i++) {
-            visitor.invoke(this.get(i));
-        }
-    }
-
-    public void visitRow(final long row, final long column, final VoidFunction<N> visitor) {
-        final long tmpColDim = this.countColumns();
-        for (long j = column; j < tmpColDim; j++) {
-            visitor.invoke(this.get(row, j));
-        }
-    }
-
-    protected final int getColDim() {
-        return myColDim;
-    }
-
-    protected final int getMaxDim() {
-        return Math.max(myRowDim, myColDim);
-    }
-
-    protected final int getMinDim() {
-        return Math.min(myRowDim, myColDim);
-    }
-
-    protected final int getRowDim() {
-        return myRowDim;
-    }
-
-    protected abstract void supplyNonZerosTo(final ElementsConsumer<N> consumer);
 
     final Class<?> getComponentType() {
         if (myComponentType == null) {
             myComponentType = this.get(0, 0).getClass();
         }
         return myComponentType;
-    }
-
-    final boolean isPrimitive() {
-        return this.getComponentType().equals(Double.class);
     }
 
 }

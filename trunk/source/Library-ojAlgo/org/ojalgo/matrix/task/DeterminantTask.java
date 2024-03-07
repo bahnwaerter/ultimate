@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,89 +21,176 @@
  */
 package org.ojalgo.matrix.task;
 
-import java.math.BigDecimal;
+import java.util.function.Supplier;
 
-import org.ojalgo.access.Access2D;
-import org.ojalgo.matrix.MatrixUtils;
+import org.ojalgo.matrix.Provider2D;
 import org.ojalgo.matrix.decomposition.Cholesky;
 import org.ojalgo.matrix.decomposition.LU;
+import org.ojalgo.matrix.store.ElementsSupplier;
 import org.ojalgo.matrix.store.MatrixStore;
 import org.ojalgo.scalar.ComplexNumber;
+import org.ojalgo.scalar.Quadruple;
+import org.ojalgo.scalar.Quaternion;
+import org.ojalgo.scalar.RationalNumber;
+import org.ojalgo.structure.Access2D;
+import org.ojalgo.structure.Structure2D;
 
-public interface DeterminantTask<N extends Number> extends MatrixTask<N> {
+public interface DeterminantTask<N extends Comparable<N>> extends MatrixTask<N> {
 
-    public static abstract class Factory<N extends Number> {
+    public static abstract class Factory<N extends Comparable<N>> {
 
-        public final DeterminantTask<N> make(final MatrixStore<N> template) {
-            return this.make(template, MatrixUtils.isHermitian(template));
+        public final DeterminantTask<N> make(final int dim, final boolean symmetric) {
+
+            final Structure2D template = new Structure2D() {
+
+                public long countColumns() {
+                    return dim;
+                }
+
+                public long countRows() {
+                    return dim;
+                }
+            };
+
+            return this.make(template, symmetric, false);
         }
 
-        public abstract DeterminantTask<N> make(MatrixStore<N> template, boolean symmetric);
+        public final DeterminantTask<N> make(final MatrixStore<N> template) {
+            return this.make(template, template.isHermitian(), false);
+        }
+
+        public abstract DeterminantTask<N> make(Structure2D template, boolean symmetric, boolean positiveDefinite);
 
     }
 
-    public static final Factory<BigDecimal> BIG = new Factory<BigDecimal>() {
+    Factory<ComplexNumber> C128 = new Factory<>() {
 
         @Override
-        public DeterminantTask<BigDecimal> make(final MatrixStore<BigDecimal> template, final boolean symmetric) {
-            if (symmetric) {
-                return Cholesky.make(template);
+        public DeterminantTask<ComplexNumber> make(final Structure2D template, final boolean symmetric, final boolean positiveDefinite) {
+            if (symmetric && positiveDefinite) {
+                return Cholesky.C128.make(template);
             } else {
-                return LU.make(template);
+                return LU.C128.make(template);
             }
         }
 
     };
 
-    public static final Factory<ComplexNumber> COMPLEX = new Factory<ComplexNumber>() {
+    /**
+     * @deprecated Use {@link #C128} instead.
+     */
+    @Deprecated
+    Factory<ComplexNumber> COMPLEX = C128;
+
+    Factory<Double> R064 = new Factory<>() {
 
         @Override
-        public DeterminantTask<ComplexNumber> make(final MatrixStore<ComplexNumber> template, final boolean symmetric) {
-            if (symmetric) {
-                return Cholesky.make(template);
-            } else {
-                return LU.make(template);
-            }
-        }
+        public DeterminantTask<Double> make(final Structure2D template, final boolean symmetric, final boolean positiveDefinite) {
 
-    };
+            long nbRows = template.countRows();
 
-    public static final Factory<Double> PRIMITIVE = new Factory<Double>() {
-
-        @Override
-        public DeterminantTask<Double> make(final MatrixStore<Double> template, final boolean symmetric) {
-            final long tmpDim = template.countRows();
-            if (tmpDim == 1L) {
+            if (nbRows == 1L) {
                 return AbstractDeterminator.FULL_1X1;
-            } else if (symmetric) {
-                if (tmpDim == 2L) {
-                    return AbstractDeterminator.SYMMETRIC_2X2;
-                } else if (tmpDim == 3L) {
-                    return AbstractDeterminator.SYMMETRIC_3X3;
-                } else if (tmpDim == 4L) {
-                    return AbstractDeterminator.SYMMETRIC_4X4;
-                } else if (tmpDim == 5L) {
-                    return AbstractDeterminator.SYMMETRIC_5X5;
-                } else {
-                    return Cholesky.make(template);
-                }
             } else {
-                if (tmpDim == 2L) {
-                    return AbstractDeterminator.FULL_2X2;
-                } else if (tmpDim == 3L) {
-                    return AbstractDeterminator.FULL_3X3;
-                } else if (tmpDim == 4L) {
-                    return AbstractDeterminator.FULL_4X4;
-                } else if (tmpDim == 5L) {
-                    return AbstractDeterminator.FULL_5X5;
+                if (symmetric) {
+                    if (nbRows == 2L) {
+                        return AbstractDeterminator.SYMMETRIC_2X2;
+                    } else if (nbRows == 3L) {
+                        return AbstractDeterminator.SYMMETRIC_3X3;
+                    } else if (nbRows == 4L) {
+                        return AbstractDeterminator.SYMMETRIC_4X4;
+                    } else if (nbRows == 5L) {
+                        return AbstractDeterminator.SYMMETRIC_5X5;
+                    } else {
+                        return positiveDefinite ? Cholesky.R064.make(template) : LU.R064.make(template);
+                    }
                 } else {
-                    return LU.make(template);
+                    if (nbRows == 2L) {
+                        return AbstractDeterminator.FULL_2X2;
+                    } else if (nbRows == 3L) {
+                        return AbstractDeterminator.FULL_3X3;
+                    } else if (nbRows == 4L) {
+                        return AbstractDeterminator.FULL_4X4;
+                    } else if (nbRows == 5L) {
+                        return AbstractDeterminator.FULL_5X5;
+                    } else {
+                        return LU.R064.make(template);
+                    }
                 }
             }
         }
 
     };
+
+    /**
+     * @deprecated Use {@link #R064} instead.
+     */
+    @Deprecated
+    Factory<Double> PRIMITIVE = R064;
+
+    Factory<Quadruple> R128 = new Factory<>() {
+
+        @Override
+        public DeterminantTask<Quadruple> make(final Structure2D template, final boolean symmetric, final boolean positiveDefinite) {
+            if (symmetric && positiveDefinite) {
+                return Cholesky.R128.make(template);
+            } else {
+                return LU.R128.make(template);
+            }
+        }
+
+    };
+
+    /**
+     * @deprecated Use {@link #R128} instead.
+     */
+    @Deprecated
+    Factory<Quadruple> QUADRUPLE = R128;
+
+    Factory<Quaternion> H256 = new Factory<>() {
+
+        @Override
+        public DeterminantTask<Quaternion> make(final Structure2D template, final boolean symmetric, final boolean positiveDefinite) {
+            if (symmetric && positiveDefinite) {
+                return Cholesky.H256.make(template);
+            } else {
+                return LU.H256.make(template);
+            }
+        }
+
+    };
+
+    /**
+     * @deprecated Use {@link #H256} instead.
+     */
+    @Deprecated
+    Factory<Quaternion> QUATERNION = H256;
+
+    Factory<RationalNumber> Q128 = new Factory<>() {
+
+        @Override
+        public DeterminantTask<RationalNumber> make(final Structure2D template, final boolean symmetric, final boolean positiveDefinite) {
+            if (symmetric && positiveDefinite) {
+                return Cholesky.Q128.make(template);
+            } else {
+                return LU.Q128.make(template);
+            }
+        }
+
+    };
+
+    /**
+     * @deprecated Use {@link #Q128} instead.
+     */
+    @Deprecated
+    Factory<RationalNumber> RATIONAL = Q128;
 
     N calculateDeterminant(Access2D<?> matrix);
 
+    default Provider2D.Determinant<N> toDeterminantProvider(final ElementsSupplier<N> original, final Supplier<MatrixStore<N>> alternativeOriginalSupplier) {
+
+        N determinant = this.calculateDeterminant(alternativeOriginalSupplier.get());
+
+        return () -> determinant;
+    }
 }

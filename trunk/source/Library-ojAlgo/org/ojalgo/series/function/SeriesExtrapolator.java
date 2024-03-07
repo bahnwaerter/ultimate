@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,17 +27,16 @@ import org.ojalgo.series.BasicSeries;
 
 /**
  * An extrapolator produces new data points to existing series.
- * 
+ *
  * @author apete
- * @param <K>
  */
-public abstract class SeriesExtrapolator<K extends Comparable<K>> extends SeriesFunction<K> {
+public abstract class SeriesExtrapolator<K extends Comparable<? super K>> extends SeriesFunction<K> {
 
-    protected SeriesExtrapolator(final BasicSeries<K, ? extends Number> data) {
+    protected SeriesExtrapolator(final BasicSeries<K, ? extends Comparable<?>> data) {
         super(data);
     }
 
-    protected SeriesExtrapolator(final Map<String, ? extends BasicSeries<K, ? extends Number>> data) {
+    protected SeriesExtrapolator(final Map<String, ? extends BasicSeries<K, ? extends Comparable<?>>> data) {
         super(data);
     }
 

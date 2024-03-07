@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,26 +21,23 @@
  */
 package org.ojalgo.matrix.store;
 
-import org.ojalgo.access.Access1D;
-import org.ojalgo.constant.PrimitiveMath;
+import org.ojalgo.function.constant.PrimitiveMath;
 import org.ojalgo.scalar.Scalar;
+import org.ojalgo.structure.Access1D;
 
 /**
  * ZeroStore
  *
  * @author apete
  */
-final class ZeroStore<N extends Number> extends FactoryStore<N> {
-
-    private final N myNumberZero;
-    private final Scalar<N> myScalarZero;
+final class ZeroStore<N extends Comparable<N>> extends FactoryStore<N> {
 
     ZeroStore(final PhysicalStore.Factory<N, ?> factory, final int rowsCount, final int columnsCount) {
-
         super(factory, rowsCount, columnsCount);
+    }
 
-        myScalarZero = factory.scalar().zero();
-        myNumberZero = myScalarZero.getNumber();
+    ZeroStore(final PhysicalStore.Factory<N, ?> factory, final long rowsCount, final long columnsCount) {
+        super(factory, rowsCount, columnsCount);
     }
 
     @Override
@@ -50,7 +47,7 @@ final class ZeroStore<N extends Number> extends FactoryStore<N> {
 
     @Override
     public MatrixStore<N> conjugate() {
-        return new ZeroStore<N>(this.factory(), this.getColDim(), this.getRowDim());
+        return new ZeroStore<>(this.physical(), this.getColDim(), this.getRowDim());
     }
 
     @Override
@@ -58,20 +55,24 @@ final class ZeroStore<N extends Number> extends FactoryStore<N> {
         return PrimitiveMath.ZERO;
     }
 
-    public double doubleValue(final long aRow, final long aCol) {
+    @Override
+    public double doubleValue(final int aRow, final int aCol) {
         return PrimitiveMath.ZERO;
     }
 
+    @Override
     public int firstInColumn(final int col) {
         return this.getRowDim();
     }
 
+    @Override
     public int firstInRow(final int row) {
         return this.getColDim();
     }
 
-    public N get(final long aRow, final long aCol) {
-        return myNumberZero;
+    @Override
+    public N get(final int aRow, final int aCol) {
+        return this.zero().get();
     }
 
     @Override
@@ -85,26 +86,48 @@ final class ZeroStore<N extends Number> extends FactoryStore<N> {
     }
 
     @Override
-    public ZeroStore<N> multiply(final Access1D<N> right) {
-        return new ZeroStore<N>(this.factory(), this.getRowDim(), (int) (right.count() / this.getColDim()));
+    public void multiply(final Access1D<N> right, final TransformableRegion<N> target) {
+        target.reset();
     }
 
     @Override
-    public MatrixStore<N> scale(final N scalar) {
-        return this;
+    public ZeroStore<N> multiply(final double scalar) {
+        return new ZeroStore<>(this.physical(), this.getRowDim(), this.getColDim());
     }
 
+    @Override
+    public ZeroStore<N> multiply(final MatrixStore<N> right) {
+        return new ZeroStore<>(this.physical(), this.getRowDim(), (int) (right.count() / this.getColDim()));
+    }
+
+    @Override
+    public ZeroStore<N> multiply(final N scalar) {
+        return new ZeroStore<>(this.physical(), this.getRowDim(), this.getColDim());
+    }
+
+    @Override
+    public N multiplyBoth(final Access1D<N> leftAndRight) {
+        return this.zero().get();
+    }
+
+    @Override
+    public ZeroStore<N> premultiply(final Access1D<N> left) {
+        return new ZeroStore<>(this.physical(), (int) (left.count() / this.getRowDim()), this.getColDim());
+    }
+
+    @Override
+    public void supplyTo(final TransformableRegion<N> receiver) {
+        receiver.reset();
+    }
+
+    @Override
     public Scalar<N> toScalar(final long row, final long column) {
-        return myScalarZero;
+        return this.zero();
     }
 
     @Override
     public MatrixStore<N> transpose() {
-        return new ZeroStore<N>(this.factory(), this.getColDim(), this.getRowDim());
-    }
-
-    @Override
-    protected void supplyNonZerosTo(final ElementsConsumer<N> consumer) {
+        return new ZeroStore<>(this.physical(), this.getColDim(), this.getRowDim());
     }
 
 }

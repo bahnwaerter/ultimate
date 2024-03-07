@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,8 +21,9 @@
  */
 package org.ojalgo.random.process;
 
-import static org.ojalgo.constant.PrimitiveMath.*;
+import static org.ojalgo.function.constant.PrimitiveMath.*;
 
+import org.ojalgo.ProgrammingError;
 import org.ojalgo.random.Exponential;
 import org.ojalgo.random.Poisson;
 
@@ -32,22 +33,22 @@ import org.ojalgo.random.Poisson;
  * these inter-arrival times is assumed to be independent of other inter-arrival times. The process is a good
  * model of radioactive decay, telephone calls and requests for a particular document on a web server, among
  * many other phenomena.
- * 
+ *
  * @author apete
  */
-public final class PoissonProcess extends AbstractProcess<Poisson> {
-
-    private final double myRate; // lambda, intensity
+public final class PoissonProcess extends SingleValueBasedProcess<Poisson> {
 
     private static final Poisson GENERATOR = new Poisson();
 
-    protected PoissonProcess(final double aRate) {
+    private final double myRate; // lambda, intensity
+
+    protected PoissonProcess(final double rate) {
 
         super();
 
-        this.setValue(ZERO);
+        this.setCurrentValue(ZERO);
 
-        myRate = aRate;
+        myRate = rate;
     }
 
     public Poisson getDistribution(final double evaluationPoint) {
@@ -59,40 +60,42 @@ public final class PoissonProcess extends AbstractProcess<Poisson> {
     }
 
     @Override
-    protected double getNormalisedRandomIncrement() {
-        return GENERATOR.doubleValue();
-    }
-
-    @Override
-    protected double step(final double currentValue, final double stepSize, final double normalisedRandomIncrement) {
-        final double retVal = currentValue + ((myRate * stepSize) * normalisedRandomIncrement);
-        this.setValue(retVal);
+    double doStep(final double stepSize, final double normalisedRandomIncrement) {
+        double retVal = this.getCurrentValue() + ((myRate * stepSize) * normalisedRandomIncrement);
+        this.setCurrentValue(retVal);
         return retVal;
     }
 
     @Override
-    double getExpected(final double aStepSize) {
-        return myRate * aStepSize;
+    double getExpected(final double stepSize) {
+        return myRate * stepSize;
     }
 
     @Override
-    double getLowerConfidenceQuantile(final double aStepSize, final double aConfidence) {
-        throw new UnsupportedOperationException();
+    double getLowerConfidenceQuantile(final double stepSize, final double confidence) {
+        ProgrammingError.throwForUnsupportedOptionalOperation();
+        return ZERO;
     }
 
     @Override
-    double getStandardDeviation(final double aStepSize) {
-        return Math.sqrt(myRate * aStepSize);
+    double getNormalisedRandomIncrement() {
+        return GENERATOR.doubleValue();
     }
 
     @Override
-    double getUpperConfidenceQuantile(final double aStepSize, final double aConfidence) {
-        throw new UnsupportedOperationException();
+    double getStandardDeviation(final double stepSize) {
+        return SQRT.invoke(myRate * stepSize);
     }
 
     @Override
-    double getVariance(final double aStepSize) {
-        return myRate * aStepSize;
+    double getUpperConfidenceQuantile(final double stepSize, final double confidence) {
+        ProgrammingError.throwForUnsupportedOptionalOperation();
+        return ZERO;
+    }
+
+    @Override
+    double getVariance(final double stepSize) {
+        return myRate * stepSize;
     }
 
 }

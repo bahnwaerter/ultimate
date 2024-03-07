@@ -1,5 +1,5 @@
 /*
- * Copyright 1997-2015 Optimatika (www.optimatika.se)
+ * Copyright 1997-2024 Optimatika
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,10 +22,10 @@
 package org.ojalgo.matrix.store;
 
 import org.ojalgo.ProgrammingError;
-import org.ojalgo.access.Access1D;
 import org.ojalgo.scalar.Scalar;
+import org.ojalgo.structure.Access1D;
 
-final class SingleStore<N extends Number> extends FactoryStore<N> {
+final class SingleStore<N extends Comparable<N>> extends FactoryStore<N> {
 
     private final N myNumber;
     private final double myValue;
@@ -37,17 +37,18 @@ final class SingleStore<N extends Number> extends FactoryStore<N> {
         ProgrammingError.throwForIllegalInvocation();
     }
 
-    SingleStore(final PhysicalStore.Factory<N, ?> factory, final Number element) {
+    SingleStore(final PhysicalStore.Factory<N, ?> factory, final Comparable<N> element) {
 
         super(factory, 1, 1);
 
-        myNumber = factory.scalar().cast(element);
-        myValue = myNumber.doubleValue();
+        Scalar<N> converted = factory.scalar().convert(element);
+        myNumber = converted.get();
+        myValue = converted.doubleValue();
     }
 
     @Override
     public MatrixStore<N> conjugate() {
-        return new SingleStore<N>(this.factory(), this.factory().scalar().convert(myNumber).conjugate().getNumber());
+        return new SingleStore<>(this.physical(), this.physical().scalar().convert(myNumber).conjugate().get());
     }
 
     @Override
@@ -55,46 +56,71 @@ final class SingleStore<N extends Number> extends FactoryStore<N> {
         return myValue;
     }
 
-    public double doubleValue(final long aRow, final long aCol) {
+    @Override
+    public double doubleValue(final int aRow, final int aCol) {
         return myValue;
     }
 
-    public N get(final long aRow, final long aCol) {
+    @Override
+    public N get(final int aRow, final int aCol) {
         return myNumber;
     }
 
     @Override
-    public MatrixStore<N> multiply(final Access1D<N> right) {
+    public void multiply(final Access1D<N> right, final TransformableRegion<N> target) {
+        // TODO Auto-generated method stub
+        super.multiply(right, target);
+    }
 
-        final int tmpRowDim = this.getRowDim();
-        final int tmpColDim = (int) (right.count() / this.getColDim());
+    @Override
+    public MatrixStore<N> multiply(final double scalar) {
+        // TODO Auto-generated method stub
+        return super.multiply(scalar);
+    }
 
-        final PhysicalStore.Factory<N, ?> tmpFactory = this.factory();
+    @Override
+    public MatrixStore<N> multiply(final MatrixStore<N> right) {
 
-        final PhysicalStore<N> retVal = tmpFactory.makeZero(tmpRowDim, tmpColDim);
+        final PhysicalStore.Factory<N, ?> tmpFactory = this.physical();
 
-        retVal.fillMatching(tmpFactory.function().multiply().first(myNumber), right);
+        final PhysicalStore<N> retVal = tmpFactory.copy(right);
+
+        retVal.modifyAll(tmpFactory.function().multiply().first(myNumber));
 
         return retVal;
     }
 
     @Override
-    public void supplyTo(final ElementsConsumer<N> consumer) {
-        this.supplyNonZerosTo(consumer);
+    public MatrixStore<N> multiply(final N scalar) {
+        // TODO Auto-generated method stub
+        return super.multiply(scalar);
     }
 
+    @Override
+    public N multiplyBoth(final Access1D<N> leftAndRight) {
+        // TODO Auto-generated method stub
+        return super.multiplyBoth(leftAndRight);
+    }
+
+    @Override
+    public ElementsSupplier<N> premultiply(final Access1D<N> left) {
+        // TODO Auto-generated method stub
+        return super.premultiply(left);
+    }
+
+    @Override
+    public void supplyTo(final TransformableRegion<N> receiver) {
+        receiver.fillOne(0L, 0L, myNumber);
+    }
+
+    @Override
     public Scalar<N> toScalar(final long row, final long column) {
-        return this.factory().scalar().convert(myNumber);
+        return this.physical().scalar().convert(myNumber);
     }
 
     @Override
     public MatrixStore<N> transpose() {
         return this;
-    }
-
-    @Override
-    protected void supplyNonZerosTo(final ElementsConsumer<N> consumer) {
-        consumer.fillOne(0L, 0L, myNumber);
     }
 
 }
