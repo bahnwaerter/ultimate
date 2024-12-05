@@ -373,6 +373,7 @@
 		<module>../ReqParser</module>
 		<module>../ReqPrinter</module>
 		<module>../ReqToTest</module>
+		<module>../ResultPrinter</module>
 		<module>../Sifa</module>
 		<module>../SMTInterpol</module>
 		<module>../SmtParser</module>
