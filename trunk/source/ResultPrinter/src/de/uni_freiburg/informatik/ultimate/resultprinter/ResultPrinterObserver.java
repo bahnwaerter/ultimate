@@ -28,6 +28,9 @@ package de.uni_freiburg.informatik.ultimate.resultprinter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+
+import com.google.gson.Gson;
 
 import de.uni_freiburg.informatik.ultimate.core.lib.observers.BaseObserver;
 import de.uni_freiburg.informatik.ultimate.core.model.models.IElement;
@@ -68,9 +71,25 @@ public class ResultPrinterObserver extends BaseObserver {
 	@Override
 	public boolean process(final IElement root) throws Throwable {
 		final Map<String, List<IResult>> results = mResultService.getResults();
-		results.entrySet();
-		mLogger.info("Write results to file");
-		// TODO: Print results!
+
+		for (final Entry<String, List<IResult>> result : results.entrySet()) {
+			mLogger.info("RESULT Plugin: " + result.getKey());
+			final List<IResult> res = result.getValue();
+			for (final IResult r : res) {
+				mLogger.info("RESULT         " + r);
+			}
+		}
+
+		final Gson gson = new Gson();
+		for (final Entry<String, List<IResult>> result : results.entrySet()) {
+			mLogger.info("RESULT Plugin: " + result.getKey());
+			final List<IResult> res = result.getValue();
+			for (final IResult r : res) {
+
+				mLogger.info("RESULT         " + gson.toJson(r));
+			}
+		}
+
 		return false;
 	}
 }
