@@ -134,11 +134,4 @@ public interface ICore<T> {
 	 */
 	IPreferenceProvider getPreferenceProvider(String pluginId);
 
-	/**
-	 *
-	 * @return A string that describes the current version of Ultimate in the form major.minor.revision-githash[-m],
-	 *         e.g., 0.1.20-dc65081-m. The "-m" signals that the working copy from which the binary was build contained
-	 *         local changes.
-	 */
-	String getUltimateVersionString();
 }

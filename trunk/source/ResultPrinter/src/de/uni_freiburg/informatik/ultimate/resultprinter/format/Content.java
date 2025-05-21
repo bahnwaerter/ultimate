@@ -1,14 +1,12 @@
 package de.uni_freiburg.informatik.ultimate.resultprinter.format;
 
-import java.util.Date;
-
 import com.google.gson.annotations.SerializedName;
 
 /**
  * <code>
+ * time: 2025-01-17 10:18,
  * ultimate: {
  *   version: 0.3.0,
- *   time: 2025-01-17 10:18
  *   config: {
  *     toolchain: [
  *       de.uni_freiburg.informatik.ultimate.traceabstraction,
@@ -43,22 +41,17 @@ public class Content {
 	@SerializedName("version")
 	final String mVersion;
 
-	@SerializedName("time")
-	final Date mTime;
-
-	@SerializedName(Config.NAME)
+	@SerializedName("config")
 	final Config mConfig;
 
-	@SerializedName(Input.NAME)
+	@SerializedName("input")
 	final Input mInput;
 
-	@SerializedName(Results.NAME)
+	@SerializedName("results")
 	final Results mResults;
 
-	public Content(final String version, final Date time, final Config config, final Input input,
-			final Results results) {
+	public Content(final String version, final Config config, final Input input, final Results results) {
 		mVersion = version;
-		mTime = time;
 		mConfig = config;
 		mInput = input;
 		mResults = results;

@@ -36,6 +36,7 @@ import org.eclipse.ui.application.IActionBarConfigurer;
 import org.eclipse.ui.application.IWorkbenchWindowConfigurer;
 import org.eclipse.ui.application.WorkbenchWindowAdvisor;
 
+import de.uni_freiburg.informatik.ultimate.core.coreplugin.UltimateCore;
 import de.uni_freiburg.informatik.ultimate.core.lib.toolchain.RunDefinition;
 import de.uni_freiburg.informatik.ultimate.core.model.ICore;
 import de.uni_freiburg.informatik.ultimate.core.model.services.ILogger;
@@ -91,7 +92,7 @@ public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
 		if (view instanceof LoggingView) {
 			final LoggingView lv = (LoggingView) view;
 			lv.initializeLogging(mController.getLoggingService());
-			mLogger.info("This is Ultimate GUI " + mCore.getUltimateVersionString());
+			mLogger.info("This is Ultimate GUI " + UltimateCore.getInformationService().getCoreVersion());
 		}
 	}
 }

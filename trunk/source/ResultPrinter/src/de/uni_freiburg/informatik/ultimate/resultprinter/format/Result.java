@@ -1,20 +1,14 @@
 package de.uni_freiburg.informatik.ultimate.resultprinter.format;
 
-import com.google.gson.annotations.SerializedName;
+public class Result {
 
-public class Result extends Entry {
+	final Object mData;
 
-	public static final String NAME = "result";
-
-	@SerializedName("type")
-	final String mType;
-
-	public Result(final String type) {
-		super(NAME);
-		mType = type;
+	public Result(final Object data) {
+		mData = data;
 	}
 
-	public String getType() {
-		return mType;
+	public Object getData() {
+		return mData;
 	}
 }

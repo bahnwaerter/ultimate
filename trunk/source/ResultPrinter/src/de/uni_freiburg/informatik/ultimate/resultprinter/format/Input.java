@@ -4,15 +4,12 @@ import java.util.List;
 
 import com.google.gson.annotations.SerializedName;
 
-public class Input extends Entry {
-
-	public static final String NAME = "input";
+public class Input {
 
 	@SerializedName("files")
 	private final List<String> mFiles;
 
 	public Input(final List<String> files) {
-		super(NAME);
 		mFiles = files;
 	}
 

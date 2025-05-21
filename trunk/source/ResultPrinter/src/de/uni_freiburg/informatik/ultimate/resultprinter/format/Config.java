@@ -2,21 +2,19 @@ package de.uni_freiburg.informatik.ultimate.resultprinter.format;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import com.google.gson.annotations.SerializedName;
 
-public class Config extends Entry {
-
-	public static final String NAME = "config";
+public class Config {
 
 	@SerializedName("toolchain")
 	private final List<String> mToolchainPlugins;
 
 	@SerializedName("settings")
-	private final Map<String, String> mSettings;
+	private final Map<String, List<Entry<String, Object>>> mSettings;
 
-	public Config(final List<String> toolchainPlugins, final Map<String, String> settings) {
-		super(NAME);
+	public Config(final List<String> toolchainPlugins, final Map<String, List<Entry<String, Object>>> settings) {
 		mToolchainPlugins = toolchainPlugins;
 		mSettings = settings;
 	}
@@ -25,7 +23,7 @@ public class Config extends Entry {
 		return mToolchainPlugins;
 	}
 
-	public Map<String, String> getSettings() {
+	public Map<String, List<Entry<String, Object>>> getSettings() {
 		return mSettings;
 	}
 }

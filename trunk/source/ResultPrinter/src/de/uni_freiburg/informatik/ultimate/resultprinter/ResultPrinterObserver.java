@@ -30,10 +30,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import com.google.gson.Gson;
-
 import de.uni_freiburg.informatik.ultimate.core.lib.observers.BaseObserver;
 import de.uni_freiburg.informatik.ultimate.core.model.models.IElement;
+import de.uni_freiburg.informatik.ultimate.core.model.preferences.IPreferenceProvider;
 import de.uni_freiburg.informatik.ultimate.core.model.results.IResult;
 import de.uni_freiburg.informatik.ultimate.core.model.services.ILogger;
 import de.uni_freiburg.informatik.ultimate.core.model.services.IResultService;
@@ -51,6 +50,11 @@ public class ResultPrinterObserver extends BaseObserver {
 	private final ILogger mLogger;
 
 	/**
+	 * Preference provider that offers access to all preferences.
+	 */
+	private final IPreferenceProvider mPrefProvider;
+
+	/**
 	 * Result service that offers all results of a toolchain's execution.
 	 */
 	private final IResultService mResultService;
@@ -58,13 +62,14 @@ public class ResultPrinterObserver extends BaseObserver {
 	/**
 	 * Creates a new result printer observer to print the results if requested.
 	 *
-	 * @param logger
-	 *            Logger service.
-	 * @param mResultService
-	 *            Result service.
+	 * @param logger        Logger service.
+	 * @param prefProvider  Preference provider.
+	 * @param resultService Result service.
 	 */
-	public ResultPrinterObserver(final ILogger logger, final IResultService resultService) {
+	public ResultPrinterObserver(final ILogger logger, final IPreferenceProvider prefProvider,
+			final IResultService resultService) {
 		mLogger = logger;
+		mPrefProvider = prefProvider;
 		mResultService = resultService;
 	}
 
@@ -80,15 +85,17 @@ public class ResultPrinterObserver extends BaseObserver {
 			}
 		}
 
-		final Gson gson = new Gson();
-		for (final Entry<String, List<IResult>> result : results.entrySet()) {
-			mLogger.info("RESULT Plugin: " + result.getKey());
-			final List<IResult> res = result.getValue();
-			for (final IResult r : res) {
+		mLogger.info(ResultConverter.dump(mPrefProvider, results));
 
-				mLogger.info("RESULT         " + gson.toJson(r));
-			}
-		}
+//		final Gson gson = new Gson();
+//		for (final Entry<String, List<IResult>> result : results.entrySet()) {
+//			mLogger.info("RESULT Plugin: " + result.getKey());
+//			final List<IResult> res = result.getValue();
+//			for (final IResult r : res) {
+//
+//				mLogger.info("RESULT         " + gson.toJson(r));
+//			}
+//		}
 
 		return false;
 	}

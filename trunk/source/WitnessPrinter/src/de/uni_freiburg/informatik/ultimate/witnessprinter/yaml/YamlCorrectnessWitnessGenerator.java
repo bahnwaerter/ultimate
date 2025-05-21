@@ -49,7 +49,7 @@ public class YamlCorrectnessWitnessGenerator {
 		final String programHash = preferences.getString(PreferenceInitializer.LABEL_GRAPH_DATA_PROGRAMHASH);
 		final String spec = preferences.getString(PreferenceInitializer.LABEL_GRAPH_DATA_SPECIFICATION);
 		final String arch = preferences.getString(PreferenceInitializer.LABEL_GRAPH_DATA_ARCHITECTURE);
-		final String version = new UltimateCore().getUltimateVersionString();
+		final String version = UltimateCore.getInformationService().getCoreVersion();
 		final String filename = ILocation.getAnnotation(mIcfg).getFileName();
 		final Map<String, String> programHashes = Map.of(filename, programHash);
 		mWriter = YamlWitnessWriter.construct(mFormatVersion,

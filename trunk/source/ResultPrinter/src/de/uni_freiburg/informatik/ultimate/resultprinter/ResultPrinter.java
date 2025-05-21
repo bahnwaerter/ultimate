@@ -32,6 +32,7 @@ import de.uni_freiburg.informatik.ultimate.core.model.IOutput;
 import de.uni_freiburg.informatik.ultimate.core.model.models.ModelType;
 import de.uni_freiburg.informatik.ultimate.core.model.observers.IObserver;
 import de.uni_freiburg.informatik.ultimate.core.model.preferences.IPreferenceInitializer;
+import de.uni_freiburg.informatik.ultimate.core.model.preferences.IPreferenceProvider;
 import de.uni_freiburg.informatik.ultimate.core.model.services.ILogger;
 import de.uni_freiburg.informatik.ultimate.core.model.services.IResultService;
 import de.uni_freiburg.informatik.ultimate.core.model.services.IUltimateServiceProvider;
@@ -72,8 +73,9 @@ public class ResultPrinter implements IOutput {
 	@Override
 	public List<IObserver> getObservers() {
 		final ILogger logger = mServices.getLoggingService().getLogger(getPluginID());
+		final IPreferenceProvider prefProvider = mServices.getPreferenceProvider(getPluginID());
 		final IResultService resultService = mServices.getResultService();
-		return List.of(new ResultPrinterObserver(logger, resultService));
+		return List.of(new ResultPrinterObserver(logger, prefProvider, resultService));
 	}
 
 	@Override

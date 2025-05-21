@@ -81,7 +81,7 @@ public class YamlViolationWitnessGenerator<TE, E> {
 		final String arch = mPreferences.getString(PreferenceInitializer.LABEL_GRAPH_DATA_ARCHITECTURE);
 		final FormatVersion formatVersion =
 				FormatVersion.fromString(mPreferences.getString(PreferenceInitializer.LABEL_YAML_FORMAT_VERSION));
-		final String version = new UltimateCore().getUltimateVersionString();
+		final String version = UltimateCore.getInformationService().getCoreVersion();
 		final Map<String, String> programHashes = Map.of(filename, hash);
 		mWriter = YamlWitnessWriter.construct(formatVersion,
 				new MetadataProvider(formatVersion, producer, version, programHashes, spec, arch, "C"));

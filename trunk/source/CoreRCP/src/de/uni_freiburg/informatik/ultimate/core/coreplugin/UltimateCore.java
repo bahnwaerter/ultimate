@@ -36,8 +36,11 @@ import java.util.Dictionary;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.IConfigurationElement;
@@ -65,8 +68,10 @@ import de.uni_freiburg.informatik.ultimate.core.model.IToolchainData;
 import de.uni_freiburg.informatik.ultimate.core.model.IUltimatePlugin;
 import de.uni_freiburg.informatik.ultimate.core.model.preferences.IPreferenceInitializer;
 import de.uni_freiburg.informatik.ultimate.core.model.preferences.IPreferenceProvider;
+import de.uni_freiburg.informatik.ultimate.core.model.services.IInformationService;
 import de.uni_freiburg.informatik.ultimate.core.model.services.ILogger;
 import de.uni_freiburg.informatik.ultimate.core.model.services.ILoggingService;
+import de.uni_freiburg.informatik.ultimate.core.preferences.RcpPreferenceProvider;
 import de.uni_freiburg.informatik.ultimate.core.util.RcpUtils;
 import de.uni_freiburg.informatik.ultimate.ep.UltimateExtensionPoints;
 import de.uni_freiburg.informatik.ultimate.util.CoreUtil;
@@ -83,6 +88,8 @@ public class UltimateCore implements IApplication, ICore<RunDefinition>, IUltima
 	// exported packages
 
 	private static String[] sPluginNames;
+
+	private static IInformationService sInformationService;
 
 	private ILogger mLogger;
 
@@ -102,10 +109,9 @@ public class UltimateCore implements IApplication, ICore<RunDefinition>, IUltima
 
 	private JobChangeAdapter mJobChangeAdapter;
 
-	private String mUltimateVersion;
-
 	public UltimateCore() {
 		// This Default-Constructor is needed to start up the application
+		sInformationService = new UltimateCoreInformationService(this);
 	}
 
 	public final Object startManually(final IController<RunDefinition> controller) throws Exception {
@@ -381,6 +387,67 @@ public class UltimateCore implements IApplication, ICore<RunDefinition>, IUltima
 		return mCoreStorage.getLoggingService();
 	}
 
+	public static IInformationService getInformationService() {
+		return sInformationService;
+	}
+
+	public final class UltimateCoreInformationService implements IInformationService {
+
+		private final static String mUltimateVersion = createVersionString();
+
+		private final ICore<?> mCore;
+
+		public UltimateCoreInformationService(final ICore<RunDefinition> core) {
+			mCore = core;
+		}
+
+		@Override
+		public String getCoreVersion() {
+			return mUltimateVersion;
+		}
+
+		@Override
+		public Map<String, List<Entry<String, Object>>> getAllPreferencesPerPlugin() {
+			return Arrays.stream(getRegisteredUltimatePluginIDs()).collect(Collectors.toMap(pluginId -> pluginId,
+					pluginId -> new ArrayList<>(new RcpPreferenceProvider(pluginId).getPreferences().entrySet())));
+		}
+
+		@Override
+		public Map<String, List<Entry<String, Object>>> getDiffPreferencesPerPlugin() {
+			return Arrays.stream(getRegisteredUltimatePluginIDs()).collect(Collectors.toMap(pluginId -> pluginId,
+					pluginId -> new ArrayList<>(new RcpPreferenceProvider(pluginId).getDeltaPreferences().entrySet())));
+		}
+
+		@Override
+		public Map<String, String> getAllRegisteredPlugins() {
+			return Arrays.asList(mCore.getRegisteredUltimatePlugins()).stream()
+					.collect(Collectors.toMap(IUltimatePlugin::getPluginID, IUltimatePlugin::getPluginName));
+		}
+
+		@Override
+		public Map<String, String> getAllToolchainPlugins() {
+			return null;
+		}
+
+		private static String createVersionString() {
+			final Bundle bundle = Platform.getBundle(Activator.PLUGIN_ID);
+			if (bundle == null) {
+				return "UNKNOWN";
+			}
+			final Dictionary<String, String> headers = bundle.getHeaders();
+			if (headers == null) {
+				return "UNKNOWN";
+			}
+
+			final String major = headers.get("Bundle-Version");
+			final String gitVersion = CoreUtil.readGitVersion(UltimateCore.class.getClassLoader());
+			if (gitVersion == null) {
+				return major;
+			}
+			return major + "-" + gitVersion;
+		}
+	}
+
 	@Override
 	public IPreferenceProvider getPreferenceProvider(final String pluginId) {
 		return mCoreStorage.getPreferenceProvider(pluginId);
@@ -400,32 +467,6 @@ public class UltimateCore implements IApplication, ICore<RunDefinition>, IUltima
 			}
 			mLogger.error("Error during toolchain job processing:", event.getResult().getException());
 		}
-	}
-
-	@Override
-	public String getUltimateVersionString() {
-		if (mUltimateVersion == null) {
-			mUltimateVersion = createVersionString();
-		}
-		return mUltimateVersion;
-	}
-
-	private String createVersionString() {
-		final Bundle bundle = Platform.getBundle(Activator.PLUGIN_ID);
-		if (bundle == null) {
-			return "UNKNOWN";
-		}
-		final Dictionary<String, String> headers = bundle.getHeaders();
-		if (headers == null) {
-			return "UNKNOWN";
-		}
-
-		final String major = headers.get("Bundle-Version");
-		final String gitVersion = CoreUtil.readGitVersion(getClass().getClassLoader());
-		if (gitVersion == null) {
-			return major;
-		}
-		return major + "-" + gitVersion;
 	}
 
 }

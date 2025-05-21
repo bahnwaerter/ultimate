@@ -3,6 +3,9 @@ package de.uni_freiburg.informatik.ultimate.resultprinter.writer;
 import java.io.IOException;
 import java.io.Writer;
 
+/**
+ * @author Manuel Bentele ()
+ */
 public interface IResultWriter {
 
 	String formatResults(final Object results);
