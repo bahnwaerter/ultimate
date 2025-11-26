@@ -4,11 +4,13 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.eclipse.cdt.core.dom.ast.IASTNode;
 
 import de.uni_freiburg.informatik.ultimate.cdt.translation.implementation.base.CHandler;
 import de.uni_freiburg.informatik.ultimate.cdt.translation.implementation.base.TranslationSettings;
+import de.uni_freiburg.informatik.ultimate.cdt.translation.implementation.container.c.CPrimitive;
 import de.uni_freiburg.informatik.ultimate.cdt.translation.implementation.container.c.CPrimitive.CPrimitives;
 import de.uni_freiburg.informatik.ultimate.core.model.models.ILocation;
 
@@ -282,6 +284,25 @@ public final class RequiredMemoryModelFeatures {
 				changedSomething |= mmdecl.resolveDependencies(this, settings);
 			}
 		}
+
+		/*
+		 * An ugly workaround to avoid unsound analysis, as the implementation of memcpy(...) and memmove(...) is
+		 * incorrect when multiple memory arrays are required. See issue at
+		 * https://github.com/ultimate-pa/ultimate/issues/744
+		 */
+		if (!settings.isBitvectorTranslation()
+				&& ((mRequiredMemoryStructureDeclarations.contains(MemoryModelDeclarations.C_MEMCPY)
+						|| mRequiredMemoryStructureDeclarations.contains(MemoryModelDeclarations.C_MEMMOVE)))) {
+			final boolean requiresMultipleArraysForPrimitiveCategories = mDataUncheckedWriteRequired.stream()
+					.map(p -> p.getPrimitiveCategory()).collect(Collectors.toUnmodifiableSet()).containsAll(
+							Set.of(CPrimitive.CPrimitiveCategory.INTTYPE, CPrimitive.CPrimitiveCategory.FLOATTYPE));
+			if (requiresMultipleArraysForPrimitiveCategories) {
+				throw new UnsupportedOperationException(
+						"memcopy(...) or memmove(...) is not supported when multiple memory arrays for "
+								+ mDataUncheckedWriteRequired.toString() + " are required!");
+			}
+		}
+
 		mIsFrozen = true;
 	}
 
